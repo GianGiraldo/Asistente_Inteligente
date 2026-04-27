@@ -962,7 +962,7 @@ else:
                             else:
                                 st.error(f"Error: {msg}")
             
-             with tab_estadisticas:
+            with tab_estadisticas:
                 st.markdown("### 📊 Mis Estadísticas")
                 archivos_personales = storage_manager.listar_archivos_usuario(st.session_state['usuario'], incluir_publicaciones=False)
                 publicaciones = storage_manager.obtener_publicaciones_usuario(

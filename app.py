@@ -962,13 +962,16 @@ else:
                             else:
                                 st.error(f"Error: {msg}")
             
-            with tab_estadisticas:
+             with tab_estadisticas:
                 st.markdown("### 📊 Mis Estadísticas")
                 archivos_personales = storage_manager.listar_archivos_usuario(st.session_state['usuario'], incluir_publicaciones=False)
                 publicaciones = storage_manager.obtener_publicaciones_usuario(
                     st.session_state['usuario'], 
                     auth_manager.obtener_secciones_usuario(st.session_state['usuario'])
                 )
+                # **** CORRECCIÓN: obtener secciones_usuario aquí ****
+                secciones_usuario = auth_manager.obtener_secciones_usuario(st.session_state['usuario'])
+                
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
                     st.metric("📄 Documentos Subidos", len(archivos_personales))

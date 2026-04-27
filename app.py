@@ -362,25 +362,22 @@ else:
                 
                 subcategorias_disponibles = seccion_info.get("subcategorias", ["General"])
                 
-                # Categorías
+                # ========== CATEGORÍAS ==========
                 st.markdown("### 📂 Categorías")
                 if 'categoria_seleccionada' not in st.session_state:
                     st.session_state['categoria_seleccionada'] = subcategorias_disponibles[0]
                 
-                cols = st.columns(min(len(subcategorias_disponibles), 4))
-                for i, cat in enumerate(subcategorias_disponibles):
-                    col_idx = i % 4
-                    if i > 0 and i % 4 == 0:
-                        cols = st.columns(min(len(subcategorias_disponibles) - i, 4))
-                    with cols[col_idx]:
-                        if st.button(
-                            cat, 
-                            key=f"cat_{seccion_seleccionada}_{cat}",
-                            use_container_width=True,
-                            type="primary" if st.session_state['categoria_seleccionada'] == cat else "secondary"
-                        ):
-                            st.session_state['categoria_seleccionada'] = cat
-                            st.rerun()
+                # Usar CSS flex en lugar de st.columns dinámicas
+                st.markdown('<div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px;">', unsafe_allow_html=True)
+                for cat in subcategorias_disponibles:
+                    if st.button(
+                        cat,
+                        key=f"cat_{seccion_seleccionada}_{cat}",
+                        type="primary" if st.session_state['categoria_seleccionada'] == cat else "secondary"
+                    ):
+                        st.session_state['categoria_seleccionada'] = cat
+                        st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
                 
                 categoria_actual = st.session_state['categoria_seleccionada']
                 st.markdown(f"**Categoría actual:** {categoria_actual}")

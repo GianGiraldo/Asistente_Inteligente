@@ -473,7 +473,7 @@ else:
                 if publicaciones:
                     for pub in publicaciones:
                         if st.session_state['rol'] == 'master':
-                            col1, col2, col3, col4 = st.columns([3.5, 1, 1, 1])
+                            col1, col2, col3, col4 = st.columns([3.5, 1, 1.5, 1.5])
                         else:
                             col1, col2 = st.columns([3.5, 1])
                         
@@ -511,43 +511,45 @@ else:
                         
                         if st.session_state['rol'] == 'master':
                             with col3:
-                                with st.popover("✏️ Editar", use_container_width=True):
-                                    st.markdown("### Editar descripción")
+                                # Editar sin popover: usar un text_area condicional
+                                if st.button(f"✏️ Editar", key=f"edit_btn_{pub['id']}"):
+                                    st.session_state[f'editando_{pub["id"]}'] = True
+                                if st.session_state.get(f'editando_{pub["id"]}', False):
                                     nueva_desc = st.text_area(
                                         "Nueva descripción",
                                         value=pub.get('descripcion', ''),
-                                        height=150,
-                                        key=f"edit_desc_{pub['id']}"
+                                        height=100,
+                                        key=f"edit_text_{pub['id']}"
                                     )
                                     col_ed1, col_ed2 = st.columns(2)
                                     with col_ed1:
-                                        if st.button("💾 Guardar", key=f"save_edit_{pub['id']}", use_container_width=True):
+                                        if st.button(f"💾 Guardar", key=f"save_edit_{pub['id']}"):
                                             exito, msg = storage_manager.editar_publicacion(pub['id'], nueva_desc)
                                             if exito:
                                                 st.success(msg)
+                                                st.session_state.pop(f'editando_{pub["id"]}', None)
                                                 st.rerun()
                                             else:
                                                 st.error(msg)
                                     with col_ed2:
-                                        if st.button("❌ Cancelar", key=f"cancel_edit_{pub['id']}", use_container_width=True):
+                                        if st.button(f"❌ Cancelar", key=f"cancel_edit_{pub['id']}"):
+                                            st.session_state.pop(f'editando_{pub["id"]}', None)
                                             st.rerun()
                             
                             with col4:
-                                with st.popover("🗑️ Eliminar", use_container_width=True):
-                                    st.warning(f"¿Estás seguro de eliminar **{pub['nombre_original']}**?")
-                                    st.write("Esta acción no se puede deshacer.")
-                                    col_btn1, col_btn2 = st.columns(2)
-                                    with col_btn1:
-                                        if st.button("✅ Sí, eliminar", key=f"confirm_delete_{pub['id']}", use_container_width=True):
-                                            exito, msg = storage_manager.eliminar_publicacion(pub['id'])
-                                            if exito:
-                                                st.success(msg)
-                                                st.rerun()
-                                            else:
-                                                st.error(msg)
-                                    with col_btn2:
-                                        if st.button("❌ Cancelar", key=f"cancel_delete_{pub['id']}", use_container_width=True):
+                                # Eliminar sin popover: usar checkbox de confirmación
+                                eliminar_key = f"eliminar_{pub['id']}"
+                                if st.checkbox(f"🗑️ Marcar para eliminar", key=eliminar_key):
+                                    if st.button(f"✅ Confirmar eliminación", key=f"confirm_del_{pub['id']}"):
+                                        exito, msg = storage_manager.eliminar_publicacion(pub['id'])
+                                        if exito:
+                                            st.success(msg)
                                             st.rerun()
+                                        else:
+                                            st.error(msg)
+                                    if st.button(f"❌ Cancelar", key=f"cancel_del_{pub['id']}"):
+                                        st.session_state[eliminar_key] = False
+                                        st.rerun()
                         st.divider()
                 else:
                     st.info("No hay publicaciones del master en esta categoría")

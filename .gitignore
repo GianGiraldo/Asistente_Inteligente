@@ -1,0 +1,28 @@
+gitignore
+# Entornos virtuales
+venv/
+env/
+env_personal/
+__pycache__/
+*.pyc
+
+# Archivos de datos locales (JSON con usuarios y configuraciones)
+data/*.json
+!data/.gitkeep
+
+# Carpetas generadas por la aplicación (documentos subidos)
+uploads/
+publicaciones/
+videos/
+
+# Archivos de log y temporales
+*.log
+*.tmp
+
+# Archivos de configuración local (si usas variables de entorno)
+.env
+config.py
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db

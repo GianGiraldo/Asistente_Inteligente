@@ -11,7 +11,7 @@ from notification_manager import NotificationManager
 
 # Configuración de página
 st.set_page_config(
-    page_title="Optimizo con Pier - Gestión Documental",
+    page_title="Asistente Inteligente - Gestión Documental",
     page_icon="📁",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -137,7 +137,7 @@ def login_screen():
     """Pantalla de login/registro"""
     st.markdown("""
     <div class="main-header">
-        <h1>📁 Optimizo con Pier</h1>
+        <h1>📁 Asistente Inteligente</h1>
         <p>Tu gestor documental inteligente</p>
     </div>
     """, unsafe_allow_html=True)
@@ -206,7 +206,7 @@ else:
     col_logo, col_user, col_logout = st.columns([1, 3, 1])
     
     with col_logo:
-        st.markdown("## 📁 Optimizo con Pier")
+        st.markdown("## 📁 Asistente Inteligente")
     
     with col_user:
         # Obtener datos del usuario

@@ -188,11 +188,11 @@ if 'seccion_seleccionada' not in st.session_state:
 if not st.session_state['autenticado']:
     login_screen()
 else:
-    # ==================== HEADER ====================
+    # ============= HEADER ==============
     col_logo, col_user, col_logout = st.columns([1, 3, 1])
     
     with col_logo:
-        st.markdown("## 📁 Asistente Inteligente")
+        st.markdown("# 🌟 Asistente Inteligente")
     
     with col_user:
         nombre = st.session_state.get('nombre', 'Usuario')
@@ -201,8 +201,9 @@ else:
         
         subcol1, subcol2 = st.columns([4, 1])
         with subcol1:
-            st.markdown(f"**👤 {nombre}**  \n<small>{rol_texto}</small>", unsafe_allow_html=True)
+            st.markdown(f"**🌟 {nombre}**  \n<small>{rol_texto}</small>", unsafe_allow_html=True)
         with subcol2:
+            # Campana sin badge
             bell_html = '<span style="font-size: 1.8rem;">🔔</span>'
             with st.popover(bell_html, use_container_width=True):
                 st.markdown("### 📢 Últimas publicaciones")

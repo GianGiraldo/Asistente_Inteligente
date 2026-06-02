@@ -1,4 +1,3 @@
-# notification_manager.py
 from supabase_client import get_supabase
 from datetime import datetime
 import uuid
@@ -24,7 +23,6 @@ class NotificationManager:
 
     def crear_notificacion_para_todos(self, titulo, mensaje, tipo="publicacion", metadata=None):
         """Crea una notificación para todos los usuarios (útil para publicaciones del master)"""
-        # Obtener todos los emails de usuarios
         usuarios = self.supabase.table("users").select("email").execute()
         if not usuarios.data:
             return
@@ -67,3 +65,21 @@ class NotificationManager:
             .eq("leido", False) \
             .execute()
         return True
+
+    # ============= NUEVO MÉTODO PARA PUBLICACIONES GENERALES =============
+    def obtener_ultimas_publicaciones(self, limite=10):
+        """
+        Obtiene las últimas publicaciones generales desde la tabla 'publicaciones'.
+        Retorna una lista de diccionarios con las columnas:
+        id, titulo, mensaje, seccion, categoria, fecha_creacion, creado_por
+        """
+        try:
+            response = self.supabase.table('publicaciones')\
+                .select('*')\
+                .order('fecha_creacion', desc=True)\
+                .limit(limite)\
+                .execute()
+            return response.data or []
+        except Exception as e:
+            print(f"Error obteniendo publicaciones: {e}")
+            return []

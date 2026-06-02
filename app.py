@@ -35,35 +35,35 @@ SECCIONES = {
         "icono": "📊",
         "color": "#2ecc71",
         "descripcion": "Facturas, balances, libros contables",
-        "subcategorias": ["Administración", "Gestión", "Control", "Reportes"]
+        "subcategorias": ["Minicursos", "Formatos y Plantillas"]
     },
     "laboral": {
         "nombre": "👥 Laboral",
         "icono": "👥",
         "color": "#3498db",
         "descripcion": "Contratos, nóminas, documentos laborales",
-        "subcategorias": ["Contratos", "Nóminas", "Evaluaciones", "Legajos"]
+        "subcategorias": ["Minicursos", "Formatos y Plantillas"]
     },
     "financiero": {
         "nombre": "💰 Financiero",
         "icono": "💰",
         "color": "#f1c40f",
         "descripcion": "Estados financieros, proyecciones",
-        "subcategorias": ["Presupuestos", "Flujo de Caja", "Auditoría", "Impuestos"]
+        "subcategorias": ["Minicursos", "Formatos y Plantillas"]
     },
     "logistico": {
         "nombre": "🚚 Logístico",
         "icono": "🚚",
         "color": "#e67e22",
         "descripcion": "Guías, inventarios, despachos",
-        "subcategorias": ["Inventarios", "Despachos", "Guías de Remisión", "Almacén"]
+        "subcategorias": ["Minicursos", "Formatos y Plantillas"]
     },
     "excel": {
         "nombre": "📈 Excel",
         "icono": "📈",
         "color": "#1abc9c",
         "descripcion": "Plantillas, reportes, análisis",
-        "subcategorias": ["Plantillas", "Dashboards", "Análisis de Datos", "Macros"]
+        "subcategorias": ["Minicursos", "Formatos y Plantillas"]
     }
 }
 

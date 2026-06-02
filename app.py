@@ -349,39 +349,30 @@ else:
     # DASHBOARD - CON CLICK EN SECCIONES
     # ============================================
     if opcion == "🏠 Inicio":
-        st.header("🏠 Inicio")
-        
         if st.session_state['rol'] == 'master':
+            # ---- Panel solo para master ----
+            st.header("🏠 Inicio")
             secciones_usuario = list(SECCIONES.keys())
-        else:
-            secciones_usuario = auth_manager.obtener_secciones_usuario(st.session_state['usuario'])
-        
-        col1, col2, col3, col4 = st.columns(4)
-        
-        archivos_personales = storage_manager.listar_archivos_usuario(st.session_state['usuario'], incluir_publicaciones=False)
-        publicaciones = storage_manager.obtener_publicaciones_usuario(st.session_state['usuario'], secciones_usuario)
-        
-        with col1:
-            st.metric("📄 Mis Documentos", len(archivos_personales))
-        with col2:
-            st.metric("📢 Documentos Disponibles", len(publicaciones))
-        with col3:
-            st.metric("📂 Secciones", len(secciones_usuario))
-        with col4:
-            if st.session_state['rol'] == 'master':
+            
+            archivos_personales = storage_manager.listar_archivos_usuario(st.session_state['usuario'], incluir_publicaciones=False)
+            publicaciones = storage_manager.obtener_publicaciones_usuario(st.session_state['usuario'], secciones_usuario)
+            
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("📄 Mis Documentos", len(archivos_personales))
+            with col2:
+                st.metric("📢 Documentos Disponibles", len(publicaciones))
+            with col3:
+                st.metric("📂 Secciones", len(secciones_usuario))
+            with col4:
                 usuarios = len(auth_manager.listar_usuarios())
                 st.metric("👥 Usuarios", usuarios)
-            else:
-                st.metric("📬 Mensajes", message_manager.contar_no_leidos(st.session_state['usuario']))
-        
-        st.markdown("---")
-        st.markdown("### 📂 Mis Secciones Asignadas")
-        st.info("💡 **Haz clic en cualquier sección para ver sus documentos**")
-        
-        cols = st.columns(3)
-        for i, (seccion_id, seccion_info) in enumerate(SECCIONES.items()):
-            with cols[i % 3]:
-                if seccion_id in secciones_usuario:
+            
+            st.markdown("---")
+            st.markdown("### 📂 Todas las Secciones")
+            cols = st.columns(3)
+            for i, (seccion_id, seccion_info) in enumerate(SECCIONES.items()):
+                with cols[i % 3]:
                     docs_seccion = [d for d in publicaciones if d["seccion"] == seccion_id]
                     if st.button(
                         f"{seccion_info['icono']} {seccion_info['nombre']}\n\n"
@@ -393,14 +384,11 @@ else:
                         st.query_params["seccion"] = seccion_id
                         st.query_params["ir_a"] = "mis_documentos"
                         st.rerun()
-                else:
-                    st.markdown(f"""
-                    <div class="section-card" style="border-left-color: #ccc; opacity: 0.7;">
-                        <h3>{seccion_info['icono']} {seccion_info['nombre']}</h3>
-                        <p>{seccion_info['descripcion']}</p>
-                        <small>🔒 Sin acceso</small>
-                    </div>
-                    """, unsafe_allow_html=True)
+            # NOTA: No hay else mostrando "Sin acceso" porque el master tiene acceso a todo.
+        else:
+            # ---- Usuarios normales: redirigir a Mis Documentos ----
+            st.session_state['menu_principal'] = "📁 Mis Documentos"
+            st.rerun()
     
     # ============================================
     # MIS DOCUMENTOS

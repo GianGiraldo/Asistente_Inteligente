@@ -1,4 +1,4 @@
-# app.py - VERSIÓN CORREGIDA Y FORTALECIDA (con depuración)
+# app.py - VERSIÓN CORREGIDA Y FORTALECIDA (con notificaciones funcionando)
 import streamlit as st
 import pandas as pd
 from auth import AuthManager
@@ -7,6 +7,7 @@ from message_manager import MessageManager
 from datetime import datetime
 import os
 import traceback
+from notification_manager import NotificationManager
 
 # Configuración de página
 st.set_page_config(
@@ -16,15 +17,16 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Inicializar gestores
+# Inicializar gestores (incluye NotificationManager)
 @st.cache_resource
 def init_managers():
     auth = AuthManager()
     storage = StorageManager()
     messages = MessageManager()
-    return auth, storage, messages
+    notifications = NotificationManager()  # <-- NUEVO
+    return auth, storage, messages, notifications
 
-auth_manager, storage_manager, message_manager = init_managers()
+auth_manager, storage_manager, message_manager, notification_manager = init_managers()
 
 # Definición de secciones (con subcategorías)
 SECCIONES = {
@@ -150,15 +152,12 @@ def login_screen():
             if st.form_submit_button("Iniciar Sesión", use_container_width=True):
                 valido, rol, nombre, secciones = auth_manager.verificar_usuario(email, password)
                 if valido:
-                    # === DEPURACIÓN ===
-                    st.write(f"🔍 Depuración: rol obtenido = {rol}")
                     st.session_state['autenticado'] = True
                     st.session_state['usuario'] = email
                     st.session_state['rol'] = rol
                     st.session_state['nombre'] = nombre
                     st.session_state['secciones'] = secciones
                     st.session_state['login_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    # Forzar reinicio para que el menú se recargue con el nuevo rol
                     st.rerun()
                 else:
                     st.error("❌ Credenciales incorrectas")
@@ -201,28 +200,70 @@ else:
         if 'seccion' in st.query_params:
             st.session_state['seccion_seleccionada_documentos'] = st.query_params['seccion']
         st.session_state['menu_principal'] = "📁 Mis Documentos"
-        st.query_params.clear()    
+        st.query_params.clear()
 
-    # Header
-    col_logo, col_user, col_logout = st.columns([1, 3, 1])
+    # Header con campanita de notificaciones
+    col_logo, col_bell, col_user, col_logout = st.columns([1, 0.5, 2.5, 1])
     
     with col_logo:
         st.markdown("## 📁 Optimizo con Pier")
     
+    with col_bell:
+        # Contar notificaciones no leídas para el usuario actual
+        if 'usuario' in st.session_state:
+            no_leidas = notification_manager.contar_no_leidas(st.session_state['usuario'])
+        else:
+            no_leidas = 0
+        
+        # Mostrar campanita con badge si hay notificaciones
+        if no_leidas > 0:
+            bell_html = f'<span style="position: relative; display: inline-block; font-size: 1.8rem;">🔔<span style="position: absolute; top: -5px; right: -10px; background: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.7rem;">{no_leidas}</span></span>'
+        else:
+            bell_html = '<span style="font-size: 1.8rem;">🔔</span>'
+        
+        # Popover que se abre al hacer clic en la campanita
+        with st.popover(bell_html, use_container_width=True):
+            st.markdown("### 📬 Notificaciones")
+            if 'usuario' in st.session_state:
+                notificaciones = notification_manager.obtener_notificaciones_no_leidas(st.session_state['usuario'])
+            else:
+                notificaciones = []
+            
+            if notificaciones:
+                for n in notificaciones:
+                    st.markdown(f"**{n['titulo']}**")
+                    st.write(n['mensaje'])
+                    # Formatear fecha correctamente (datetime o string)
+                    fecha = n.get('fecha_creacion')
+                    if hasattr(fecha, 'strftime'):
+                        fecha_str = fecha.strftime('%Y-%m-%d %H:%M')
+                    else:
+                        fecha_str = str(fecha)[:16] if fecha else "Fecha desconocida"
+                    st.caption(f"📅 {fecha_str}")
+                    st.divider()
+                if st.button("✅ Marcar todas como leídas", use_container_width=True):
+                    notification_manager.marcar_todas_como_leidas(st.session_state['usuario'])
+                    st.rerun()
+            else:
+                st.info("No tienes notificaciones nuevas")
+    
     with col_user:
-        mensajes_no_leidos = message_manager.contar_no_leidos(st.session_state['usuario'])
+        mensajes_no_leidos = message_manager.contar_no_leidos(st.session_state.get('usuario', ''))
         badge = f'<span class="badge-nuevo">{mensajes_no_leidos}</span>' if mensajes_no_leidos > 0 else ''
+        nombre = st.session_state.get('nombre', 'Usuario')
+        rol = st.session_state.get('rol', 'usuario')
+        rol_texto = '👑 Master' if rol == 'master' else '👁️ Usuario'
         st.markdown(f"""
         <div style="text-align: right;">
-            <strong>👤 {st.session_state['nombre']}</strong><br>
-            <small>{'👑 Master' if st.session_state['rol'] == 'master' else '👁️ Usuario'}</small>
+            <strong>👤 {nombre}</strong><br>
+            <small>{rol_texto}</small>
             {badge}
         </div>
         """, unsafe_allow_html=True)
     
     with col_logout:
         if st.button("🚪 Cerrar Sesión"):
-            for key in ['autenticado', 'usuario', 'rol', 'nombre', 'secciones', 'login_time', 'seccion_seleccionada', 'menu_principal']:
+            for key in ['autenticado', 'usuario', 'rol', 'nombre', 'secciones', 'login_time', 'seccion_seleccionada']:
                 if key in st.session_state:
                     del st.session_state[key]
             st.rerun()

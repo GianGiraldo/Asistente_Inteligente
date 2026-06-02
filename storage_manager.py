@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime
 import mimetypes
 import unicodedata
+from notification_manager import NotificationManager
 
 def limpiar_ruta(texto):
     # Convierte caracteres como 'ó' a 'o', 'ó' a 'o', etc., y lo pasa a minúsculas
@@ -79,7 +80,16 @@ class StorageManager:
         return (True, data_insert) if result.data else (False, "Error al guardar")
 
     def publicar_documento(self, archivo, seccion, subcategoria, descripcion=""):
-        return self.guardar_archivo(archivo, seccion, subcategoria, "master", descripcion, es_publicacion=True)
+        exito, resultado = self.guardar_archivo(archivo, seccion, subcategoria, "master", descripcion, es_publicacion=True)
+        if exito:
+            notif_mgr = NotificationManager()
+            notif_mgr.crear_notificacion_para_todos(
+                titulo="📢 Nueva publicación",
+                mensaje=f"Se ha publicado un nuevo documento: {archivo.name} en la sección {seccion}",
+                tipo="publicacion",
+                metadata={"seccion": seccion, "subcategoria": subcategoria, "archivo_id": resultado["id"]}
+            )
+            return exito, resultado
 
     def listar_archivos_usuario(self, usuario, seccion=None, subcategoria=None, incluir_publicaciones=False):
         archivos = []

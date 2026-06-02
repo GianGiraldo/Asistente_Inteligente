@@ -192,71 +192,79 @@ if not st.session_state['autenticado']:
     login_screen()
 else:
     # === DEPURACIÓN: Mostrar rol actual en el sidebar (solo para desarrollo) ===
-    with st.sidebar:
-        st.markdown(f"**Rol actual:** `{st.session_state.get('rol', 'No definido')}`")
+# ==================== MENÚ LATERAL (SIDEBAR) ====================
+with st.sidebar:
+    st.image("assets/logo.png", use_container_width=True)  # si tienes logo, opcional
+    st.markdown(f"### Hola, {st.session_state.get('nombre', 'Usuario')}")
     
-    # Procesar redirección desde Dashboard
-    if 'ir_a' in st.query_params and st.query_params['ir_a'] == 'mis_documentos':
-        if 'seccion' in st.query_params:
-            st.session_state['seccion_seleccionada_documentos'] = st.query_params['seccion']
-        st.session_state['menu_principal'] = "📁 Mis Documentos"
-        st.query_params.clear()
-
-    # Header con campana a la derecha del nombre del usuario
-    col_logo, col_user, col_logout = st.columns([1, 3, 1])
+    rol_usuario = st.session_state.get('rol', '')
     
-    with col_logo:
-        st.markdown("## 📁 Asistente Inteligente")
-    
-    with col_user:
-        # Obtener datos del usuario
-        nombre = st.session_state.get('nombre', 'Usuario')
-        rol = st.session_state.get('rol', 'usuario')
-        rol_texto = '👑 Master' if rol == 'master' else '👁️ Usuario'
+    if rol_usuario == 'master':
+        # ---------- MASTER: menú completo con estadísticas ----------
+        st.markdown("## 📋 Menú Principal")
         
-        # Dos subcolumnas: izquierda para nombre/rol, derecha para la campana
-        subcol1, subcol2 = st.columns([4, 1])
-        with subcol1:
-            st.markdown(f"**👤 {nombre}**  \n<small>{rol_texto}</small>", unsafe_allow_html=True)
-        with subcol2:
-            # Campana sin badge numérico
-            bell_html = '<span style="font-size: 1.8rem;">🔔</span>'
-            with st.popover(bell_html, use_container_width=True):
-                st.markdown("### 📢 Últimas publicaciones")
-                # Obtener las 10 publicaciones más recientes (tabla 'publicaciones')
-                publicaciones = notification_manager.obtener_ultimas_publicaciones(limite=10)
-                if not publicaciones:
-                    st.info("No hay publicaciones recientes.")
-                else:
-                    for pub in publicaciones:
-                        # Formatear fecha
-                        fecha = pub.get('fecha_creacion', '')
-                        if fecha:
-                            fecha_str = fecha[:16] if isinstance(fecha, str) else str(fecha)[:16]
-                        else:
-                            fecha_str = "Fecha desconocida"
-                        
-                        # Mostrar tarjeta
-                        st.markdown(f"""
-                        <div style="background:#f8f9fa; border-radius:12px; padding:12px; margin-bottom:12px; border-left:4px solid #667eea;">
-                            <div style="font-weight:bold;">{pub['titulo']}</div>
-                            <div style="font-size:0.85rem; color:#555;">{pub['mensaje']}</div>
-                            <div style="font-size:0.7rem; color:#888; display:flex; justify-content:space-between;">
-                                <span>📅 {fecha_str}</span>
-                                <span>📂 {pub['seccion'].capitalize()} / {pub['categoria']}</span>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        # Botón para ir a la sección/categoría
-                        if st.button(f"🔍 Ver contenido", key=f"ver_{pub['id']}", use_container_width=True):
-                            st.session_state['seccion_seleccionada'] = pub['seccion']
-                            st.session_state['categoria_seleccionada'] = pub['categoria']
-                            st.session_state['menu_principal'] = "📁 Mis Documentos"
-                            st.rerun()
+        # Contar documentos totales (opcional)
+        total_mis_docs = storage_manager.contar_documentos_usuario(st.session_state['usuario']) if hasattr(storage_manager, 'contar_documentos_usuario') else 0
+        total_disponibles = storage_manager.contar_documentos_publicos() if hasattr(storage_manager, 'contar_documentos_publicos') else 0
+        total_secciones = len(SECCIONES)
+        total_mensajes_no_leidos = message_manager.contar_no_leidos(st.session_state['usuario'])
+        
+        # Mostrar métricas
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Mis Documentos", total_mis_docs)
+            st.metric("Secciones", total_secciones)
+        with col2:
+            st.metric("Documentos Disponibles", total_disponibles)
+            st.metric("Mensajes", total_mensajes_no_leidos)
+        
+        st.divider()
+        
+        # Opciones de navegación para master
+        opcion_master = st.radio(
+            "Ir a:",
+            ["🏠 Inicio", "📁 Mis Documentos", "👥 Gestión Usuarios", "📢 Publicaciones", "⚙️ Configuración"],
+            index=0
+        )
+        if opcion_master == "🏠 Inicio":
+            st.session_state['menu_principal'] = "Inicio"
+        elif opcion_master == "📁 Mis Documentos":
+            st.session_state['menu_principal'] = "📁 Mis Documentos"
+        elif opcion_master == "👥 Gestión Usuarios":
+            st.session_state['menu_principal'] = "Gestión Usuarios"
+        elif opcion_master == "📢 Publicaciones":
+            st.session_state['menu_principal'] = "Publicaciones"
+        elif opcion_master == "⚙️ Configuración":
+            st.session_state['menu_principal'] = "Configuración"
+        
+        st.divider()
+        
+        # Mostrar todas las secciones (para master también puede ver)
+        st.markdown("### 📂 Todas las Secciones")
+        for key, sec in SECCIONES.items():
+            if st.button(f"{sec['icono']} {sec['nombre']}", key=f"master_sec_{key}", use_container_width=True):
+                st.session_state['seccion_seleccionada'] = key
+                st.session_state['menu_principal'] = "📁 Mis Documentos"
+                st.rerun()
     
-    with col_logout:
-        if st.button("🚪 Cerrar Sesión"):
+    else:
+        # ---------- USUARIO NORMAL: solo sus secciones asignadas ----------
+        st.markdown("### Mis Secciones Asignadas")
+        secciones_usuario = st.session_state.get('secciones', [])
+        if not secciones_usuario:
+            st.info("No tienes secciones asignadas. Contacta al administrador.")
+        else:
+            for sec_key in secciones_usuario:
+                if sec_key in SECCIONES:
+                    sec = SECCIONES[sec_key]
+                    if st.button(f"{sec['icono']} {sec['nombre']}", key=f"user_sec_{sec_key}", use_container_width=True):
+                        st.session_state['seccion_seleccionada'] = sec_key
+                        st.session_state['menu_principal'] = "📁 Mis Documentos"
+                        st.rerun()
+        
+        # Opcional: botón de cerrar sesión (también en header, pero puede ir aquí)
+        st.divider()
+        if st.button("🚪 Cerrar Sesión", use_container_width=True):
             for key in ['autenticado', 'usuario', 'rol', 'nombre', 'secciones', 'login_time', 'seccion_seleccionada']:
                 if key in st.session_state:
                     del st.session_state[key]

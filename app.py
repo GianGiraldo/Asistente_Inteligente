@@ -202,64 +202,58 @@ else:
         st.session_state['menu_principal'] = "📁 Mis Documentos"
         st.query_params.clear()
 
-    # Header con campanita de notificaciones
-    col_logo, col_bell, col_user, col_logout = st.columns([1, 0.5, 2.5, 1])
+    # Header con campana a la derecha del nombre del usuario
+    col_logo, col_user, col_logout = st.columns([1, 3, 1])
     
     with col_logo:
         st.markdown("## 📁 Optimizo con Pier")
     
-    with col_bell:
-        # Contar notificaciones no leídas para el usuario actual
-        if 'usuario' in st.session_state:
-            no_leidas = notification_manager.contar_no_leidas(st.session_state['usuario'])
-        else:
-            no_leidas = 0
-        
-        # Mostrar campanita con badge si hay notificaciones
-        if no_leidas > 0:
-            bell_html = f'<span style="position: relative; display: inline-block; font-size: 1.8rem;">🔔<span style="position: absolute; top: -5px; right: -10px; background: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.7rem;">{no_leidas}</span></span>'
-        else:
-            bell_html = '<span style="font-size: 1.8rem;">🔔</span>'
-        
-        # Popover que se abre al hacer clic en la campanita
-        with st.popover(bell_html, use_container_width=True):
-            st.markdown("### 📬 Notificaciones")
-            if 'usuario' in st.session_state:
-                notificaciones = notification_manager.obtener_notificaciones_no_leidas(st.session_state['usuario'])
-            else:
-                notificaciones = []
-            
-            if notificaciones:
-                for n in notificaciones:
-                    st.markdown(f"**{n['titulo']}**")
-                    st.write(n['mensaje'])
-                    # Formatear fecha correctamente (datetime o string)
-                    fecha = n.get('fecha_creacion')
-                    if hasattr(fecha, 'strftime'):
-                        fecha_str = fecha.strftime('%Y-%m-%d %H:%M')
-                    else:
-                        fecha_str = str(fecha)[:16] if fecha else "Fecha desconocida"
-                    st.caption(f"📅 {fecha_str}")
-                    st.divider()
-                if st.button("✅ Marcar todas como leídas", use_container_width=True):
-                    notification_manager.marcar_todas_como_leidas(st.session_state['usuario'])
-                    st.rerun()
-            else:
-                st.info("No tienes notificaciones nuevas")
-    
     with col_user:
-        mensajes_no_leidos = message_manager.contar_no_leidos(st.session_state.get('usuario', ''))
-        badge = f'<span class="badge-nuevo">{mensajes_no_leidos}</span>' if mensajes_no_leidos > 0 else ''
+        # Obtener datos del usuario
         nombre = st.session_state.get('nombre', 'Usuario')
         rol = st.session_state.get('rol', 'usuario')
         rol_texto = '👑 Master' if rol == 'master' else '👁️ Usuario'
-        st.markdown(f"""
-        <div style="text-align: right;">
-            <strong>👤 {nombre}</strong><br>
-            <small>{rol_texto}</small>
-            {badge}
-        </div>
-        """, unsafe_allow_html=True)
+        
+        # Dos subcolumnas: izquierda para nombre/rol, derecha para la campana
+        subcol1, subcol2 = st.columns([4, 1])
+        with subcol1:
+            st.markdown(f"**👤 {nombre}**  \n<small>{rol_texto}</small>", unsafe_allow_html=True)
+        with subcol2:
+            # Campana sin badge numérico
+            bell_html = '<span style="font-size: 1.8rem;">🔔</span>'
+            with st.popover(bell_html, use_container_width=True):
+                st.markdown("### 📢 Últimas publicaciones")
+                # Obtener las 10 publicaciones más recientes (tabla 'publicaciones')
+                publicaciones = notification_manager.obtener_ultimas_publicaciones(limite=10)
+                if not publicaciones:
+                    st.info("No hay publicaciones recientes.")
+                else:
+                    for pub in publicaciones:
+                        # Formatear fecha
+                        fecha = pub.get('fecha_creacion', '')
+                        if fecha:
+                            fecha_str = fecha[:16] if isinstance(fecha, str) else str(fecha)[:16]
+                        else:
+                            fecha_str = "Fecha desconocida"
+                        
+                        # Mostrar tarjeta
+                        st.markdown(f"""
+                        <div style="background:#f8f9fa; border-radius:12px; padding:12px; margin-bottom:12px; border-left:4px solid #667eea;">
+                            <div style="font-weight:bold;">{pub['titulo']}</div>
+                            <div style="font-size:0.85rem; color:#555;">{pub['mensaje']}</div>
+                            <div style="font-size:0.7rem; color:#888; display:flex; justify-content:space-between;">
+                                <span>📅 {fecha_str}</span>
+                                <span>📂 {pub['seccion'].capitalize()} / {pub['categoria']}</span>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # Botón para ir a la sección/categoría
+                        if st.button(f"🔍 Ver contenido", key=f"ver_{pub['id']}", use_container_width=True):
+                            st.session_state['seccion_seleccionada'] = pub['seccion']
+                            st.session_state['categoria_seleccionada'] = pub['categoria']
+                            st.session_state['menu_principal'] = "📁 Mis Documentos"
+                            st.rerun()
     
     with col_logout:
         if st.button("🚪 Cerrar Sesión"):

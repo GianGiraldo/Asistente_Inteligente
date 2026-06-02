@@ -1,4 +1,4 @@
-# app.py - VERSIÓN CORREGIDA Y COMPLETA
+# app.py - VERSIÓN CORREGIDA (sin sidebar duplicado)
 import streamlit as st
 import pandas as pd
 from auth import AuthManager
@@ -156,6 +156,11 @@ def login_screen():
                     st.session_state['nombre'] = nombre
                     st.session_state['secciones'] = secciones
                     st.session_state['login_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    # Establecer menú inicial según rol
+                    if rol == 'master':
+                        st.session_state['menu_principal'] = "🏠 Inicio"
+                    else:
+                        st.session_state['menu_principal'] = "📁 Mis Documentos"
                     st.rerun()
                 else:
                     st.error("❌ Credenciales incorrectas")
@@ -239,7 +244,7 @@ else:
     
     st.markdown("---")
     
-    # ==================== SIDEBAR ====================
+    # ==================== SIDEBAR ÚNICO ====================
     with st.sidebar:
         st.markdown(f"### Hola, {st.session_state.get('nombre', 'Usuario')}")
         rol_usuario = st.session_state.get('rol', '')
@@ -263,21 +268,15 @@ else:
             
             st.divider()
             
+            # Radio para navegación master
             opcion_master = st.radio(
                 "Ir a:",
                 ["🏠 Inicio", "📁 Mis Documentos", "👥 Gestión Usuarios", "📢 Publicaciones", "⚙️ Configuración"],
-                index=0
+                index=["🏠 Inicio", "📁 Mis Documentos", "👥 Gestión Usuarios", "📢 Publicaciones", "⚙️ Configuración"].index(st.session_state.get('menu_principal', '🏠 Inicio'))
             )
-            if opcion_master == "🏠 Inicio":
-                st.session_state['menu_principal'] = "Inicio"
-            elif opcion_master == "📁 Mis Documentos":
-                st.session_state['menu_principal'] = "📁 Mis Documentos"
-            elif opcion_master == "👥 Gestión Usuarios":
-                st.session_state['menu_principal'] = "Gestión Usuarios"
-            elif opcion_master == "📢 Publicaciones":
-                st.session_state['menu_principal'] = "Publicaciones"
-            elif opcion_master == "⚙️ Configuración":
-                st.session_state['menu_principal'] = "Configuración"
+            if opcion_master != st.session_state.get('menu_principal'):
+                st.session_state['menu_principal'] = opcion_master
+                st.rerun()
             
             st.divider()
             
@@ -288,7 +287,7 @@ else:
                     st.session_state['menu_principal'] = "📁 Mis Documentos"
                     st.rerun()
         else:
-            # USUARIO NORMAL: solo sus secciones asignadas
+            # USUARIO NORMAL: solo sus secciones asignadas (sin métricas)
             st.markdown("### Mis Secciones Asignadas")
             secciones_usuario = st.session_state.get('secciones', [])
             if not secciones_usuario:
@@ -308,49 +307,14 @@ else:
                         del st.session_state[key]
                 st.rerun()
     
-    st.markdown("---")
-    
-    # Sidebar
-    with st.sidebar:
-        st.image("https://via.placeholder.com/200x80/667eea/ffffff?text=Optimizo", use_container_width=True)
-        st.markdown("---")
-        
-        # Menú según rol
-        if st.session_state['rol'] == 'master':
-            menu = ["🏠 Inicio", "📁 Mis Documentos", "👥 Gestión Usuarios", "📬 Consultas", "⚙️ Configuración"]
-        else:
-            menu = ["🏠 Inicio", "📁 Mis Documentos", "📬 Consultas", "👤 Mi Perfil"]
-        
-        # Inicializar session_state para el menú si no existe
-        if 'menu_principal' not in st.session_state:
-            st.session_state['menu_principal'] = menu[0]
-        
-        if st.session_state['menu_principal'] not in menu:
-            st.session_state['menu_principal'] = menu[0]
-        
-        opcion = st.radio(
-            "📋 Menú",
-            menu,
-            key="menu_principal",
-            index=menu.index(st.session_state['menu_principal'])
-        )
-        
-        st.markdown("---")
-        
-        # Mostrar secciones asignadas (solo para usuarios normales)
-        if st.session_state['rol'] != 'master':
-            secciones_asignadas = auth_manager.obtener_secciones_usuario(st.session_state['usuario'])
-            st.markdown("### 📂 Mis Accesos")
-            for sec in secciones_asignadas:
-                if sec in SECCIONES:
-                    st.markdown(f"{SECCIONES[sec]['icono']} {SECCIONES[sec]['nombre']}")
-    
     # ============================================
-    # DASHBOARD - CON CLICK EN SECCIONES
+    # CONTENIDO PRINCIPAL SEGÚN menu_principal
     # ============================================
-    if opcion == "🏠 Inicio":
+    menu_actual = st.session_state.get('menu_principal', '🏠 Inicio')
+    
+    # --- INICIO (solo master) ---
+    if menu_actual == "🏠 Inicio":
         if st.session_state['rol'] == 'master':
-            # ---- Panel solo para master ----
             st.header("🏠 Inicio")
             secciones_usuario = list(SECCIONES.keys())
             
@@ -384,16 +348,13 @@ else:
                         st.query_params["seccion"] = seccion_id
                         st.query_params["ir_a"] = "mis_documentos"
                         st.rerun()
-            # NOTA: No hay else mostrando "Sin acceso" porque el master tiene acceso a todo.
         else:
-            # ---- Usuarios normales: redirigir a Mis Documentos ----
+            # Usuarios normales no deberían llegar aquí; redirigir
             st.session_state['menu_principal'] = "📁 Mis Documentos"
             st.rerun()
     
-    # ============================================
-    # MIS DOCUMENTOS
-    # ============================================
-    elif opcion == "📁 Mis Documentos":
+    # --- MIS DOCUMENTOS ---
+    elif menu_actual == "📁 Mis Documentos":
         st.header("📁 Mis Documentos")
         
         if st.session_state['rol'] == 'master':
@@ -506,7 +467,6 @@ else:
                             if st.button("📥", key=f"download_{archivo['id']}"):
                                 exito, resultado = storage_manager.descargar_archivo_personal(archivo['id'], st.session_state['usuario'])
                                 if exito:
-                                    # Usar la URL directamente (no Base64)
                                     st.markdown(f'<a href="{resultado["url"]}" download="{resultado["nombre"]}" style="background: #667eea; color: white; padding: 4px 12px; border-radius: 6px; text-decoration: none;">📥 Descargar {resultado["nombre"]}</a>', unsafe_allow_html=True)
                                     st.success("✅ Descarga disponible")
                                 else:
@@ -528,7 +488,6 @@ else:
                     st.info("No tienes documentos personales en esta categoría")
             
             # Publicaciones del master
-                        # ========== PUBLICACIONES DEL MASTER ==========
             st.markdown("### 📢 Publicaciones del Master")
             publicaciones = storage_manager.obtener_publicaciones_por_seccion(
                 seccion=seccion_seleccionada, 
@@ -637,13 +596,11 @@ else:
                     subcategorias_destino = SECCIONES[seccion_destino].get("subcategorias", ["General"])
                     subcategoria_destino = st.selectbox("Subcategoría destino:", subcategorias_destino, key="subcat_destino_pub")
 
-                    # 💬 NUEVO: Caja de texto para agregar comentarios/descripción a la publicación
                     comentario_pub = st.text_area("Añadir un comentario o descripción a la publicación:", key="comentario_publicacion_master")
 
                     col1, col2 = st.columns(2)
                     with col1:
                         if st.form_submit_button("✅ Confirmar publicación", use_container_width=True):
-                            # Llamamos a la función correcta pasando el ID, el usuario, destino y el comentario
                             exito, resultado = storage_manager.publicar_desde_personal(
                                 archivo_id=archivo_id,
                                 usuario=st.session_state['usuario'],
@@ -664,10 +621,8 @@ else:
                             del st.session_state['archivo_a_publicar']
                             st.rerun()
     
-    # ============================================
-    # GESTIÓN DE USUARIOS (Master)
-    # ============================================
-    elif opcion == "👥 Gestión Usuarios" and st.session_state['rol'] == 'master':
+    # --- GESTIÓN DE USUARIOS (Master) ---
+    elif menu_actual == "👥 Gestión Usuarios" and st.session_state['rol'] == 'master':
         st.header("👥 Gestión de Usuarios y Permisos")
         
         tab1, tab2, tab3 = st.tabs(["📋 Lista de Usuarios", "🔐 Asignar Secciones", "📢 Publicar Documentos"])
@@ -814,10 +769,8 @@ else:
             else:
                 st.info("No hay publicaciones aún")
     
-    # ============================================
-    # SISTEMA DE CONSULTAS
-    # ============================================
-    elif opcion == "📬 Consultas":
+    # --- SISTEMA DE CONSULTAS ---
+    elif menu_actual == "📬 Consultas":
         st.header("📬 Sistema de Consultas")
         
         if st.session_state['rol'] == 'master':
@@ -936,10 +889,8 @@ else:
             else:
                 st.info("No tienes consultas previas")
     
-    # ============================================
-    # MI PERFIL
-    # ============================================
-    elif opcion == "👤 Mi Perfil":
+    # --- MI PERFIL ---
+    elif menu_actual == "👤 Mi Perfil":
         st.header("👤 Mi Perfil")
         perfil = auth_manager.obtener_perfil(st.session_state['usuario'])
         
@@ -1079,10 +1030,8 @@ else:
             else:
                 st.info("No hay publicaciones disponibles")
     
-    # ============================================
-    # CONFIGURACIÓN (solo master) - SIN PLANES
-    # ============================================
-    elif opcion == "⚙️ Configuración" and st.session_state['rol'] == 'master':
+    # --- CONFIGURACIÓN (solo master) ---
+    elif menu_actual == "⚙️ Configuración" and st.session_state['rol'] == 'master':
         st.header("⚙️ Configuración del Sistema")
         
         col1, col2 = st.columns(2)
@@ -1092,7 +1041,6 @@ else:
             if st.button("🗑️ Limpiar Facturas", type="secondary", key="btn_limpiar"):
                 confirmar = st.checkbox("⚠️ Confirmar eliminación", key="confirmar")
                 if confirmar:
-                    # Esta función ya no está en storage_manager, pero la dejamos por si acaso
                     st.warning("Esta función no está disponible en la versión actual.")
             
             if st.button("📥 Plantilla", key="btn_plantilla"):
@@ -1113,10 +1061,35 @@ else:
             **Documentos personales:** {len(archivos_personales) if 'archivos_personales' in locals() else 0}
             """)
     
+    # --- PUBLICACIONES (master) ---
+    elif menu_actual == "📢 Publicaciones" and st.session_state['rol'] == 'master':
+        st.header("📢 Publicaciones Realizadas")
+        todas_publicaciones = storage_manager.obtener_publicaciones_por_seccion()
+        if todas_publicaciones:
+            for pub in todas_publicaciones:
+                with st.expander(f"📄 {pub['nombre_original']} - {pub['fecha'][:10]}"):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.write(f"**Sección:** {SECCIONES[pub['seccion']]['icono']} {SECCIONES[pub['seccion']]['nombre']}")
+                        st.write(f"**Subcategoría:** {pub.get('subcategoria', 'General')}")
+                        st.write(f"**Descripción:** {pub.get('descripcion', 'Sin descripción')}")
+                        st.write(f"**Tamaño:** {pub.get('tamaño_kb', 0):.1f} KB")
+                        st.write(f"**Publicado:** {pub['fecha']}")
+                    with col2:
+                        if st.button("🗑️ Eliminar", key=f"del_pub_{pub['id']}"):
+                            exito, msg = storage_manager.eliminar_publicacion(pub['id'])
+                            if exito:
+                                st.success(msg)
+                                st.rerun()
+                            else:
+                                st.error(msg)
+        else:
+            st.info("No hay publicaciones aún")
+    
     # Footer
     st.markdown("---")
     st.markdown("""
     <div style="text-align: center; color: #666; padding: 1rem;">
-        <p>Optimizo con Pier - Gestión Documental Inteligente | © 2026</p>
+        <p>Asistente Inteligente - Gestión Documental | © 2026</p>
     </div>
     """, unsafe_allow_html=True)

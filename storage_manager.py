@@ -51,6 +51,10 @@ class StorageManager:
                 "seccion": seccion,
                 "subcategoria": subcategoria,
                 "descripcion": descripcion,
+                "titulo": archivo.name,                
+                "mensaje": descripcion or "",          
+                "categoria": subcategoria,             
+                "creado_por": "master" if es_publicacion else usuario
             }
         else:
             carpeta = f"personales/{usuario}/{seccion}/{subcategoria}"
@@ -108,12 +112,19 @@ class StorageManager:
         return archivos
 
     def obtener_publicaciones_por_seccion(self, seccion=None, subcategoria=None):
-        query = self.supabase.table("publicaciones").select("*")
-        if seccion:
-            query = query.eq("seccion", seccion)
-        if subcategoria:
-            query = query.eq("subcategoria", subcategoria)
-        return query.execute().data or []
+        try:
+            query = self.supabase.table('publicaciones').select('*')
+            if seccion:
+                query = query.eq('seccion', seccion)
+            # La columna se llama 'categoría' (con tilde) o 'categoria'? Verifica en Supabase.
+            # Si tiene tilde, usa 'categoría', si no, 'categoria'.
+            if subcategoria:
+                query = query.eq('categoria', subcategoria)  # Ajusta el nombre exacto de la columna
+            query = query.order('fecha_creacion', desc=True)
+            return query.execute().data or []
+        except Exception as e:
+            print(f"Error: {e}")
+            return []
 
     def obtener_publicaciones_usuario(self, usuario, secciones_usuario):
         """Obtiene las publicaciones a las que el usuario tiene acceso según sus secciones asignadas."""
@@ -231,7 +242,11 @@ class StorageManager:
                 "tamaño_bytes": doc["tamaño_bytes"],
                 "tamaño_kb": doc["tamaño_kb"],
                 "extension": doc["extension"],
-                "ruta_completa": url_publica
+                "ruta_completa": url_publica,
+                "titulo": doc["nombre_original"],                     # ✅ Añadido
+                "mensaje": descripcion or doc.get("descripcion", ""), # ✅ Añadido
+                "categoria": subcategoria,                            # ✅ Añadido
+                "creado_por": usuario
             }
             self.supabase.table("publicaciones").insert(registro_pub).execute()
 

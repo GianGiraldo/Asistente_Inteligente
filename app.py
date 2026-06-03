@@ -159,18 +159,19 @@ else:
     # HEADER
     col_logo, col_user, col_logout = st.columns([1, 3, 1])
 
-with col_logo:
-    st.markdown("""
-    <style>
-    .custom-title {
-        font-size: 1.5rem;
-        white-space: nowrap;
-        margin: 0;
-        padding: 0;
-    }
-    </style>
-    <h1 class="custom-title">🌟 Asistente Inteligente</h1>
-    """, unsafe_allow_html=True)
+    with col_logo:
+        st.markdown("""
+        <style>
+        .custom-title {
+            font-size: 1.5rem;
+            white-space: nowrap;
+            margin: 0;
+            padding: 0;
+        }
+        </style>
+        <h1 class="custom-title">🌟 Asistente Inteligente</h1>
+        """, unsafe_allow_html=True)
+
     with col_user:
         nombre = st.session_state.get('nombre', 'Usuario')
         rol = st.session_state.get('rol', 'usuario')
@@ -204,12 +205,14 @@ with col_logo:
                             st.session_state['categoria_seleccionada'] = pub['categoria']
                             st.session_state['menu_principal'] = "📁 Mis Documentos"
                             st.rerun()
+
     with col_logout:
         if st.button("🚪 Cerrar Sesión"):
             for key in ['autenticado', 'usuario', 'rol', 'nombre', 'secciones', 'login_time', 'seccion_seleccionada']:
                 if key in st.session_state:
                     del st.session_state[key]
             st.rerun()
+
     st.markdown("---")
 
     # SIDEBAR - MENÚ PRINCIPAL (sin secciones)
@@ -302,7 +305,7 @@ with col_logo:
                                 st.session_state['seccion_seleccionada'] = sec_id
                                 st.session_state['menu_principal'] = "📁 Mis Documentos"
                                 st.rerun()
-
+                                
     elif menu_actual == "📁 Mis Documentos":
         st.header("📁 Mis Documentos")
         if st.session_state['rol'] == 'master':

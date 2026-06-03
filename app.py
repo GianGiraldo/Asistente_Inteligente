@@ -158,8 +158,19 @@ if not st.session_state['autenticado']:
 else:
     # HEADER
     col_logo, col_user, col_logout = st.columns([1, 3, 1])
-    with col_logo:
-        st.markdown("# 🌟 Asistente Inteligente")
+
+with col_logo:
+    st.markdown("""
+    <style>
+    .custom-title {
+        font-size: 1.5rem;
+        white-space: nowrap;
+        margin: 0;
+        padding: 0;
+    }
+    </style>
+    <h1 class="custom-title">🌟 Asistente Inteligente</h1>
+    """, unsafe_allow_html=True)
     with col_user:
         nombre = st.session_state.get('nombre', 'Usuario')
         rol = st.session_state.get('rol', 'usuario')

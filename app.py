@@ -1,4 +1,4 @@
-# app.py - VERSIÓN CORREGIDA (sin sidebar duplicado)
+# app.py - Versión profesional con estructura unificada
 import streamlit as st
 import pandas as pd
 from auth import AuthManager
@@ -67,7 +67,7 @@ SECCIONES = {
     }
 }
 
-# CSS personalizado
+# CSS personalizado (mejorado)
 st.markdown("""
 <style>
     .main-header {
@@ -129,6 +129,34 @@ st.markdown("""
         font-size: 0.7rem;
         margin-left: 8px;
     }
+    /* Estilo para tarjetas de inicio */
+    .home-card {
+        background: #ffffff;
+        border-radius: 20px;
+        padding: 1.2rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        transition: all 0.2s ease;
+        border: 1px solid #f0f0f0;
+        cursor: pointer;
+    }
+    .home-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+        border-color: #667eea;
+    }
+    .metric-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 20px;
+        padding: 1rem;
+        color: white;
+        text-align: center;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .metric-card h3 {
+        margin: 0;
+        font-size: 1.8rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -160,7 +188,7 @@ def login_screen():
                     if rol == 'master':
                         st.session_state['menu_principal'] = "🏠 Inicio"
                     else:
-                        st.session_state['menu_principal'] = "📁 Mis Documentos"
+                        st.session_state['menu_principal'] = "🏠 Inicio"  # También inicio para normales
                     st.rerun()
                 else:
                     st.error("❌ Credenciales incorrectas")
@@ -208,7 +236,7 @@ else:
         with subcol1:
             st.markdown(f"**🌟 {nombre}**  \n<small>{rol_texto}</small>", unsafe_allow_html=True)
         with subcol2:
-            # Campana sin badge
+            # Campana
             bell_html = '<span style="font-size: 1.8rem;">🔔</span>'
             with st.popover(bell_html, use_container_width=True):
                 st.markdown("### 📢 Últimas publicaciones")
@@ -258,7 +286,7 @@ else:
                 st.rerun()
     st.markdown("---")
         
-         # ==================== SIDEBAR ÚNICO ====================
+    # ==================== SIDEBAR ÚNICO ====================
     with st.sidebar:
         st.markdown(f"### Hola, {st.session_state.get('nombre', 'Usuario')}")
         rol_usuario = st.session_state.get('rol', '')
@@ -292,25 +320,51 @@ else:
     # ============================================
     menu_actual = st.session_state.get('menu_principal', '🏠 Inicio')
     
-    # --- INICIO (solo master) ---
+    # --- INICIO (para master y usuarios normales) ---
     if menu_actual == "🏠 Inicio":
         if st.session_state['rol'] == 'master':
+            # ----- MASTER: Dashboard completo con métricas y todas las secciones -----
             st.header("🏠 Inicio")
             secciones_usuario = list(SECCIONES.keys())
             
             archivos_personales = storage_manager.listar_archivos_usuario(st.session_state['usuario'], incluir_publicaciones=False)
             publicaciones = storage_manager.obtener_publicaciones_usuario(st.session_state['usuario'], secciones_usuario)
             
+            # Métricas con diseño mejorado
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.metric("📄 Mis Documentos", len(archivos_personales))
+                st.markdown(f"""
+                <div class="metric-card">
+                    <h3>📄</h3>
+                    <h3>{len(archivos_personales)}</h3>
+                    <p>Mis Documentos</p>
+                </div>
+                """, unsafe_allow_html=True)
             with col2:
-                st.metric("📢 Documentos Disponibles", len(publicaciones))
+                st.markdown(f"""
+                <div class="metric-card">
+                    <h3>📢</h3>
+                    <h3>{len(publicaciones)}</h3>
+                    <p>Documentos Disponibles</p>
+                </div>
+                """, unsafe_allow_html=True)
             with col3:
-                st.metric("📂 Secciones", len(secciones_usuario))
+                st.markdown(f"""
+                <div class="metric-card">
+                    <h3>📂</h3>
+                    <h3>{len(secciones_usuario)}</h3>
+                    <p>Secciones</p>
+                </div>
+                """, unsafe_allow_html=True)
             with col4:
-                usuarios = len(auth_manager.listar_usuarios())
-                st.metric("👥 Usuarios", usuarios)
+                usuarios_total = len(auth_manager.listar_usuarios())
+                st.markdown(f"""
+                <div class="metric-card">
+                    <h3>👥</h3>
+                    <h3>{usuarios_total}</h3>
+                    <p>Usuarios</p>
+                </div>
+                """, unsafe_allow_html=True)
             
             st.markdown("---")
             st.markdown("### 📂 Todas las Secciones")
@@ -329,9 +383,35 @@ else:
                         st.query_params["ir_a"] = "mis_documentos"
                         st.rerun()
         else:
-            # Usuarios normales no deberían llegar aquí; redirigir
-            st.session_state['menu_principal'] = "📁 Mis Documentos"
-            st.rerun()
+            # ----- USUARIO NORMAL: Muestra solo sus secciones asignadas en tarjetas -----
+            st.header("🏠 Inicio")
+            secciones_usuario = st.session_state.get('secciones', [])
+            if not secciones_usuario:
+                st.warning("No tienes secciones asignadas. Contacta al administrador.")
+            else:
+                st.markdown("### 📂 Mis Secciones Asignadas")
+                st.info("💡 Haz clic en cualquier sección para ver sus documentos")
+                cols = st.columns(3)
+                for i, sec_id in enumerate(secciones_usuario):
+                    if sec_id in SECCIONES:
+                        sec_info = SECCIONES[sec_id]
+                        # Obtener documentos disponibles para esta sección (puedes ajustar la función)
+                        try:
+                            docs_seccion = storage_manager.obtener_publicaciones_por_seccion(seccion=sec_id)
+                            num_docs = len(docs_seccion)
+                        except:
+                            num_docs = 0
+                        with cols[i % 3]:
+                            if st.button(
+                                f"{sec_info['icono']} {sec_info['nombre']}\n\n"
+                                f"{sec_info['descripcion']}\n\n"
+                                f"📄 {num_docs} documentos disponibles",
+                                key=f"user_dashboard_btn_{sec_id}",
+                                use_container_width=True
+                            ):
+                                st.session_state['seccion_seleccionada'] = sec_id
+                                st.session_state['menu_principal'] = "📁 Mis Documentos"
+                                st.rerun()
     
     # --- MIS DOCUMENTOS ---
     elif menu_actual == "📁 Mis Documentos":

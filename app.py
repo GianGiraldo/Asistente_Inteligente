@@ -168,7 +168,7 @@ else:
         with subcol1:
             st.markdown(f"**🌟 {nombre}**  \n<small>{rol_texto}</small>", unsafe_allow_html=True)
         with subcol2:
-            bell_html = '<span style="font-size: 1.8rem;">🔔</span>'
+            bell_html = '🔔'
             with st.popover(bell_html, use_container_width=True):
                 st.markdown("### 📢 Últimas publicaciones")
                 publicaciones = notification_manager.obtener_ultimas_publicaciones(limite=10)

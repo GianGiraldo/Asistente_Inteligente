@@ -401,7 +401,7 @@ else:
                 for i, pub in enumerate(publicaciones):
                     col1, col2 = st.columns([4,1])
                     with col1:
-                        st.markdown(f"**📢 {pub['nombre_original']}**  \n<small>{pub['fecha'][:10]}</small>\n\n{pub.get('descripcion','')}", unsafe_allow_html=True)
+                        st.markdown(f"**📢 {pub['titulo']}**  \n<small>{pub['fecha_creacion'][:10]}</small>\n\n{pub.get('mensaje','')}", unsafe_allow_html=True)
                     with col2:
                         if st.button("📥 Descargar", key=f"down_pub_{pub['id']}_{i}"):
                             if seccion_seleccionada in secciones_usuario:

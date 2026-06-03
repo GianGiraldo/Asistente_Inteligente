@@ -163,36 +163,39 @@ else:
     with col_user:
         nombre = st.session_state.get('nombre', 'Usuario')
         rol = st.session_state.get('rol', 'usuario')
-        rol_texto = '👑 Master' if rol == 'master' else '👁️ Usuario'
-        subcol1, subcol2 = st.columns([4, 1])
-        with subcol1:
-            st.markdown(f"**🌟 {nombre}**  \n<small>{rol_texto}</small>", unsafe_allow_html=True)
-        with subcol2:
-            bell_html = '<span style="font-size: 1.8rem;">🔔</span>'
-            with st.popover(bell_html, use_container_width=True):
-                st.markdown("### 📢 Últimas publicaciones")
-                publicaciones = notification_manager.obtener_ultimas_publicaciones(limite=10)
-                if not publicaciones:
-                    st.info("No hay publicaciones recientes.")
+rol_texto = 'Master' if rol == 'master' else 'Usuario'
+subcol1, subcol2 = st.columns([4, 1])
+with subcol1:
+    st.markdown(f"**{nombre}**  \n<small>{rol_texto}</small>", unsafe_allow_html=True)
+with subcol2:
+    bell_html = '<span style="font-size: 1.8rem;">🔔</span>'
+    with st.popover(bell_html, use_container_width=True):
+        st.markdown("### 📢 Últimas publicaciones")
+        publicaciones = notification_manager.obtener_ultimas_publicaciones(limite=10)
+        if not publicaciones:
+            st.info("No hay publicaciones recientes.")
+        else:
+            for pub in publicaciones:
+                fecha = pub.get('fecha_creacion', '')
+                if isinstance(fecha, str):
+                    fecha_str = fecha[:16]
                 else:
-                    for pub in publicaciones:
-                        fecha = pub.get('fecha_creacion', '')
-                        fecha_str = fecha[:16] if isinstance(fecha, str) else str(fecha)[:16] if fecha else "Fecha desconocida"
-                        st.markdown(f"""
-                        <div style="background:#f8f9fa; border-radius:12px; padding:12px; margin-bottom:12px; border-left:4px solid #667eea;">
-                            <div style="font-weight:bold;">{pub['titulo']}</div>
-                            <div style="font-size:0.85rem; color:#555;">{pub['mensaje']}</div>
-                            <div style="font-size:0.7rem; color:#888; display:flex; justify-content:space-between;">
-                                <span>📅 {fecha_str}</span>
-                                <span>📂 {pub['seccion'].capitalize()} / {pub['categoria']}</span>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        if st.button(f"🔍 Ver contenido", key=f"ver_{pub['id']}", use_container_width=True):
-                            st.session_state['seccion_seleccionada'] = pub['seccion']
-                            st.session_state['categoria_seleccionada'] = pub['categoria']
-                            st.session_state['menu_principal'] = "📁 Mis Documentos"
-                            st.rerun()
+                    fecha_str = str(fecha)[:16] if fecha else "Fecha desconocida"
+                st.markdown(f"""
+                <div style="background:#f8f9fa; border-radius:12px; padding:12px; margin-bottom:12px; border-left:4px solid #667eea;">
+                    <div style="font-weight:bold;">{pub['titulo']}</div>
+                    <div style="font-size:0.85rem; color:#555;">{pub['mensaje']}</div>
+                    <div style="font-size:0.7rem; color:#888; display:flex; justify-content:space-between;">
+                        <span>📅 {fecha_str}</span>
+                        <span>📂 {pub['seccion'].capitalize()} / {pub['categoria']}</span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                if st.button(f"🔍 Ver contenido", key=f"ver_{pub['id']}", use_container_width=True):
+                    st.session_state['seccion_seleccionada'] = pub['seccion']
+                    st.session_state['categoria_seleccionada'] = pub['categoria']
+                    st.session_state['menu_principal'] = "📁 Mis Documentos"
+                    st.rerun()
     with col_logout:
         if st.button("🚪 Cerrar Sesión"):
             for key in ['autenticado', 'usuario', 'rol', 'nombre', 'secciones', 'login_time', 'seccion_seleccionada']:

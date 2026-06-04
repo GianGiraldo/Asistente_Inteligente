@@ -225,18 +225,23 @@ else:
         else:
             opciones_menu = ["🏠 Inicio", "📁 Mis Documentos", "📬 Consultas", "👤 Mi Perfil"]
 
-        if st.session_state.get('menu_principal') not in opciones_menu:
+        # Inicializar si es necesario
+        if 'menu_principal' not in st.session_state:
             st.session_state['menu_principal'] = opciones_menu[0]
+        if 'menu_radio' not in st.session_state:
+            st.session_state['menu_radio'] = st.session_state['menu_principal']
 
-        seleccion = st.selectbox(
+        # Función que se ejecuta cuando el usuario cambia la selección del radio
+        def on_menu_change():
+            st.session_state['menu_principal'] = st.session_state['menu_radio']
+
+        st.radio(
             "📋 Menú",
             opciones_menu,
+            key="menu_radio",
             index=opciones_menu.index(st.session_state['menu_principal']),
-            key="menu_select"
+            on_change=on_menu_change
         )
-        if seleccion != st.session_state['menu_principal']:
-            st.session_state['menu_principal'] = seleccion
-            st.rerun()
 
         st.divider()
         if st.button("🚪 Cerrar Sesión", use_container_width=True):

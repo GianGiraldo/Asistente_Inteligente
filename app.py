@@ -1,4 +1,4 @@
-# app.py - Menú lateral, sin barra horizontal ni secciones en sidebar
+# app.py - Versión final con redirección funcional y selectbox en sidebar
 import streamlit as st
 import pandas as pd
 from auth import AuthManager
@@ -156,6 +156,15 @@ if 'seccion_seleccionada' not in st.session_state:
 if not st.session_state['autenticado']:
     login_screen()
 else:
+    # ========== PROCESAR REDIRECCIÓN DESDE EL DASHBOARD ==========
+    if 'ir_a' in st.query_params and st.query_params['ir_a'] == 'mis_documentos':
+        if 'seccion' in st.query_params:
+            st.session_state['seccion_seleccionada_documentos'] = st.query_params['seccion']
+        if 'categoria' in st.query_params:
+            st.session_state['categoria_redirigida'] = st.query_params['categoria']
+        st.session_state['menu_principal'] = "📁 Mis Documentos"
+        st.query_params.clear()
+
     # HEADER
     col_logo, col_user, col_logout = st.columns([1, 3, 1])
 
@@ -215,7 +224,7 @@ else:
 
     st.markdown("---")
 
-    # SIDEBAR - MENÚ PRINCIPAL (sin secciones)
+    # SIDEBAR - MENÚ PRINCIPAL (usando selectbox)
     with st.sidebar:
         st.markdown(f"### Hola, {st.session_state.get('nombre', 'Usuario')}")
         if st.session_state['rol'] == 'master':
@@ -223,23 +232,18 @@ else:
         else:
             opciones_menu = ["🏠 Inicio", "📁 Mis Documentos", "📬 Consultas", "👤 Mi Perfil"]
 
-        # Inicializar si es necesario
-        if 'menu_principal' not in st.session_state:
+        if st.session_state.get('menu_principal') not in opciones_menu:
             st.session_state['menu_principal'] = opciones_menu[0]
-        if 'menu_radio' not in st.session_state:
-            st.session_state['menu_radio'] = st.session_state['menu_principal']
 
-        # Función que se ejecuta cuando el usuario cambia la selección del radio
-        def on_menu_change():
-            st.session_state['menu_principal'] = st.session_state['menu_radio']
-
-        st.radio(
+        seleccion = st.selectbox(
             "📋 Menú",
             opciones_menu,
-            key="menu_radio",
             index=opciones_menu.index(st.session_state['menu_principal']),
-            on_change=on_menu_change
+            key="menu_select"
         )
+        if seleccion != st.session_state['menu_principal']:
+            st.session_state['menu_principal'] = seleccion
+            st.rerun()
 
         st.divider()
         if st.button("🚪 Cerrar Sesión", use_container_width=True):
@@ -283,11 +287,9 @@ else:
                         key=f"dashboard_btn_{seccion_id}",
                         use_container_width=True
                     ):
-                        st.session_state['menu_radio'] = "📁 Mis Documentos"
-                        st.session_state['menu_principal'] = "📁 Mis Documentos"
-                        st.session_state['seccion_seleccionada_documentos'] = seccion_id
-                        st.session_state['categoria_redirigida'] = primera_categoria
-                        st.query_params.clear()
+                        st.query_params["seccion"] = seccion_id
+                        st.query_params["ir_a"] = "mis_documentos"
+                        st.query_params["categoria"] = primera_categoria
                         st.rerun()
         else:   # Usuario normal
             st.header("🏠 Inicio")
@@ -314,11 +316,9 @@ else:
                                 key=f"user_dashboard_btn_{sec_id}",
                                 use_container_width=True
                             ):
-                                st.session_state['menu_radio'] = "📁 Mis Documentos"
-                                st.session_state['menu_principal'] = "📁 Mis Documentos"
-                                st.session_state['seccion_seleccionada_documentos'] = sec_id   # ← CORREGIDO: usa sec_id
-                                st.session_state['categoria_redirigida'] = primera_categoria
-                                st.query_params.clear()
+                                st.query_params["seccion"] = sec_id
+                                st.query_params["ir_a"] = "mis_documentos"
+                                st.query_params["categoria"] = primera_categoria
                                 st.rerun()
 
     elif menu_actual == "📁 Mis Documentos":

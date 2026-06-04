@@ -246,81 +246,81 @@ else:
     # CONTENIDO PRINCIPAL
     menu_actual = st.session_state.get('menu_principal', '🏠 Inicio')
 
-if menu_actual == "🏠 Inicio":
-    if st.session_state['rol'] == 'master':
-        st.header("🏠 Inicio")
-        secciones_usuario = list(SECCIONES.keys())
-        archivos_personales = storage_manager.listar_archivos_usuario(st.session_state['usuario'], incluir_publicaciones=False)
-        publicaciones = storage_manager.obtener_publicaciones_usuario(st.session_state['usuario'], secciones_usuario)
-        
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.markdown(f'<div class="metric-card"><h3>📄</h3><h3>{len(archivos_personales)}</h3><p>Mis Documentos</p></div>', unsafe_allow_html=True)
-        with col2:
-            st.markdown(f'<div class="metric-card"><h3>📢</h3><h3>{len(publicaciones)}</h3><p>Documentos Disponibles</p></div>', unsafe_allow_html=True)
-        with col3:
-            st.markdown(f'<div class="metric-card"><h3>📂</h3><h3>{len(secciones_usuario)}</h3><p>Secciones</p></div>', unsafe_allow_html=True)
-        with col4:
-            usuarios_total = len(auth_manager.listar_usuarios())
-            st.markdown(f'<div class="metric-card"><h3>👥</h3><h3>{usuarios_total}</h3><p>Usuarios</p></div>', unsafe_allow_html=True)
-        
-        st.markdown("---")
-        st.markdown("### 📂 Todas las Secciones") 
-        cols = st.columns(3)   # CORREGIDO: antes era 'ccols'
-        for i, (seccion_id, seccion_info) in enumerate(SECCIONES.items()):
-            with cols[i % 3]:
-                docs_seccion = [d for d in publicaciones if d["seccion"] == seccion_id]
-                primera_categoria = seccion_info["subcategorias"][0] if seccion_info.get("subcategorias") else "General"
-                if st.button(
-                    f"{seccion_info['icono']} {seccion_info['nombre']}\n\n"
-                    f"{seccion_info['descripcion']}\n\n"
-                    f"✅ {len(docs_seccion)} documentos disponibles",
-                    key=f"dashboard_btn_{seccion_id}",
-                    use_container_width=True
-                ):
-                    st.query_params["seccion"] = seccion_id
-                    st.query_params["ir_a"] = "mis_documentos"
-                    st.query_params["categoria"] = primera_categoria
-                    st.rerun()
-    else:   # Usuario normal
-        st.header("🏠 Inicio")
-        secciones_usuario = st.session_state.get('secciones', [])
-        if not secciones_usuario:
-            st.warning("No tienes secciones asignadas. Contacta al administrador.")
-        else:
-            st.markdown("### 📂 Mis Secciones Asignadas")
+    if menu_actual == "🏠 Inicio":
+        if st.session_state['rol'] == 'master':
+            st.header("🏠 Inicio")
+            secciones_usuario = list(SECCIONES.keys())
+            archivos_personales = storage_manager.listar_archivos_usuario(st.session_state['usuario'], incluir_publicaciones=False)
+            publicaciones = storage_manager.obtener_publicaciones_usuario(st.session_state['usuario'], secciones_usuario)
+            
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.markdown(f'<div class="metric-card"><h3>📄</h3><h3>{len(archivos_personales)}</h3><p>Mis Documentos</p></div>', unsafe_allow_html=True)
+            with col2:
+                st.markdown(f'<div class="metric-card"><h3>📢</h3><h3>{len(publicaciones)}</h3><p>Documentos Disponibles</p></div>', unsafe_allow_html=True)
+            with col3:
+                st.markdown(f'<div class="metric-card"><h3>📂</h3><h3>{len(secciones_usuario)}</h3><p>Secciones</p></div>', unsafe_allow_html=True)
+            with col4:
+                usuarios_total = len(auth_manager.listar_usuarios())
+                st.markdown(f'<div class="metric-card"><h3>👥</h3><h3>{usuarios_total}</h3><p>Usuarios</p></div>', unsafe_allow_html=True)
+            
+            st.markdown("---")
+            st.markdown("### 📂 Todas las Secciones") 
             cols = st.columns(3)
-            for i, sec_id in enumerate(secciones_usuario):
-                if sec_id in SECCIONES:
-                    sec_info = SECCIONES[sec_id]
-                    try:
-                        docs_seccion = storage_manager.obtener_publicaciones_por_seccion(seccion=sec_id)
-                        num_docs = len(docs_seccion)
-                    except:
-                        num_docs = 0
-                    primera_categoria = sec_info["subcategorias"][0] if sec_info.get("subcategorias") else "General"
-                    with cols[i % 3]:
-                        if st.button(
-                            f"{sec_info['icono']} {sec_info['nombre']}\n\n"
-                            f"{sec_info['descripcion']}\n\n"
-                            f"📄 {num_docs} documentos disponibles",
-                            key=f"user_dashboard_btn_{sec_id}",
-                            use_container_width=True
-                        ):
-                            st.query_params["seccion"] = sec_id
-                            st.query_params["ir_a"] = "mis_documentos"
-                            st.query_params["categoria"] = primera_categoria
-                            st.rerun()
+            for i, (seccion_id, seccion_info) in enumerate(SECCIONES.items()):
+                with cols[i % 3]:
+                    docs_seccion = [d for d in publicaciones if d["seccion"] == seccion_id]
+                    primera_categoria = seccion_info["subcategorias"][0] if seccion_info.get("subcategorias") else "General"
+                    if st.button(
+                        f"{seccion_info['icono']} {seccion_info['nombre']}\n\n"
+                        f"{seccion_info['descripcion']}\n\n"
+                        f"✅ {len(docs_seccion)} documentos disponibles",
+                        key=f"dashboard_btn_{seccion_id}",
+                        use_container_width=True
+                    ):
+                        st.query_params["seccion"] = seccion_id
+                        st.query_params["ir_a"] = "mis_documentos"
+                        st.query_params["categoria"] = primera_categoria
+                        st.rerun()
+        else:   # Usuario normal
+            st.header("🏠 Inicio")
+            secciones_usuario = st.session_state.get('secciones', [])
+            if not secciones_usuario:
+                st.warning("No tienes secciones asignadas. Contacta al administrador.")
+            else:
+                st.markdown("### 📂 Mis Secciones Asignadas")
+                cols = st.columns(3)
+                for i, sec_id in enumerate(secciones_usuario):
+                    if sec_id in SECCIONES:
+                        sec_info = SECCIONES[sec_id]
+                        try:
+                            docs_seccion = storage_manager.obtener_publicaciones_por_seccion(seccion=sec_id)
+                            num_docs = len(docs_seccion)
+                        except:
+                            num_docs = 0
+                        primera_categoria = sec_info["subcategorias"][0] if sec_info.get("subcategorias") else "General"
+                        with cols[i % 3]:
+                            if st.button(
+                                f"{sec_info['icono']} {sec_info['nombre']}\n\n"
+                                f"{sec_info['descripcion']}\n\n"
+                                f"📄 {num_docs} documentos disponibles",
+                                key=f"user_dashboard_btn_{sec_id}",
+                                use_container_width=True
+                            ):
+                                st.query_params["seccion"] = sec_id
+                                st.query_params["ir_a"] = "mis_documentos"
+                                st.query_params["categoria"] = primera_categoria
+                                st.rerun()
 
-elif menu_actual == "📁 Mis Documentos":
-    # Procesar redirección desde el dashboard (Inicio)
-    if 'ir_a' in st.query_params and st.query_params['ir_a'] == 'mis_documentos':
-        if 'seccion' in st.query_params:
-            st.session_state['seccion_seleccionada_documentos'] = st.query_params['seccion']
-        if 'categoria' in st.query_params:
-            st.session_state['categoria_redirigida'] = st.query_params['categoria']
+    elif menu_actual == "📁 Mis Documentos":
+        # Procesar redirección desde el dashboard (Inicio)
+        if 'ir_a' in st.query_params and st.query_params['ir_a'] == 'mis_documentos':
+            if 'seccion' in st.query_params:
+                st.session_state['seccion_seleccionada_documentos'] = st.query_params['seccion']
+            if 'categoria' in st.query_params:
+                st.session_state['categoria_redirigida'] = st.query_params['categoria']
             # Limpiar todos los parámetros para evitar re-procesos
-        st.query_params.clear()
+            st.query_params.clear()
 
         st.header("📁 Mis Documentos")
 

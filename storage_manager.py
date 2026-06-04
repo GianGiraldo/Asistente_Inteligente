@@ -119,7 +119,7 @@ class StorageManager:
             # La columna se llama 'categoría' (con tilde) o 'categoria'? Verifica en Supabase.
             # Si tiene tilde, usa 'categoría', si no, 'categoria'.
             if subcategoria:
-                query = query.eq('categoria', subcategoria)  # Ajusta el nombre exacto de la columna
+                query = query.eq('subcategoria', subcategoria)  # Ajusta el nombre exacto de la columna
             query = query.order('fecha_creacion', desc=True)
             return query.execute().data or []
         except Exception as e:

@@ -281,6 +281,7 @@ else:
                         use_container_width=True
                     ):
                         st.session_state['menu_principal'] = "📁 Mis Documentos"
+                        st.session_state['menu_radio'] = "📁 Mis Documentos"   # ← Agrega esta línea
                         st.session_state['seccion_seleccionada_documentos'] = seccion_id
                         st.session_state['categoria_redirigida'] = primera_categoria
                         st.rerun()
@@ -310,6 +311,7 @@ else:
                                 use_container_width=True
                             ):
                                 st.session_state['menu_principal'] = "📁 Mis Documentos"
+                                st.session_state['menu_radio'] = "📁 Mis Documentos"   # ← Agrega esta línea
                                 st.session_state['seccion_seleccionada_documentos'] = sec_id   # nota: usa sec_id
                                 st.session_state['categoria_redirigida'] = primera_categoria
                                 st.rerun()

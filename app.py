@@ -305,8 +305,14 @@ else:
                                 st.session_state['seccion_seleccionada'] = sec_id
                                 st.session_state['menu_principal'] = "📁 Mis Documentos"
                                 st.rerun()
-                                
+
     elif menu_actual == "📁 Mis Documentos":
+        # Procesar redirección desde el dashboard
+        if 'ir_a' in st.query_params and st.query_params['ir_a'] == 'mis_documentos':
+            if 'seccion' in st.query_params:
+                st.session_state['seccion_seleccionada_documentos'] = st.query_params['seccion']
+            st.query_params.clear()   # Limpiar para evitar re-procesar
+
         st.header("📁 Mis Documentos")
         if st.session_state['rol'] == 'master':
             secciones_usuario = list(SECCIONES.keys())
@@ -591,4 +597,4 @@ else:
                 st.rerun()
 
     st.markdown("---")
-    st.markdown("<div style='text-align:center'>Asistente Inteligente - Gestión Documental | © 2026</div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:center'>Tu Gestor Documental Inteligente| © 2026</div>", unsafe_allow_html=True)

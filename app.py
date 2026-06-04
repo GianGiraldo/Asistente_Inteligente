@@ -265,8 +265,7 @@ if menu_actual == "🏠 Inicio":
             st.markdown(f'<div class="metric-card"><h3>👥</h3><h3>{usuarios_total}</h3><p>Usuarios</p></div>', unsafe_allow_html=True)
         
         st.markdown("---")
-        st.markdown("### 📂 Todas las Secciones")
-        
+        st.markdown("### 📂 Todas las Secciones") 
         cols = st.columns(3)   # CORREGIDO: antes era 'ccols'
         for i, (seccion_id, seccion_info) in enumerate(SECCIONES.items()):
             with cols[i % 3]:

@@ -223,15 +223,22 @@ else:
         else:
             opciones_menu = ["🏠 Inicio", "📁 Mis Documentos", "📬 Consultas", "👤 Mi Perfil"]
 
-        # Asegurar que menu_principal esté dentro de las opciones
-        if st.session_state.get('menu_principal') not in opciones_menu:
+        # Inicializar si es necesario
+        if 'menu_principal' not in st.session_state:
             st.session_state['menu_principal'] = opciones_menu[0]
+        if 'menu_radio' not in st.session_state:
+            st.session_state['menu_radio'] = st.session_state['menu_principal']
 
-        # Radio con clave directa; Streamlit actualiza session_state automáticamente
+        # Función que se ejecuta cuando el usuario cambia la selección del radio
+        def on_menu_change():
+            st.session_state['menu_principal'] = st.session_state['menu_radio']
+
         st.radio(
             "📋 Menú",
             opciones_menu,
-            key="menu_principal"
+            key="menu_radio",
+            index=opciones_menu.index(st.session_state['menu_principal']),
+            on_change=on_menu_change
         )
 
         st.divider()
@@ -276,6 +283,7 @@ else:
                         key=f"dashboard_btn_{seccion_id}",
                         use_container_width=True
                     ):
+                        st.session_state['menu_radio'] = "📁 Mis Documentos"
                         st.session_state['menu_principal'] = "📁 Mis Documentos"
                         st.session_state['seccion_seleccionada_documentos'] = seccion_id
                         st.session_state['categoria_redirigida'] = primera_categoria
@@ -306,6 +314,7 @@ else:
                                 key=f"user_dashboard_btn_{sec_id}",
                                 use_container_width=True
                             ):
+                                st.session_state['menu_radio'] = "📁 Mis Documentos"
                                 st.session_state['menu_principal'] = "📁 Mis Documentos"
                                 st.session_state['seccion_seleccionada_documentos'] = sec_id   # ← CORREGIDO: usa sec_id
                                 st.session_state['categoria_redirigida'] = primera_categoria

@@ -223,18 +223,13 @@ else:
         else:
             opciones_menu = ["🏠 Inicio", "📁 Mis Documentos", "📬 Consultas", "👤 Mi Perfil"]
         
-        if st.session_state.get('menu_principal') not in opciones_menu:
-            st.session_state['menu_principal'] = opciones_menu[0]
-        
-        seleccion = st.radio(
+        # El radio se sincroniza directamente con session_state['menu_principal']
+        st.radio(
             "📋 Menú",
             opciones_menu,
-            index=opciones_menu.index(st.session_state['menu_principal']),
-            key="menu_radio"
+            key="menu_principal",   # Importante: usa la misma clave
+            label_visibility="visible"
         )
-        if seleccion != st.session_state['menu_principal']:
-            st.session_state['menu_principal'] = seleccion
-            st.rerun()
         
         st.divider()
         if st.button("🚪 Cerrar Sesión", use_container_width=True):

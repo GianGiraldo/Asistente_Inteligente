@@ -225,9 +225,11 @@ else:
         else:
             opciones_menu = ["🏠 Inicio", "📁 Mis Documentos", "📬 Consultas", "👤 Mi Perfil"]
 
+        # Asegurar que menu_principal tenga un valor válido
         if st.session_state.get('menu_principal') not in opciones_menu:
             st.session_state['menu_principal'] = opciones_menu[0]
 
+        # Usar selectbox (evita conflictos de estado)
         seleccion = st.selectbox(
             "📋 Menú",
             opciones_menu,
@@ -281,7 +283,6 @@ else:
                         use_container_width=True
                     ):
                         st.session_state['menu_principal'] = "📁 Mis Documentos"
-                        st.session_state['menu_radio'] = "📁 Mis Documentos"   # ← Agrega esta línea
                         st.session_state['seccion_seleccionada_documentos'] = seccion_id
                         st.session_state['categoria_redirigida'] = primera_categoria
                         st.rerun()
@@ -311,8 +312,7 @@ else:
                                 use_container_width=True
                             ):
                                 st.session_state['menu_principal'] = "📁 Mis Documentos"
-                                st.session_state['menu_radio'] = "📁 Mis Documentos"   # ← Agrega esta línea
-                                st.session_state['seccion_seleccionada_documentos'] = sec_id   # nota: usa sec_id
+                                st.session_state['seccion_seleccionada_documentos'] = sec_id
                                 st.session_state['categoria_redirigida'] = primera_categoria
                                 st.rerun()
 

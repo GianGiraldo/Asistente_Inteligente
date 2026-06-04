@@ -279,9 +279,9 @@ else:
                         use_container_width=True
                     ):
                         st.session_state['menu_principal'] = "📁 Mis Documentos"
-                        st.query_params["seccion"] = seccion_id
-                        st.query_params["ir_a"] = "mis_documentos"
-                        st.query_params["categoria"] = primera_categoria
+                        st.session_state['seccion_seleccionada_documentos'] = seccion_id
+                        st.session_state['categoria_redirigida'] = primera_categoria
+                        st.query_params.clear()
                         st.rerun()
         else:   # Usuario normal
             st.header("🏠 Inicio")
@@ -309,20 +309,17 @@ else:
                                 use_container_width=True
                             ):
                                 st.session_state['menu_principal'] = "📁 Mis Documentos"
-                                st.query_params["seccion"] = sec_id
-                                st.query_params["ir_a"] = "mis_documentos"
-                                st.query_params["categoria"] = primera_categoria
+                                st.session_state['seccion_seleccionada_documentos'] = sec_id   # ← CORREGIDO: usa sec_id
+                                st.session_state['categoria_redirigida'] = primera_categoria
+                                st.query_params.clear()
                                 st.rerun()
 
     elif menu_actual == "📁 Mis Documentos":
-        # Procesar redirección desde el dashboard (Inicio)
-        if 'ir_a' in st.query_params and st.query_params['ir_a'] == 'mis_documentos':
-            if 'seccion' in st.query_params:
-                st.session_state['seccion_seleccionada_documentos'] = st.query_params['seccion']
-            if 'categoria' in st.query_params:
-                st.session_state['categoria_redirigida'] = st.query_params['categoria']
-            # Limpiar todos los parámetros para evitar re-procesos
-            st.query_params.clear()
+        # Procesar redirección desde el dashboard (Inicio) – usando session_state
+        seccion_preseleccionada = st.session_state.pop('seccion_seleccionada_documentos', None)
+        categoria_redirigida = st.session_state.pop('categoria_redirigida', None)
+        # Limpiar cualquier query_params residual
+        st.query_params.clear()
 
         st.header("📁 Mis Documentos")
 
@@ -335,9 +332,6 @@ else:
         if not secciones_usuario:
             st.warning("⚠️ No tienes acceso a ninguna sección. Contacta al administrador.")
         else:
-            # Obtener sección preseleccionada (si existe)
-            seccion_preseleccionada = st.session_state.pop('seccion_seleccionada_documentos', None)
-
             opciones_secciones = [(s, SECCIONES[s]['nombre']) for s in secciones_usuario]
             indice_preseleccionado = 0
             if seccion_preseleccionada:
@@ -377,7 +371,6 @@ else:
                 st.session_state['categoria_seleccionada'] = subcategorias_disponibles[0]
 
             # Si venimos de una redirección con categoría, sobreescribimos
-            categoria_redirigida = st.session_state.pop('categoria_redirigida', None)
             if categoria_redirigida and categoria_redirigida in subcategorias_disponibles:
                 st.session_state['categoria_seleccionada'] = categoria_redirigida
 

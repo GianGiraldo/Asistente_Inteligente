@@ -222,15 +222,24 @@ else:
             opciones_menu = ["🏠 Inicio", "📁 Mis Documentos", "👥 Gestión Usuarios", "📢 Publicaciones", "⚙️ Configuración"]
         else:
             opciones_menu = ["🏠 Inicio", "📁 Mis Documentos", "📬 Consultas", "👤 Mi Perfil"]
-        
-        # El radio se sincroniza directamente con session_state['menu_principal']
+
+        # Asegurar que menu_principal esté dentro de las opciones
+        if st.session_state.get('menu_principal') not in opciones_menu:
+            st.session_state['menu_principal'] = opciones_menu[0]
+
+        # Función callback que se ejecuta cuando el usuario cambia la selección del radio
+        def on_menu_change():
+            st.session_state['menu_principal'] = st.session_state['menu_selection']
+            st.rerun()   # Forzar recarga para mostrar el nuevo contenido
+
         st.radio(
             "📋 Menú",
             opciones_menu,
-            key="menu_principal",   # Importante: usa la misma clave
-            label_visibility="visible"
+            key="menu_selection",  # Clave diferente a la de menu_principal
+            index=opciones_menu.index(st.session_state['menu_principal']),
+            on_change=on_menu_change
         )
-        
+
         st.divider()
         if st.button("🚪 Cerrar Sesión", use_container_width=True):
             for key in ['autenticado', 'usuario', 'rol', 'nombre', 'secciones', 'login_time', 'seccion_seleccionada']:

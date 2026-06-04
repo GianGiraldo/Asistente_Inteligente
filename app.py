@@ -278,6 +278,7 @@ else:
                         key=f"dashboard_btn_{seccion_id}",
                         use_container_width=True
                     ):
+                        st.session_state['menu_principal'] = "📁 Mis Documentos"
                         st.query_params["seccion"] = seccion_id
                         st.query_params["ir_a"] = "mis_documentos"
                         st.query_params["categoria"] = primera_categoria
@@ -307,6 +308,7 @@ else:
                                 key=f"user_dashboard_btn_{sec_id}",
                                 use_container_width=True
                             ):
+                                st.session_state['menu_principal'] = "📁 Mis Documentos"
                                 st.query_params["seccion"] = sec_id
                                 st.query_params["ir_a"] = "mis_documentos"
                                 st.query_params["categoria"] = primera_categoria

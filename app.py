@@ -227,17 +227,11 @@ else:
         if st.session_state.get('menu_principal') not in opciones_menu:
             st.session_state['menu_principal'] = opciones_menu[0]
 
-        # Función callback que se ejecuta cuando el usuario cambia la selección del radio
-        def on_menu_change():
-            st.session_state['menu_principal'] = st.session_state['menu_selection']
-            st.rerun()   # Forzar recarga para mostrar el nuevo contenido
-
+        # Radio con clave directa; Streamlit actualiza session_state automáticamente
         st.radio(
             "📋 Menú",
             opciones_menu,
-            key="menu_selection",  # Clave diferente a la de menu_principal
-            index=opciones_menu.index(st.session_state['menu_principal']),
-            on_change=on_menu_change
+            key="menu_principal"
         )
 
         st.divider()

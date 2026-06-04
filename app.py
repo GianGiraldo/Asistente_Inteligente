@@ -157,14 +157,7 @@ if not st.session_state['autenticado']:
     login_screen()
 else:
     # ========== PROCESAR REDIRECCIÓN DESDE EL DASHBOARD ==========
-    if 'ir_a' in st.query_params and st.query_params['ir_a'] == 'mis_documentos':
-        if 'seccion' in st.query_params:
-            st.session_state['seccion_seleccionada_documentos'] = st.query_params['seccion']
-        if 'categoria' in st.query_params:
-            st.session_state['categoria_redirigida'] = st.query_params['categoria']
-        st.session_state['menu_principal'] = "📁 Mis Documentos"
-        st.query_params.clear()
-
+    
     # HEADER
     col_logo, col_user, col_logout = st.columns([1, 3, 1])
 
@@ -287,9 +280,9 @@ else:
                         key=f"dashboard_btn_{seccion_id}",
                         use_container_width=True
                     ):
-                        st.query_params["seccion"] = seccion_id
-                        st.query_params["ir_a"] = "mis_documentos"
-                        st.query_params["categoria"] = primera_categoria
+                        st.session_state['menu_principal'] = "📁 Mis Documentos"
+                        st.session_state['seccion_seleccionada_documentos'] = seccion_id
+                        st.session_state['categoria_redirigida'] = primera_categoria
                         st.rerun()
         else:   # Usuario normal
             st.header("🏠 Inicio")
@@ -316,9 +309,9 @@ else:
                                 key=f"user_dashboard_btn_{sec_id}",
                                 use_container_width=True
                             ):
-                                st.query_params["seccion"] = sec_id
-                                st.query_params["ir_a"] = "mis_documentos"
-                                st.query_params["categoria"] = primera_categoria
+                                st.session_state['menu_principal'] = "📁 Mis Documentos"
+                                st.session_state['seccion_seleccionada_documentos'] = sec_id   # nota: usa sec_id
+                                st.session_state['categoria_redirigida'] = primera_categoria
                                 st.rerun()
 
     elif menu_actual == "📁 Mis Documentos":

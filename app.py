@@ -264,20 +264,24 @@ else:
                 st.markdown(f'<div class="metric-card"><h3>👥</h3><h3>{usuarios_total}</h3><p>Usuarios</p></div>', unsafe_allow_html=True)
             st.markdown("---")
             st.markdown("### 📂 Todas las Secciones")
-            cols = st.columns(3)
-            for i, (seccion_id, seccion_info) in enumerate(SECCIONES.items()):
-                with cols[i % 3]:
-                    docs_seccion = [d for d in publicaciones if d["seccion"] == seccion_id]
-                    if st.button(
-                        f"{seccion_info['icono']} {seccion_info['nombre']}\n\n"
-                        f"{seccion_info['descripcion']}\n\n"
-                        f"✅ {len(docs_seccion)} documentos disponibles",
-                        key=f"dashboard_btn_{seccion_id}",
-                        use_container_width=True
-                    ):
-                        st.query_params["seccion"] = seccion_id
-                        st.query_params["ir_a"] = "mis_documentos"
-                        st.rerun()
+            ccols = st.columns(3)
+for i, (seccion_id, seccion_info) in enumerate(SECCIONES.items()):
+    with cols[i % 3]:
+        docs_seccion = [d for d in publicaciones if d["seccion"] == seccion_id]
+        # Primera categoría por defecto (puede ser la primera de la lista)
+        primera_categoria = seccion_info["subcategorias"][0] if seccion_info.get("subcategorias") else "General"
+        if st.button(
+            f"{seccion_info['icono']} {seccion_info['nombre']}\n\n"
+            f"{seccion_info['descripcion']}\n\n"
+            f"✅ {len(docs_seccion)} documentos disponibles",
+            key=f"dashboard_btn_{seccion_id}",
+            use_container_width=True
+        ):
+            # Establecer parámetros para la redirección
+            st.query_params["seccion"] = seccion_id
+            st.query_params["ir_a"] = "mis_documentos"
+            st.query_params["categoria"] = primera_categoria
+            st.rerun()
         else:
             st.header("🏠 Inicio")
             secciones_usuario = st.session_state.get('secciones', [])
@@ -285,46 +289,53 @@ else:
                 st.warning("No tienes secciones asignadas. Contacta al administrador.")
             else:
                 st.markdown("### 📂 Mis Secciones Asignadas")
-                cols = st.columns(3)
-                for i, sec_id in enumerate(secciones_usuario):
-                    if sec_id in SECCIONES:
-                        sec_info = SECCIONES[sec_id]
-                        try:
-                            docs_seccion = storage_manager.obtener_publicaciones_por_seccion(seccion=sec_id)
-                            num_docs = len(docs_seccion)
-                        except:
-                            num_docs = 0
-                        with cols[i % 3]:
-                            if st.button(
-                                f"{sec_info['icono']} {sec_info['nombre']}\n\n"
-                                f"{sec_info['descripcion']}\n\n"
-                                f"📄 {num_docs} documentos disponibles",
-                                key=f"user_dashboard_btn_{sec_id}",
-                                use_container_width=True
-                            ):
-                                st.session_state['seccion_seleccionada'] = sec_id
-                                st.session_state['menu_principal'] = "📁 Mis Documentos"
-                                st.rerun()
+cols = st.columns(3)
+for i, sec_id in enumerate(secciones_usuario):
+    if sec_id in SECCIONES:
+        sec_info = SECCIONES[sec_id]
+        try:
+            docs_seccion = storage_manager.obtener_publicaciones_por_seccion(seccion=sec_id)
+            num_docs = len(docs_seccion)
+        except:
+            num_docs = 0
+        primera_categoria = sec_info["subcategorias"][0] if sec_info.get("subcategorias") else "General"
+        with cols[i % 3]:
+            if st.button(
+                f"{sec_info['icono']} {sec_info['nombre']}\n\n"
+                f"{sec_info['descripcion']}\n\n"
+                f"📄 {num_docs} documentos disponibles",
+                key=f"user_dashboard_btn_{sec_id}",
+                use_container_width=True
+            ):
+                st.query_params["seccion"] = sec_id
+                st.query_params["ir_a"] = "mis_documentos"
+                st.query_params["categoria"] = primera_categoria
+                st.rerun()
 
     elif menu_actual == "📁 Mis Documentos":
-        # Procesar redirección desde el dashboard
+    # Procesar redirección desde el dashboard (Inicio)
         if 'ir_a' in st.query_params and st.query_params['ir_a'] == 'mis_documentos':
             if 'seccion' in st.query_params:
                 st.session_state['seccion_seleccionada_documentos'] = st.query_params['seccion']
-            st.query_params.clear()   # Limpiar para evitar re-procesar
+            if 'categoria' in st.query_params:
+                st.session_state['categoria_redirigida'] = st.query_params['categoria']
+            # Limpiar todos los parámetros para evitar re-procesos
+            st.query_params.clear()
 
         st.header("📁 Mis Documentos")
+
+        # Obtener secciones accesibles según rol
         if st.session_state['rol'] == 'master':
             secciones_usuario = list(SECCIONES.keys())
         else:
             secciones_usuario = auth_manager.obtener_secciones_usuario(st.session_state['usuario'])
+
         if not secciones_usuario:
             st.warning("⚠️ No tienes acceso a ninguna sección. Contacta al administrador.")
         else:
-            if 'seccion_seleccionada_documentos' in st.session_state:
-                seccion_preseleccionada = st.session_state.pop('seccion_seleccionada_documentos', None)
-            else:
-                seccion_preseleccionada = None
+            # Obtener sección preseleccionada (si existe)
+            seccion_preseleccionada = st.session_state.pop('seccion_seleccionada_documentos', None)
+
             opciones_secciones = [(s, SECCIONES[s]['nombre']) for s in secciones_usuario]
             indice_preseleccionado = 0
             if seccion_preseleccionada:
@@ -332,6 +343,8 @@ else:
                     if sec_id == seccion_preseleccionada:
                         indice_preseleccionado = idx
                         break
+
+            # Selector de sección
             seccion_seleccionada = st.selectbox(
                 "Seleccionar sección:",
                 options=opciones_secciones,
@@ -340,31 +353,56 @@ else:
                 key="selector_seccion_documentos"
             )[0]
             seccion_info = SECCIONES[seccion_seleccionada]
+
+            # Mostrar información de la sección
             st.markdown(f"""
             <div style="background: {seccion_info['color']}10; padding: 1rem; border-radius: 10px; margin-bottom: 1rem;">
                 <h3>{seccion_info['icono']} {seccion_info['nombre']}</h3>
                 <p>{seccion_info['descripcion']}</p>
             </div>
             """, unsafe_allow_html=True)
+
+            # Botón para volver al dashboard
             if st.button("🔙 Volver al Dashboard"):
                 st.rerun()
+
+            # Subcategorías (categorías)
             subcategorias_disponibles = seccion_info.get("subcategorias", ["General"])
+            st.markdown("### 📂 Categorías")
+
+            # Inicializar o recuperar categoría preseleccionada
             if 'categoria_seleccionada' not in st.session_state:
                 st.session_state['categoria_seleccionada'] = subcategorias_disponibles[0]
-            st.markdown("### 📂 Categorías")
+
+            # Si venimos de una redirección con categoría, sobreescribimos
+            categoria_redirigida = st.session_state.pop('categoria_redirigida', None)
+            if categoria_redirigida and categoria_redirigida in subcategorias_disponibles:
+                st.session_state['categoria_seleccionada'] = categoria_redirigida
+
+            # Mostrar botones de categorías
             cols_cat = st.columns(len(subcategorias_disponibles))
             for idx, cat in enumerate(subcategorias_disponibles):
                 with cols_cat[idx]:
-                    if st.button(cat, use_container_width=True, type="primary" if st.session_state['categoria_seleccionada'] == cat else "secondary"):
+                    if st.button(
+                        cat,
+                        key=f"cat_{seccion_seleccionada}_{cat}",
+                        use_container_width=True,
+                        type="primary" if st.session_state['categoria_seleccionada'] == cat else "secondary"
+                    ):
                         st.session_state['categoria_seleccionada'] = cat
                         st.rerun()
+
             categoria_actual = st.session_state['categoria_seleccionada']
             st.markdown(f"**Categoría actual:** {categoria_actual}")
             st.markdown("---")
+
+            # Buscador
             busqueda = st.text_input("🔍 Buscar por nombre o descripción:", key="buscador_mis_docs")
+
+            # ========== DOCUMENTOS PERSONALES (solo master) ==========
             archivos_personales = []
             if st.session_state['rol'] == 'master':
-                with st.expander("📤 Subir documento personal"):
+                with st.expander("📤 Subir documento personal", expanded=False):
                     archivo = st.file_uploader("Seleccionar archivo", type=['pdf', 'xlsx', 'xls', 'docx', 'doc'])
                     descripcion = st.text_area("Descripción (opcional)")
                     if archivo and st.button("Subir documento personal", type="primary"):
@@ -377,6 +415,7 @@ else:
                             st.rerun()
                         else:
                             st.error(f"❌ Error: {resultado}")
+
                 st.markdown("### 📄 Mis documentos personales")
                 archivos_personales = storage_manager.listar_archivos_usuario(
                     st.session_state['usuario'],
@@ -385,23 +424,28 @@ else:
                     incluir_publicaciones=False
                 )
                 if busqueda:
-                    archivos_personales = [a for a in archivos_personales if busqueda.lower() in a['nombre_original'].lower() or busqueda.lower() in a.get('descripcion', '').lower()]
+                    archivos_personales = [a for a in archivos_personales if
+                                        busqueda.lower() in a['nombre_original'].lower() or
+                                        busqueda.lower() in a.get('descripcion', '').lower()]
+
                 if archivos_personales:
                     for archivo in archivos_personales:
-                        cols = st.columns([3,2,2,1,1,1])
+                        cols = st.columns([3, 2, 2, 1, 1, 1])
                         with cols[0]:
                             st.write(f"📄 **{archivo['nombre_original']}**")
                         with cols[1]:
                             st.write(f"📅 {archivo['fecha'][:10]}")
                         with cols[2]:
-                            st.write(f"💾 {archivo.get('tamaño_kb', archivo.get('tamaño_bytes',0)/1024):.1f} KB")
+                            tamaño_kb = archivo.get('tamaño_kb', archivo.get('tamaño_bytes', 0) / 1024)
+                            st.write(f"💾 {tamaño_kb:.1f} KB")
                         with cols[3]:
                             if st.button("📥", key=f"download_{archivo['id']}"):
                                 exito, resultado = storage_manager.descargar_archivo_personal(archivo['id'], st.session_state['usuario'])
                                 if exito:
-                                    st.markdown(f'<a href="{resultado["url"]}" download="{resultado["nombre"]}">Descargar</a>', unsafe_allow_html=True)
+                                    st.markdown(f'<a href="{resultado["url"]}" download="{resultado["nombre"]}" style="background: #667eea; color: white; padding: 4px 12px; border-radius: 6px; text-decoration: none;">📥 Descargar</a>', unsafe_allow_html=True)
+                                    st.success("✅ Descarga disponible")
                                 else:
-                                    st.error("Error")
+                                    st.error(f"❌ {resultado}")
                         with cols[4]:
                             if st.button("🌍 Publicar", key=f"publish_{archivo['id']}"):
                                 st.session_state['archivo_a_publicar'] = archivo['id']
@@ -413,33 +457,51 @@ else:
                         st.divider()
                 else:
                     st.info("No tienes documentos personales en esta categoría")
+
+            # ========== PUBLICACIONES DEL MASTER ==========
             st.markdown("### 📢 Publicaciones del Master")
-            publicaciones = storage_manager.obtener_publicaciones_por_seccion(seccion=seccion_seleccionada, subcategoria=categoria_actual)
+            publicaciones = storage_manager.obtener_publicaciones_por_seccion(
+                seccion=seccion_seleccionada,
+                subcategoria=categoria_actual
+            )
             if busqueda:
-                publicaciones = [p for p in publicaciones if busqueda.lower() in p['nombre_original'].lower() or busqueda.lower() in p.get('descripcion', '').lower()]
+                publicaciones = [p for p in publicaciones if
+                                busqueda.lower() in p.get('nombre_original', '').lower() or
+                                busqueda.lower() in p.get('descripcion', '').lower()]
+
             if publicaciones:
                 for i, pub in enumerate(publicaciones):
-                    col1, col2 = st.columns([4,1])
+                    col1, col2 = st.columns([4, 1])
                     with col1:
-                        st.markdown(f"**📢 {pub['titulo']}**  \n<small>{pub['fecha_creacion'][:10]}</small>\n\n{pub.get('mensaje','')}", unsafe_allow_html=True)
+                        st.markdown(f"**📢 {pub.get('nombre_original', pub.get('titulo', 'Sin título'))}**  \n"
+                                    f"<small>{pub.get('fecha', pub.get('fecha_creacion', ''))[:10]}</small>\n\n"
+                                    f"{pub.get('descripcion', pub.get('mensaje', ''))}", unsafe_allow_html=True)
                     with col2:
                         if st.button("📥 Descargar", key=f"down_pub_{pub['id']}_{i}"):
                             if seccion_seleccionada in secciones_usuario:
                                 exito, resultado = storage_manager.descargar_archivo(pub["id"], st.session_state['usuario'], [seccion_seleccionada])
                                 if exito:
                                     st.markdown(f'<a href="{resultado["url"]}" download="{resultado["nombre"]}">Descargar</a>', unsafe_allow_html=True)
+                                    st.success("✅ Descarga disponible")
                                 else:
-                                    st.error("Error")
+                                    st.error(f"❌ {resultado}")
                             else:
-                                st.error("No tienes permiso")
+                                st.error("No tienes permiso para descargar este documento")
                     if st.session_state['rol'] == 'master':
                         col_edit, col_del = st.columns(2)
                         with col_edit:
                             if st.button("✏️ Editar", key=f"edit_{pub['id']}_{i}"):
-                                nueva_desc = st.text_area("Nueva descripción", value=pub.get('descripcion',''), key=f"newdesc_{pub['id']}")
+                                st.session_state[f'editando_{pub["id"]}'] = True
+                            if st.session_state.get(f'editando_{pub["id"]}', False):
+                                nueva_desc = st.text_area("Nueva descripción", value=pub.get('descripcion', ''), key=f"newdesc_{pub['id']}")
                                 if st.button("Guardar"):
-                                    storage_manager.editar_publicacion(pub['id'], nueva_desc)
-                                    st.rerun()
+                                    exito, msg = storage_manager.editar_publicacion(pub['id'], nueva_desc)
+                                    if exito:
+                                        st.success(msg)
+                                        st.session_state.pop(f'editando_{pub["id"]}', None)
+                                        st.rerun()
+                                    else:
+                                        st.error(msg)
                         with col_del:
                             if st.button("🗑️ Eliminar", key=f"del_{pub['id']}_{i}"):
                                 storage_manager.eliminar_publicacion(pub['id'])
@@ -447,6 +509,8 @@ else:
                     st.divider()
             else:
                 st.info("No hay publicaciones del master en esta categoría")
+
+            # Formulario para publicar desde personal
             if st.session_state.get('show_publish_form', False) and st.session_state['rol'] == 'master':
                 with st.form("form_publish"):
                     st.markdown("### Publicar documento personal")

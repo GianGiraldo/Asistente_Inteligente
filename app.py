@@ -1,4 +1,4 @@
-# app.py - Versión final con redirección funcional y selectbox en sidebar
+# app.py - Versión final con redirección garantizada
 import streamlit as st
 import pandas as pd
 from auth import AuthManager
@@ -24,130 +24,15 @@ def init_managers():
 
 auth_manager, storage_manager, message_manager, notification_manager = init_managers()
 
-SECCIONES = {
-    "contabilidad": {
-        "nombre": "📊 Contabilidad",
-        "icono": "📊",
-        "color": "#2ecc71",
-        "descripcion": "Facturas, balances, libros contables",
-        "subcategorias": ["Minicursos", "Formatos y Plantillas"]
-    },
-    "laboral": {
-        "nombre": "👥 Laboral",
-        "icono": "👥",
-        "color": "#3498db",
-        "descripcion": "Contratos, nóminas, documentos laborales",
-        "subcategorias": ["Minicursos", "Formatos y Plantillas"]
-    },
-    "financiero": {
-        "nombre": "💰 Financiero",
-        "icono": "💰",
-        "color": "#f1c40f",
-        "descripcion": "Estados financieros, proyecciones",
-        "subcategorias": ["Minicursos", "Formatos y Plantillas"]
-    },
-    "logistico": {
-        "nombre": "🚚 Logístico",
-        "icono": "🚚",
-        "color": "#e67e22",
-        "descripcion": "Guías, inventarios, despachos",
-        "subcategorias": ["Minicursos", "Formatos y Plantillas"]
-    },
-    "excel": {
-        "nombre": "📈 Excel",
-        "icono": "📈",
-        "color": "#1abc9c",
-        "descripcion": "Plantillas, reportes, análisis",
-        "subcategorias": ["Minicursos", "Formatos y Plantillas"]
-    }
-}
+SECCIONES = { ... }  # (tu definición de secciones, la misma que ya tienes)
 
-st.markdown("""
-<style>
-    .main-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 2rem;
-        border-radius: 15px;
-        color: white;
-        text-align: center;
-        margin-bottom: 2rem;
-    }
-    .metric-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-radius: 20px;
-        padding: 1rem;
-        color: white;
-        text-align: center;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    }
-    .publicacion-card {
-        background: #e8f4fd;
-        padding: 0.75rem;
-        border-radius: 8px;
-        margin: 0.5rem 0;
-        border-left: 4px solid #667eea;
-    }
-    .mensaje-card {
-        background: #f8f9fa;
-        padding: 1rem;
-        border-radius: 10px;
-        margin: 0.5rem 0;
-        border-left: 4px solid #667eea;
-    }
-    .mensaje-respuesta {
-        background: #e8f4fd;
-        padding: 0.75rem;
-        border-radius: 8px;
-        margin: 0.5rem 0 0.5rem 2rem;
-        border-left: 3px solid #2ecc71;
-    }
-</style>
-""", unsafe_allow_html=True)
+st.markdown(""" <style> ... </style> """, unsafe_allow_html=True)  # (tu CSS)
 
 def login_screen():
-    st.markdown("""
-    <div class="main-header">
-        <h1>📁 Asistente Inteligente</h1>
-        <p>Tu gestor documental inteligente</p>
-    </div>
-    """, unsafe_allow_html=True)
-    tab1, tab2 = st.tabs(["🔐 Iniciar Sesión", "📝 Registrarse"])
-    with tab1:
-        with st.form("login_form"):
-            email = st.text_input("Email (Gmail)", placeholder="tuemail@gmail.com")
-            password = st.text_input("Contraseña", type="password")
-            if st.form_submit_button("Iniciar Sesión", use_container_width=True):
-                valido, rol, nombre, secciones = auth_manager.verificar_usuario(email, password)
-                if valido:
-                    st.session_state['autenticado'] = True
-                    st.session_state['usuario'] = email
-                    st.session_state['rol'] = rol
-                    st.session_state['nombre'] = nombre
-                    st.session_state['secciones'] = secciones
-                    st.session_state['login_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    st.session_state['menu_principal'] = "🏠 Inicio"
-                    st.rerun()
-                else:
-                    st.error("❌ Credenciales incorrectas")
-    with tab2:
-        with st.form("registro_form"):
-            nombre = st.text_input("Nombre completo")
-            email = st.text_input("Email (Gmail)", placeholder="tuemail@gmail.com")
-            password = st.text_input("Contraseña", type="password")
-            confirmar = st.text_input("Confirmar contraseña", type="password")
-            if st.form_submit_button("Registrarse", use_container_width=True):
-                if password != confirmar:
-                    st.error("Las contraseñas no coinciden")
-                elif not email.endswith('@gmail.com'):
-                    st.error("Solo se permiten cuentas de Gmail")
-                else:
-                    exito, msg = auth_manager.registrar_usuario(email, password, nombre)
-                    if exito:
-                        st.success(msg)
-                        st.info("Ahora puedes iniciar sesión")
-                    else:
-                        st.error(msg)
+    # (tu función de login, igual)
+    pass
 
+# -------------------- INICIO DE LA APLICACIÓN --------------------
 if 'autenticado' not in st.session_state:
     st.session_state['autenticado'] = False
 if 'seccion_seleccionada' not in st.session_state:
@@ -156,11 +41,8 @@ if 'seccion_seleccionada' not in st.session_state:
 if not st.session_state['autenticado']:
     login_screen()
 else:
-    # ========== PROCESAR REDIRECCIÓN DESDE EL DASHBOARD ==========
-    
-    # HEADER
+    # ========== HEADER ==========
     col_logo, col_user, col_logout = st.columns([1, 3, 1])
-
     with col_logo:
         st.markdown("""
         <style>
@@ -173,7 +55,6 @@ else:
         </style>
         <h1 class="custom-title">🌟 Asistente Inteligente</h1>
         """, unsafe_allow_html=True)
-
     with col_user:
         nombre = st.session_state.get('nombre', 'Usuario')
         rol = st.session_state.get('rol', 'usuario')
@@ -207,17 +88,15 @@ else:
                             st.session_state['categoria_seleccionada'] = pub['categoria']
                             st.session_state['menu_principal'] = "📁 Mis Documentos"
                             st.rerun()
-
     with col_logout:
         if st.button("🚪 Cerrar Sesión"):
             for key in ['autenticado', 'usuario', 'rol', 'nombre', 'secciones', 'login_time', 'seccion_seleccionada']:
                 if key in st.session_state:
                     del st.session_state[key]
             st.rerun()
-
     st.markdown("---")
 
-    # SIDEBAR - MENÚ PRINCIPAL (usando selectbox)
+    # ========== SIDEBAR (usando selectbox, sin conflictos) ==========
     with st.sidebar:
         st.markdown(f"### Hola, {st.session_state.get('nombre', 'Usuario')}")
         if st.session_state['rol'] == 'master':
@@ -225,11 +104,9 @@ else:
         else:
             opciones_menu = ["🏠 Inicio", "📁 Mis Documentos", "📬 Consultas", "👤 Mi Perfil"]
 
-        # Asegurar que menu_principal tenga un valor válido
         if st.session_state.get('menu_principal') not in opciones_menu:
             st.session_state['menu_principal'] = opciones_menu[0]
 
-        # Usar selectbox (evita conflictos de estado)
         seleccion = st.selectbox(
             "📋 Menú",
             opciones_menu,
@@ -247,7 +124,7 @@ else:
                     del st.session_state[key]
             st.rerun()
 
-    # CONTENIDO PRINCIPAL
+    # ========== CONTENIDO PRINCIPAL ==========
     menu_actual = st.session_state.get('menu_principal', '🏠 Inicio')
 
     if menu_actual == "🏠 Inicio":
@@ -317,11 +194,9 @@ else:
                                 st.rerun()
 
     elif menu_actual == "📁 Mis Documentos":
-        # Procesar redirección desde el dashboard (Inicio) – usando session_state
+        # Leer variables de redirección (se eliminan después de usarlas)
         seccion_preseleccionada = st.session_state.pop('seccion_seleccionada_documentos', None)
         categoria_redirigida = st.session_state.pop('categoria_redirigida', None)
-        # Limpiar cualquier query_params residual
-        st.query_params.clear()
 
         st.header("📁 Mis Documentos")
 
@@ -352,7 +227,6 @@ else:
             )[0]
             seccion_info = SECCIONES[seccion_seleccionada]
 
-            # Mostrar información de la sección
             st.markdown(f"""
             <div style="background: {seccion_info['color']}10; padding: 1rem; border-radius: 10px; margin-bottom: 1rem;">
                 <h3>{seccion_info['icono']} {seccion_info['nombre']}</h3>
@@ -360,23 +234,18 @@ else:
             </div>
             """, unsafe_allow_html=True)
 
-            # Botón para volver al dashboard
             if st.button("🔙 Volver al Dashboard"):
                 st.rerun()
 
-            # Subcategorías (categorías)
             subcategorias_disponibles = seccion_info.get("subcategorias", ["General"])
             st.markdown("### 📂 Categorías")
 
-            # Inicializar o recuperar categoría preseleccionada
             if 'categoria_seleccionada' not in st.session_state:
                 st.session_state['categoria_seleccionada'] = subcategorias_disponibles[0]
 
-            # Si venimos de una redirección con categoría, sobreescribimos
             if categoria_redirigida and categoria_redirigida in subcategorias_disponibles:
                 st.session_state['categoria_seleccionada'] = categoria_redirigida
 
-            # Mostrar botones de categorías
             cols_cat = st.columns(len(subcategorias_disponibles))
             for idx, cat in enumerate(subcategorias_disponibles):
                 with cols_cat[idx]:
@@ -393,7 +262,6 @@ else:
             st.markdown(f"**Categoría actual:** {categoria_actual}")
             st.markdown("---")
 
-            # Buscador
             busqueda = st.text_input("🔍 Buscar por nombre o descripción:", key="buscador_mis_docs")
 
             # ========== DOCUMENTOS PERSONALES (solo master) ==========
@@ -499,6 +367,31 @@ else:
                                         st.rerun()
                                     else:
                                         st.error(msg)
+                        with col_del:
+                            if st.button("🗑️ Eliminar", key=f"del_{pub['id']}_{i}"):
+                                storage_manager.eliminar_publicacion(pub['id'])
+                                st.rerun()
+                    st.divider()
+            else:
+                st.info("No hay publicaciones del master en esta categoría")
+
+            # Formulario para publicar desde personal
+            if st.session_state.get('show_publish_form', False) and st.session_state['rol'] == 'master':
+                with st.form("form_publish"):
+                    st.markdown("### Publicar documento personal")
+                    archivo_id = st.session_state['archivo_a_publicar']
+                    seccion_dest = st.selectbox("Sección destino", list(SECCIONES.keys()), format_func=lambda x: SECCIONES[x]['nombre'])
+                    subcat_dest = st.selectbox("Subcategoría", SECCIONES[seccion_dest]["subcategorias"])
+                    comentario = st.text_area("Comentario")
+                    if st.form_submit_button("Confirmar publicación"):
+                        exito, msg = storage_manager.publicar_desde_personal(archivo_id, st.session_state['usuario'], seccion_dest, subcat_dest, comentario)
+                        if exito:
+                            st.success("Publicado")
+                            del st.session_state['show_publish_form']
+                            del st.session_state['archivo_a_publicar']
+                            st.rerun()
+                        else:
+                            st.error(msg)
                         with col_del:
                             if st.button("🗑️ Eliminar", key=f"del_{pub['id']}_{i}"):
                                 storage_manager.eliminar_publicacion(pub['id'])

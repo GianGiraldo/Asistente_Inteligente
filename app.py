@@ -39,11 +39,11 @@ SECCIONES = {
         "descripcion": "Contratos, nóminas, documentos laborales",
         "subcategorias": ["Minicursos", "Formatos y Plantillas"]
     },
-    "financiero": {
-        "nombre": "💰 Financiero",
+    "Comercio Exterior": {
+        "nombre": "💰 Comercio Exterior",
         "icono": "💰",
         "color": "#f1c40f",
-        "descripcion": "Estados financieros, proyecciones",
+        "descripcion": "Documentacion, Objetivo, Trámites, Incoterms",
         "subcategorias": ["Minicursos", "Formatos y Plantillas"]
     },
     "logistico": {

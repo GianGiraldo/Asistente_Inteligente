@@ -64,42 +64,91 @@ SECCIONES = {
 
 st.markdown("""
 <style>
-    .main-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 2rem;
-        border-radius: 15px;
-        color: white;
-        text-align: center;
-        margin-bottom: 2rem;
+    /* Fondo general de la aplicación */
+    .stApp {
+        background-color: #f0f7ff;  /* Azul muy claro, educativo y tranquilo */
     }
+    
+    /* Fondo del sidebar */
+    .css-1d391kg, .stSidebar {
+        background-color: #ffffff;
+        border-right: 1px solid #e0e7f0;
+    }
+    
+    /* Tarjetas de métricas (ya tienes .metric-card, puedes ajustar si es necesario) */
     .metric-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+        border: 1px solid #dce5f0;
         border-radius: 20px;
         padding: 1rem;
-        color: white;
+        color: #1e2a3e;
         text-align: center;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        transition: transform 0.2s, box-shadow 0.2s;
     }
-    .publicacion-card {
-        background: #e8f4fd;
-        padding: 0.75rem;
-        border-radius: 8px;
-        margin: 0.5rem 0;
-        border-left: 4px solid #667eea;
+    .metric-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.1);
     }
-    .mensaje-card {
-        background: #f8f9fa;
-        padding: 1rem;
-        border-radius: 10px;
-        margin: 0.5rem 0;
-        border-left: 4px solid #667eea;
+    .metric-card h3 {
+        color: #2c3e66;
+        margin: 0;
+        font-size: 1.8rem;
     }
-    .mensaje-respuesta {
-        background: #e8f4fd;
-        padding: 0.75rem;
-        border-radius: 8px;
-        margin: 0.5rem 0 0.5rem 2rem;
-        border-left: 3px solid #2ecc71;
+    .metric-card p {
+        color: #4a627a;
+        margin: 0;
+        font-size: 0.9rem;
+    }
+    
+    /* Tarjetas de secciones (dashboard) */
+    .section-card, .home-card {
+        background: white;
+        border-radius: 20px;
+        padding: 1.2rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        transition: all 0.2s ease;
+        border: 1px solid #e9eef3;
+    }
+    .section-card:hover, .home-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+        border-color: #a0c4ff;
+    }
+    
+    /* Botones principales */
+    .stButton button {
+        background-color: #4a6fa5;
+        color: white;
+        border-radius: 30px;
+        border: none;
+        transition: background-color 0.2s;
+    }
+    .stButton button:hover {
+        background-color: #2c5282;
+    }
+    
+    /* Encabezados */
+    h1, h2, h3, h4 {
+        color: #1e2a3e;
+    }
+    
+    /* Selectbox y otros inputs */
+    .stSelectbox div[data-baseweb="select"] {
+        border-radius: 30px;
+        border-color: #cbd5e1;
+    }
+    
+    /* Popover (campana) */
+    .stPopover {
+        background-color: white;
+        border-radius: 20px;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    }
+    
+    /* Footer */
+    footer {
+        color: #7f8c8d;
     }
 </style>
 """, unsafe_allow_html=True)

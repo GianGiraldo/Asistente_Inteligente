@@ -1,4 +1,4 @@
-# storage_manager.py - Versión definitiva con obtener_publicaciones_usuario
+# storage_manager.py - Versión robusta y profesional
 import streamlit as st
 from supabase_client import get_supabase
 import uuid
@@ -8,9 +8,8 @@ import unicodedata
 from notification_manager import NotificationManager
 
 def limpiar_ruta(texto):
-    # Convierte caracteres como 'ó' a 'o', 'ó' a 'o', etc., y lo pasa a minúsculas
+    """Limpia una ruta eliminando tildes y convirtiendo a minúsculas."""
     texto_normalizado = unicodedata.normalize('NFKD', texto).encode('ASCII', 'ignore').decode('ASCII')
-    # Opcional: Reemplazar espacios por guiones si prefieres rutas más limpias
     return texto_normalizado.lower().strip()
 
 class StorageManager:
@@ -19,19 +18,12 @@ class StorageManager:
         self.bucket_name = "documentos"
 
     def _subir_archivo(self, archivo, carpeta):
-        # 1. Limpiamos la carpeta para quitar tildes, espacios raros o mayúsculas antes de subir
-        # Si 'carpeta' viene como "personales/master@optimizo.com/contabilidad/Administración"
-        # lo separamos por "/" para limpiar cada fragmento individualmente
+        """Sube un archivo al bucket y retorna (url, nombre_guardado)."""
         partes_carpeta = [limpiar_ruta(parte) for parte in carpeta.split("/")]
         carpeta_limpia = "/".join(partes_carpeta)
-        
-        # 2. Procesamos el archivo de forma normal
         extension = archivo.name.split('.')[-1].lower()
         nombre_unico = f"{uuid.uuid4()}.{extension}"
-        
-        # 3. Construimos la ruta de destino usando la carpeta limpia
         ruta_destino = f"{carpeta_limpia}/{nombre_unico}"
-        
         self.supabase.storage.from_(self.bucket_name).upload(
             ruta_destino, archivo.getvalue(), {"content-type": archivo.type}
         )
@@ -39,51 +31,66 @@ class StorageManager:
         return url, nombre_unico
 
     def guardar_archivo(self, archivo, seccion, subcategoria, usuario, descripcion="", es_publicacion=False):
+        """
+        Guarda un archivo (personal o publicación).
+        Retorna (éxito, resultado) donde resultado es dict con datos o mensaje de error.
+        """
         if not archivo:
             return False, "No se ha seleccionado ningún archivo"
-        if es_publicacion:
-            carpeta = f"publicaciones/{seccion}/{subcategoria}"
-            tabla = "publicaciones"
-            data_insert = {
-                "id": str(uuid.uuid4()),
-                "nombre_original": archivo.name,
-                "nombre_guardado": None,
-                "seccion": seccion,
-                "subcategoria": subcategoria,
-                "descripcion": descripcion,
-                "titulo": archivo.name,                
-                "mensaje": descripcion or "",          
-                "categoria": subcategoria,             
-                "creado_por": "master" if es_publicacion else usuario
-            }
-        else:
-            carpeta = f"personales/{usuario}/{seccion}/{subcategoria}"
-            tabla = "archivos_personales"
-            data_insert = {
-                "id": str(uuid.uuid4()),
-                "usuario_email": usuario,
-                "nombre_original": archivo.name,
-                "nombre_guardado": None,
-                "seccion": seccion,
-                "subcategoria": subcategoria,
-                "descripcion": descripcion,
-            }
-        url, nombre_guardado = self._subir_archivo(archivo, carpeta)
-        tamaño_bytes = len(archivo.getvalue())
-        tamaño_kb = round(tamaño_bytes / 1024, 2)
-        extension = archivo.name.split('.')[-1].lower()
-        data_insert.update({
-            "nombre_guardado": nombre_guardado,
-            "fecha": datetime.now().isoformat(),
-            "tamaño_bytes": tamaño_bytes,
-            "tamaño_kb": tamaño_kb,
-            "extension": extension,
-            "ruta_completa": url
-        })
-        result = self.supabase.table(tabla).insert(data_insert).execute()
-        return (True, data_insert) if result.data else (False, "Error al guardar")
+
+        try:
+            if es_publicacion:
+                carpeta = f"publicaciones/{seccion}/{subcategoria}"
+                tabla = "publicaciones"
+                data_insert = {
+                    "id": str(uuid.uuid4()),
+                    "nombre_original": archivo.name,
+                    "nombre_guardado": None,
+                    "seccion": seccion,
+                    "subcategoria": subcategoria,
+                    "descripcion": descripcion,
+                    "titulo": archivo.name,
+                    "mensaje": descripcion or "",
+                    "categoria": subcategoria,          # Columna requerida
+                    "creado_por": "master"
+                }
+            else:
+                carpeta = f"personales/{usuario}/{seccion}/{subcategoria}"
+                tabla = "archivos_personales"
+                data_insert = {
+                    "id": str(uuid.uuid4()),
+                    "usuario_email": usuario,
+                    "nombre_original": archivo.name,
+                    "nombre_guardado": None,
+                    "seccion": seccion,
+                    "subcategoria": subcategoria,
+                    "descripcion": descripcion,
+                }
+
+            url, nombre_guardado = self._subir_archivo(archivo, carpeta)
+            tamaño_bytes = len(archivo.getvalue())
+            tamaño_kb = round(tamaño_bytes / 1024, 2)
+            extension = archivo.name.split('.')[-1].lower()
+
+            data_insert.update({
+                "nombre_guardado": nombre_guardado,
+                "fecha": datetime.now().isoformat(),
+                "tamaño_bytes": tamaño_bytes,
+                "tamaño_kb": tamaño_kb,
+                "extension": extension,
+                "ruta_completa": url
+            })
+
+            result = self.supabase.table(tabla).insert(data_insert).execute()
+            if result.data:
+                return True, data_insert
+            else:
+                return False, "Error al insertar en la base de datos"
+        except Exception as e:
+            return False, f"Error al guardar archivo: {str(e)}"
 
     def publicar_documento(self, archivo, seccion, subcategoria, descripcion=""):
+        """Publica un documento directamente desde el panel de administración."""
         exito, resultado = self.guardar_archivo(archivo, seccion, subcategoria, "master", descripcion, es_publicacion=True)
         if exito:
             notif_mgr = NotificationManager()
@@ -93,41 +100,46 @@ class StorageManager:
                 tipo="publicacion",
                 metadata={"seccion": seccion, "subcategoria": subcategoria, "archivo_id": resultado["id"]}
             )
-            return exito, resultado
+        return exito, resultado
 
     def listar_archivos_usuario(self, usuario, seccion=None, subcategoria=None, incluir_publicaciones=False):
+        """Lista archivos personales (y opcionalmente publicaciones) de un usuario."""
         archivos = []
-        query = self.supabase.table("archivos_personales").select("*").eq("usuario_email", usuario)
-        if seccion:
-            query = query.eq("seccion", seccion)
-        if subcategoria:
-            query = query.eq("subcategoria", subcategoria)
-        archivos.extend(query.execute().data or [])
-        if incluir_publicaciones:
-            qpub = self.supabase.table("publicaciones").select("*")
+        try:
+            query = self.supabase.table("archivos_personales").select("*").eq("usuario_email", usuario)
             if seccion:
-                qpub = qpub.eq("seccion", seccion)
-            archivos.extend(qpub.execute().data or [])
-        archivos.sort(key=lambda x: x["fecha"], reverse=True)
+                query = query.eq("seccion", seccion)
+            if subcategoria:
+                query = query.eq("subcategoria", subcategoria)
+            archivos.extend(query.execute().data or [])
+
+            if incluir_publicaciones:
+                qpub = self.supabase.table("publicaciones").select("*")
+                if seccion:
+                    qpub = qpub.eq("seccion", seccion)
+                archivos.extend(qpub.execute().data or [])
+
+            archivos.sort(key=lambda x: x.get("fecha", ""), reverse=True)
+        except Exception as e:
+            print(f"Error listando archivos: {e}")
         return archivos
 
     def obtener_publicaciones_por_seccion(self, seccion=None, subcategoria=None):
+        """Obtiene publicaciones filtradas por sección y subcategoría (opcionales)."""
         try:
             query = self.supabase.table('publicaciones').select('*')
             if seccion:
                 query = query.eq('seccion', seccion)
-            # La columna se llama 'categoría' (con tilde) o 'categoria'? Verifica en Supabase.
-            # Si tiene tilde, usa 'categoría', si no, 'categoria'.
             if subcategoria:
-                query = query.eq('subcategoria', subcategoria)  # Ajusta el nombre exacto de la columna
+                query = query.eq('subcategoria', subcategoria)
             query = query.order('fecha_creacion', desc=True)
             return query.execute().data or []
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"Error en obtener_publicaciones_por_seccion: {e}")
             return []
 
     def obtener_publicaciones_usuario(self, usuario, secciones_usuario):
-        """Obtiene las publicaciones a las que el usuario tiene acceso según sus secciones asignadas."""
+        """Filtra publicaciones según las secciones a las que el usuario tiene acceso."""
         todas = self.obtener_publicaciones_por_seccion()
         visibles = []
         for pub in todas:
@@ -138,90 +150,107 @@ class StorageManager:
         return visibles
 
     def descargar_archivo(self, archivo_id, usuario_email, secciones_usuario):
-        result = self.supabase.table("publicaciones").select("*").eq("id", archivo_id).execute()
-        if not result.data:
-            result = self.supabase.table("archivos_personales").select("*").eq("id", archivo_id).execute()
-        if result.data:
+        """Descarga un archivo (público o personal) verificando permisos."""
+        try:
+            # Buscar primero en publicaciones
+            result = self.supabase.table("publicaciones").select("*").eq("id", archivo_id).execute()
+            if not result.data:
+                result = self.supabase.table("archivos_personales").select("*").eq("id", archivo_id).execute()
+            if not result.data:
+                return False, "Archivo no encontrado"
+
             archivo = result.data[0]
+            # Verificar permiso si no es master
             if usuario_email != "master@optimizo.com" and archivo.get("seccion") not in secciones_usuario:
-                return False, "No tienes permiso"
+                return False, "No tienes permiso para descargar este documento"
+
             url = archivo["ruta_completa"]
             mime, _ = mimetypes.guess_type(archivo["nombre_original"])
             return True, {"nombre": archivo["nombre_original"], "url": url, "mime_type": mime or "application/octet-stream"}
-        return False, "Archivo no encontrado"
+        except Exception as e:
+            return False, f"Error al descargar: {str(e)}"
 
     def descargar_archivo_personal(self, archivo_id, usuario):
-        result = self.supabase.table("archivos_personales").select("*").eq("id", archivo_id).eq("usuario_email", usuario).execute()
-        if result.data:
+        """Descarga un archivo personal del usuario."""
+        try:
+            result = self.supabase.table("archivos_personales").select("*").eq("id", archivo_id).eq("usuario_email", usuario).execute()
+            if not result.data:
+                return False, "Documento no encontrado"
             archivo = result.data[0]
             url = archivo["ruta_completa"]
             mime, _ = mimetypes.guess_type(archivo["nombre_original"])
             return True, {"nombre": archivo["nombre_original"], "url": url, "mime_type": mime or "application/octet-stream"}
-        return False, "Documento no encontrado"
+        except Exception as e:
+            return False, f"Error al descargar: {str(e)}"
 
     def eliminar_archivo(self, archivo_id, usuario, es_publicacion=False):
-        supabase = self.supabase
-        tabla = "publicaciones" if es_publicacion else "archivos_personales"
-        query = supabase.table(tabla).select("*").eq("id", archivo_id)
-        if not es_publicacion:
-            query = query.eq("usuario_email", usuario)
-        result = query.execute()
-        if not result.data:
-            return False, "Archivo no encontrado"
-        archivo = result.data[0]
-        ruta_url = archivo["ruta_completa"]
+        """Elimina un archivo (personal o publicación) y su registro en BD."""
         try:
-            path = ruta_url.split(f"/object/public/{self.bucket_name}/")[-1]
-            supabase.storage.from_(self.bucket_name).remove([path])
-        except Exception:
-            pass
-        supabase.table(tabla).delete().eq("id", archivo_id).execute()
-        return True, "Archivo eliminado"
+            supabase = self.supabase
+            tabla = "publicaciones" if es_publicacion else "archivos_personales"
+            query = supabase.table(tabla).select("*").eq("id", archivo_id)
+            if not es_publicacion:
+                query = query.eq("usuario_email", usuario)
+            result = query.execute()
+            if not result.data:
+                return False, "Archivo no encontrado"
+
+            archivo = result.data[0]
+            ruta_url = archivo["ruta_completa"]
+            try:
+                path = ruta_url.split(f"/object/public/{self.bucket_name}/")[-1]
+                supabase.storage.from_(self.bucket_name).remove([path])
+            except Exception:
+                pass  # El archivo podría no existir en storage, se omite
+
+            supabase.table(tabla).delete().eq("id", archivo_id).execute()
+            return True, "Archivo eliminado correctamente"
+        except Exception as e:
+            return False, f"Error al eliminar: {str(e)}"
 
     def eliminar_publicacion(self, publicacion_id):
+        """Elimina una publicación (wrapper)."""
         return self.eliminar_archivo(publicacion_id, "master", es_publicacion=True)
 
     def editar_publicacion(self, publicacion_id, nueva_descripcion):
+        """Edita la descripción de una publicación."""
         try:
-            # Al hacer el update, Supabase aplica el cambio directamente si encuentra el ID
             result = self.supabase.table("publicaciones").update({"descripcion": nueva_descripcion}).eq("id", publicacion_id).execute()
-            
-            # Verificamos si la operación no lanzó error y si afectó a un registro
             if result.data:
                 return True, "Descripción actualizada exitosamente."
             else:
                 return False, "No se encontró la publicación para editar."
         except Exception as e:
-            return False, f"Error al editar en la base de datos: {str(e)}"
-    
+            return False, f"Error al editar: {str(e)}"
+
     def publicar_desde_personal(self, archivo_id, usuario, seccion, subcategoria, descripcion=""):
+        """Publica un documento que originalmente era personal, convirtiéndolo en publicación global."""
         try:
-            # 1. Obtener el registro del archivo personal
+            # Obtener el documento personal
             result = self.supabase.table("archivos_personales").select("*").eq("id", archivo_id).execute()
             if not result.data:
                 return False, "Documento personal no encontrado"
             doc = result.data[0]
 
-            # 2. Verificar que el usuario sea el propietario
             if doc["usuario_email"] != usuario:
                 return False, "No tienes permiso para publicar este documento"
 
-            # 3. Extraer la ruta relativa real desde la URL almacenada
+            # Extraer ruta relativa
             ruta_completa = doc["ruta_completa"]
             if f"/object/public/{self.bucket_name}/" in ruta_completa:
                 ruta_relativa = ruta_completa.split(f"/object/public/{self.bucket_name}/")[-1]
             else:
                 return False, "No se pudo determinar la ruta del archivo en Storage"
 
-            # 4. Descargar el contenido original usando esa ruta exacta
+            # Descargar contenido original
             contenido = self.supabase.storage.from_(self.bucket_name).download(ruta_relativa)
 
-            # 5. Preparar la nueva ruta en publicaciones (usando limpiar_ruta)
+            # Preparar nueva ruta en publicaciones
             carpeta_dest = f"publicaciones/{seccion}/{subcategoria}"
             partes_limpias = [limpiar_ruta(p) for p in carpeta_dest.split("/")]
             ruta_nueva = "/".join(partes_limpias) + "/" + doc["nombre_guardado"]
 
-            # 6. Subir el archivo a la carpeta de publicaciones
+            # Subir a la carpeta de publicaciones
             self.supabase.storage.from_(self.bucket_name).upload(
                 path=ruta_nueva,
                 file=contenido,
@@ -229,7 +258,7 @@ class StorageManager:
             )
             url_publica = self.supabase.storage.from_(self.bucket_name).get_public_url(ruta_nueva)
 
-            # 7. Insertar registro en "publicaciones" con los mismos campos que usa tu app
+            # Crear registro en publicaciones
             nuevo_id = str(uuid.uuid4())
             registro_pub = {
                 "id": nuevo_id,
@@ -243,14 +272,14 @@ class StorageManager:
                 "tamaño_kb": doc["tamaño_kb"],
                 "extension": doc["extension"],
                 "ruta_completa": url_publica,
-                "titulo": doc["nombre_original"],                     # ✅ Añadido
-                "mensaje": descripcion or doc.get("descripcion", ""), # ✅ Añadido
-                "categoria": subcategoria,                            # ✅ Añadido
+                "titulo": doc["nombre_original"],
+                "mensaje": descripcion or doc.get("descripcion", ""),
+                "categoria": subcategoria,
                 "creado_por": usuario
             }
             self.supabase.table("publicaciones").insert(registro_pub).execute()
 
+            # Opcional: enviar notificación a todos (puedes agregar NotificationManager aquí)
             return True, "Documento publicado exitosamente"
-
         except Exception as e:
             return False, f"Error al publicar: {str(e)}"

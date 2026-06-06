@@ -150,16 +150,6 @@ st.markdown("""
     footer {
         color: #7f8c8d;
     }
-            
-    /* Ajuste para bajar y centrar el contenido principal */
-    .block-container {
-        padding-top: 6rem;   /* Aumenta el espacio superior (puede ajustar: 4rem, 6rem, etc.) */
-        /* Si también desea centrar verticalmente, descomente las líneas siguientes */
-        /* display: flex;
-        flex-direction: column;
-        justify-content: center;
-        min-height: 80vh; */
-    }          
 </style>
 """, unsafe_allow_html=True)
 

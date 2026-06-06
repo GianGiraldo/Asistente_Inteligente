@@ -165,6 +165,11 @@ st.markdown("""
     max-width: 500px;
     margin-left: auto;
     margin-right: auto;
+}
+
+/* Aumentar el espacio superior en el sidebar */
+section[data-testid="stSidebar"] > div:first-child {
+    padding-top: 3rem !important;  /* Ajusta el valor (2rem, 3rem, etc.) */
 }                
 </style>
 """, unsafe_allow_html=True)

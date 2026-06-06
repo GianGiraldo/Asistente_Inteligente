@@ -208,22 +208,11 @@ def login_screen():
     # Centrar todo el contenido usando columnas vacías a los lados
     left_pad, center_col, right_pad = st.columns([1, 2, 1])
     with center_col:
-        # Mostrar el logo (ajusta el ancho con use_container_width o width)
-        st.image("assets/velox.png", use_container_width=True, width=300)
+        # Mostrar el logo con un tamaño más pequeño (ajusta el ancho en píxeles)
+        st.image("assets/velox.png", width=120)   # Cambia 150 por el tamaño deseado (ej: 120, 180)
         
-        # Título y eslogan (puedes mantener el logo como imagen, o texto)
-        st.markdown("""
-        <div style="text-align: center; margin-top: 1rem;">
-            <div style="font-size: 2rem; font-weight: 700; color: #2c3e66;">velox</div>
-            <div style="font-size: 1.5rem; font-weight: 500; color: #1e2a3e;">TU GESTOR INTELIGENTE</div>
-            <div style="margin-top: 1rem; font-size: 1rem; color: #4a627a; max-width: 400px; margin-left: auto; margin-right: auto;">
-                Encuentra cursos y plantillas personalizables para potenciar tus habilidades
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Espacio antes del formulario
-        st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
+        # Espacio entre logo y formulario
+        st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
         
         # Tarjeta blanca para el formulario
         st.markdown("""

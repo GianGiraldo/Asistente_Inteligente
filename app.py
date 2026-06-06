@@ -150,6 +150,22 @@ st.markdown("""
     footer {
         color: #7f8c8d;
     }
+
+    /* Centrar completamente el encabezado del login */
+.main-header {
+    text-align: center !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    width: 100% !important;
+    display: block !important;
+}
+
+/* Opcional: asegurar que el formulario de login también se centre */
+.stTabs {
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+}                
 </style>
 """, unsafe_allow_html=True)
 

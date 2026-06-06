@@ -64,6 +64,36 @@ SECCIONES = {
 
 st.markdown("""
 <style>
+    /* Centrar verticalmente la pantalla de login */
+    .stApp > .main > .block-container {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 90vh;
+        padding-top: 0;
+    }
+
+    /* Quitar el padding extra que pueda desplazar */
+    .block-container {
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+    }
+
+    /* Fondo general (coordinado con tu imagen) */
+    .stApp {
+        background: linear-gradient(135deg, #f5f7fc 0%, #e9eef5 100%);
+    }
+
+    /* Tarjeta blanca del formulario */
+    div[data-testid="stForm"] {
+        background: transparent;
+    }
+
+    /* Ajuste para las tabs */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 1rem;
+        justify-content: center;
+    }            
     /* Fondo general de la aplicación */
     .stApp {
         background-color: #f0f7ff;  /* Azul muy claro, educativo y tranquilo */
@@ -175,48 +205,71 @@ section[data-testid="stSidebar"] > div:first-child {
 """, unsafe_allow_html=True)
 
 def login_screen():
-    st.markdown("""
-    <div class="main-header">
-        <h1>📁 Asistente Inteligente</h1>
-        <p>Tu gestor documental inteligente</p>
-    </div>
-    """, unsafe_allow_html=True)
-    tab1, tab2 = st.tabs(["🔐 Iniciar Sesión", "📝 Registrarse"])
-    with tab1:
-        with st.form("login_form"):
-            email = st.text_input("Email (Gmail)", placeholder="tuemail@gmail.com")
-            password = st.text_input("Contraseña", type="password")
-            if st.form_submit_button("Iniciar Sesión", use_container_width=True):
-                valido, rol, nombre, secciones = auth_manager.verificar_usuario(email, password)
-                if valido:
-                    st.session_state['autenticado'] = True
-                    st.session_state['usuario'] = email
-                    st.session_state['rol'] = rol
-                    st.session_state['nombre'] = nombre
-                    st.session_state['secciones'] = secciones
-                    st.session_state['login_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    st.session_state['menu_principal'] = "🏠 Inicio"
-                    st.rerun()
-                else:
-                    st.error("❌ Credenciales incorrectas")
-    with tab2:
-        with st.form("registro_form"):
-            nombre = st.text_input("Nombre completo")
-            email = st.text_input("Email (Gmail)", placeholder="tuemail@gmail.com")
-            password = st.text_input("Contraseña", type="password")
-            confirmar = st.text_input("Confirmar contraseña", type="password")
-            if st.form_submit_button("Registrarse", use_container_width=True):
-                if password != confirmar:
-                    st.error("Las contraseñas no coinciden")
-                elif not email.endswith('@gmail.com'):
-                    st.error("Solo se permiten cuentas de Gmail")
-                else:
-                    exito, msg = auth_manager.registrar_usuario(email, password, nombre)
-                    if exito:
-                        st.success(msg)
-                        st.info("Ahora puedes iniciar sesión")
+    # Centrar todo el contenido usando columnas vacías a los lados
+    left_pad, center_col, right_pad = st.columns([1, 2, 1])
+    with center_col:
+        # Mostrar el logo (ajusta el ancho con use_container_width o width)
+        st.image("assets/velox.png", use_container_width=True, width=300)
+        
+        # Título y eslogan (puedes mantener el logo como imagen, o texto)
+        st.markdown("""
+        <div style="text-align: center; margin-top: 1rem;">
+            <div style="font-size: 2rem; font-weight: 700; color: #2c3e66;">velox</div>
+            <div style="font-size: 1.5rem; font-weight: 500; color: #1e2a3e;">TU GESTOR INTELIGENTE</div>
+            <div style="margin-top: 1rem; font-size: 1rem; color: #4a627a; max-width: 400px; margin-left: auto; margin-right: auto;">
+                Encuentra cursos y plantillas personalizables para potenciar tus habilidades
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Espacio antes del formulario
+        st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
+        
+        # Tarjeta blanca para el formulario
+        st.markdown("""
+        <div style="background: white; padding: 2rem; border-radius: 24px; box-shadow: 0 8px 24px rgba(0,0,0,0.08);">
+        """, unsafe_allow_html=True)
+        
+        tab1, tab2 = st.tabs(["🔐 Iniciar Sesión", "📝 Registrarse"])
+        
+        with tab1:
+            with st.form("login_form"):
+                email = st.text_input("Email (Gmail)", placeholder="tuemail@gmail.com")
+                password = st.text_input("Contraseña", type="password")
+                if st.form_submit_button("Iniciar Sesión", use_container_width=True):
+                    valido, rol, nombre, secciones = auth_manager.verificar_usuario(email, password)
+                    if valido:
+                        st.session_state['autenticado'] = True
+                        st.session_state['usuario'] = email
+                        st.session_state['rol'] = rol
+                        st.session_state['nombre'] = nombre
+                        st.session_state['secciones'] = secciones
+                        st.session_state['login_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        st.session_state['menu_principal'] = "🏠 Inicio"
+                        st.rerun()
                     else:
-                        st.error(msg)
+                        st.error("❌ Credenciales incorrectas")
+        
+        with tab2:
+            with st.form("registro_form"):
+                nombre = st.text_input("Nombre completo")
+                email = st.text_input("Email (Gmail)", placeholder="tuemail@gmail.com")
+                password = st.text_input("Contraseña", type="password")
+                confirmar = st.text_input("Confirmar contraseña", type="password")
+                if st.form_submit_button("Registrarse", use_container_width=True):
+                    if password != confirmar:
+                        st.error("Las contraseñas no coinciden")
+                    elif not email.endswith('@gmail.com'):
+                        st.error("Solo se permiten cuentas de Gmail")
+                    else:
+                        exito, msg = auth_manager.registrar_usuario(email, password, nombre)
+                        if exito:
+                            st.success(msg)
+                            st.info("Ahora puedes iniciar sesión")
+                        else:
+                            st.error(msg)
+        
+        st.markdown("</div>", unsafe_allow_html=True)
 
 if 'autenticado' not in st.session_state:
     st.session_state['autenticado'] = False

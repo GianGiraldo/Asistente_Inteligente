@@ -209,7 +209,7 @@ def login_screen():
     left_pad, center_col, right_pad = st.columns([1, 2, 1])
     with center_col:
         # Mostrar el logo con un tamaño más pequeño (ajusta el ancho en píxeles)
-        st.image("assets/velox.png", width=150)   # Cambia 150 por el tamaño deseado (ej: 120, 180)
+        st.image("assets/velox.png", width=180)   # Cambia 150 por el tamaño deseado (ej: 120, 180)
         
         # Espacio entre logo y formulario
         st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)

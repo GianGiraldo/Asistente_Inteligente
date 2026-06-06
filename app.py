@@ -169,7 +169,7 @@ st.markdown("""
 
 /* Aumentar el espacio superior en el sidebar */
 section[data-testid="stSidebar"] > div:first-child {
-    padding-top: 3rem !important;  /* Ajusta el valor (2rem, 3rem, etc.) */
+    padding-top: 5rem !important;  /* Ajusta el valor (2rem, 3rem, etc.) */
 }                
 </style>
 """, unsafe_allow_html=True)

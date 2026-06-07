@@ -161,15 +161,14 @@ st.markdown("""
 
 # ==================== PANTALLA DE LOGIN (CENTRADA Y CON MENSAJE) ====================
 def login_screen():
-    # CSS exclusivo para la pantalla de login (no afecta al resto)
+    import os
+    # CSS exclusivo para la pantalla de login
     st.markdown("""
     <style>
-        /* Eliminar cualquier padding/margin heredado */
         .block-container {
             padding: 0 !important;
             margin: 0 !important;
         }
-        /* Contenedor principal de login: centrado absoluto */
         .login-fullscreen {
             position: fixed;
             top: 0;
@@ -183,20 +182,17 @@ def login_screen():
             background: linear-gradient(135deg, #f5f7fc 0%, #e9eef5 100%);
             z-index: 9999;
         }
-        /* Caja del contenido */
         .login-box {
             text-align: center;
             max-width: 450px;
             width: 90%;
             padding: 1rem;
         }
-        /* Logo */
         .login-box .stImage {
             display: flex;
             justify-content: center;
             margin-bottom: 1rem;
         }
-        /* Mensaje promocional */
         .login-message {
             font-size: 1rem;
             color: #4a627a;
@@ -205,7 +201,6 @@ def login_screen():
             max-width: 350px;
             text-align: center;
         }
-        /* Tarjeta del formulario */
         .login-card {
             background: white;
             padding: 2rem;
@@ -213,7 +208,6 @@ def login_screen():
             box-shadow: 0 8px 24px rgba(0,0,0,0.08);
             text-align: left;
         }
-        /* Centrar pestañas */
         .stTabs [data-baseweb="tab-list"] {
             justify-content: center;
             gap: 2rem;
@@ -223,10 +217,15 @@ def login_screen():
         <div class="login-box">
     """, unsafe_allow_html=True)
 
-    # Logo
-    st.image("assets/velox.png", width=250)
+    # Logo con verificación de existencia
+    image_path = "assets/velox.png"
+    if os.path.exists(image_path):
+        st.image(image_path, width=250)
+    else:
+        st.warning("Logo no encontrado. Por favor, verifica la ruta 'assets/velox.png'.")
+        st.markdown("<h1 style='text-align:center;'>velox</h1>", unsafe_allow_html=True)
     
-    # Mensaje debajo del logo
+    # Mensaje promocional
     st.markdown("""
     <div class="login-message">
         Encuentra cursos y plantillas personalizables<br>para potenciar tus habilidades

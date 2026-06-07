@@ -205,15 +205,38 @@ section[data-testid="stSidebar"] > div:first-child {
 """, unsafe_allow_html=True)
 
 def login_screen():
-    # Centrar todo el contenido usando columnas vacías a los lados
+    # CSS para eliminar espacios en blanco solo en esta pantalla
+    st.markdown("""
+    <style>
+        /* Eliminar padding general del contenedor */
+        .block-container {
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+        }
+        /* Eliminar márgenes de las columnas */
+        .stColumn {
+            padding: 0 !important;
+        }
+        .stColumns {
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+        }
+        /* Eliminar margen superior de la imagen si lo hubiera */
+        .stImage {
+            margin-top: 0 !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Centrar contenido con columnas (más ajustadas)
     left_pad, center_col, right_pad = st.columns([1, 2, 1])
     with center_col:
-        # Mostrar el logo con un tamaño más pequeño (ajusta el ancho en píxeles)
-        st.image("assets/velox.png", width=350)   # Cambia 150 por el tamaño deseado (ej: 120, 180)
+        # Logo más pequeño (ajusta width según prefieras)
+        st.image("assets/velox.png", width=250)   # Reduje de 350 a 250 para mejor proporción
         
-        # Espacio entre logo y formulario
-        st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
-        
+        # Ya no hay margen extra entre logo y formulario
         # Tarjeta blanca para el formulario
         st.markdown("""
         <div style="background: white; padding: 2rem; border-radius: 24px; box-shadow: 0 8px 24px rgba(0,0,0,0.08);">

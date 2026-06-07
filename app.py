@@ -205,31 +205,27 @@ section[data-testid="stSidebar"] > div:first-child {
 """, unsafe_allow_html=True)
 
 def login_screen():
-    # CSS para eliminar espacios y centrar todo el contenido
+    # CSS que solo afecta al contenedor del login
     st.markdown("""
     <style>
-        /* Anular cualquier padding/margin del contenedor principal */
-        .block-container {
-            padding-top: 0 !important;
-            padding-bottom: 0 !important;
-            margin-top: 0 !important;
-            margin-bottom: 0 !important;
+        /* Contenedor principal del login */
+        .login-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 90vh;
+            padding: 0;
+            margin: 0;
         }
-        /* Centrar verticalmente el contenido */
-        .main .block-container {
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: center !important;
-            min-height: 100vh !important;
+        /* Centrar el logo */
+        .login-container .stImage {
+            display: flex;
+            justify-content: center;
         }
-        /* Centrar la imagen (logo) */
-        .stImage {
-            display: flex !important;
-            justify-content: center !important;
-        }
-        .stImage img {
+        .login-container .stImage img {
             width: 250px !important;
-            margin: 0 auto !important;
+            margin: 0 auto;
         }
         /* Tarjeta del formulario */
         .login-card {
@@ -237,27 +233,36 @@ def login_screen():
             padding: 2rem;
             border-radius: 24px;
             box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+            width: 100%;
             max-width: 450px;
-            margin: 1rem auto 0 auto;
+            margin-top: 1rem;
         }
         /* Centrar las pestañas */
-        .stTabs [data-baseweb="tab-list"] {
-            justify-content: center !important;
-            gap: 2rem !important;
+        .login-container .stTabs [data-baseweb="tab-list"] {
+            justify-content: center;
+            gap: 2rem;
         }
-        /* Eliminar espacio extra de las columnas */
-        .stColumn {
+        /* Asegurar que no haya padding extra en las columnas dentro del login */
+        .login-container .stColumn {
             padding: 0 !important;
         }
-        .stColumns {
+        .login-container .stColumns {
+            margin: 0 !important;
+        }
+        /* Eliminar márgenes del bloque de streamlit en la página de login */
+        .login-container .block-container {
+            padding: 0 !important;
             margin: 0 !important;
         }
     </style>
     """, unsafe_allow_html=True)
 
-    # Usar columnas para centrar el contenido horizontalmente
-    _, center_col, _ = st.columns([1, 2, 1])
-    with center_col:
+    # Envolver todo el contenido en un div con clase 'login-container'
+    st.markdown('<div class="login-container">', unsafe_allow_html=True)
+
+    # Centrar horizontalmente con columnas
+    left, center, right = st.columns([1, 2, 1])
+    with center:
         st.image("assets/velox.png", width=250)
         st.markdown('<div class="login-card">', unsafe_allow_html=True)
         
@@ -300,7 +305,9 @@ def login_screen():
                         else:
                             st.error(msg)
         
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)  # cierra login-card
+
+    st.markdown('</div>', unsafe_allow_html=True)  # cierra login-container
 
 if 'autenticado' not in st.session_state:
     st.session_state['autenticado'] = False

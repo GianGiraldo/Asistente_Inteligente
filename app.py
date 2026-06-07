@@ -205,39 +205,46 @@ section[data-testid="stSidebar"] > div:first-child {
 """, unsafe_allow_html=True)
 
 def login_screen():
-    # CSS para eliminar espacios en blanco solo en esta pantalla
+    # Inyectar CSS para eliminar espacios en blanco solo en esta pantalla
     st.markdown("""
     <style>
-        /* Eliminar padding general del contenedor */
+        /* Anular el padding-top global que pueda venir de otros estilos */
         .block-container {
             padding-top: 0 !important;
             padding-bottom: 0 !important;
-            padding-left: 1rem !important;
-            padding-right: 1rem !important;
-        }
-        /* Eliminar márgenes de las columnas */
-        .stColumn {
-            padding: 0 !important;
-        }
-        .stColumns {
             margin-top: 0 !important;
             margin-bottom: 0 !important;
         }
-        /* Eliminar margen superior de la imagen si lo hubiera */
+        /* Eliminar márgenes y paddings de las columnas */
+        .stColumn, div[data-testid="column"] {
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+        /* Eliminar márgenes del contenedor de la imagen */
         .stImage {
             margin-top: 0 !important;
+            margin-bottom: 0 !important;
+        }
+        /* Ajustar el espacio entre el logo y el formulario */
+        .stMarkdown {
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+        }
+        /* Opcional: reducir el espacio de las pestañas (tabs) */
+        .stTabs [data-baseweb="tab-list"] {
+            margin-top: 0 !important;
+            margin-bottom: 0.5rem !important;
         }
     </style>
     """, unsafe_allow_html=True)
 
-    # Centrar contenido con columnas (más ajustadas)
+    # Centrar contenido con columnas (sin espacios laterales excesivos)
     left_pad, center_col, right_pad = st.columns([1, 2, 1])
     with center_col:
-        # Logo más pequeño (ajusta width según prefieras)
-        st.image("assets/velox.png", width=250)   # Reduje de 350 a 250 para mejor proporción
+        # Logo con tamaño ajustable
+        st.image("assets/velox.png", width=250)
         
-        # Ya no hay margen extra entre logo y formulario
-        # Tarjeta blanca para el formulario
+        # No agregar márgenes extra entre logo y formulario
         st.markdown("""
         <div style="background: white; padding: 2rem; border-radius: 24px; box-shadow: 0 8px 24px rgba(0,0,0,0.08);">
         """, unsafe_allow_html=True)

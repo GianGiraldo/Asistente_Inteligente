@@ -1,4 +1,4 @@
-# app.py - Versión final con redirección funcional (indentación corregida)
+# app.py - Versión profesional con login centrado y mensaje promocional
 import streamlit as st
 import pandas as pd
 from auth import AuthManager
@@ -62,50 +62,21 @@ SECCIONES = {
     }
 }
 
+# ==================== ESTILOS GLOBALES (SOLO APARIENCIA, SIN ALTERAR LAYOUT) ====================
 st.markdown("""
 <style>
-    /* Centrar verticalmente la pantalla de login */
-    .stApp > .main > .block-container {
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        min-height: 90vh;
-        padding-top: 0;
-    }
-
-    /* Quitar el padding extra que pueda desplazar */
-    .block-container {
-        padding-top: 0 !important;
-        padding-bottom: 0 !important;
-    }
-
-    /* Fondo general (coordinado con tu imagen) */
+    /* Fondo general de la aplicación */
     .stApp {
         background: linear-gradient(135deg, #f5f7fc 0%, #e9eef5 100%);
     }
 
-    /* Tarjeta blanca del formulario */
-    div[data-testid="stForm"] {
-        background: transparent;
-    }
-
-    /* Ajuste para las tabs */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 1rem;
-        justify-content: center;
-    }            
-    /* Fondo general de la aplicación */
-    .stApp {
-        background-color: #f0f7ff;  /* Azul muy claro, educativo y tranquilo */
-    }
-    
     /* Fondo del sidebar */
     .css-1d391kg, .stSidebar {
         background-color: #ffffff;
         border-right: 1px solid #e0e7f0;
     }
-    
-    /* Tarjetas de métricas (ya tienes .metric-card, puedes ajustar si es necesario) */
+
+    /* Tarjetas de métricas */
     .metric-card {
         background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
         border: 1px solid #dce5f0;
@@ -130,8 +101,8 @@ st.markdown("""
         margin: 0;
         font-size: 0.9rem;
     }
-    
-    /* Tarjetas de secciones (dashboard) */
+
+    /* Tarjetas de secciones */
     .section-card, .home-card {
         background: white;
         border-radius: 20px;
@@ -145,7 +116,7 @@ st.markdown("""
         box-shadow: 0 8px 20px rgba(0,0,0,0.08);
         border-color: #a0c4ff;
     }
-    
+
     /* Botones principales */
     .stButton button {
         background-color: #4a6fa5;
@@ -157,75 +128,82 @@ st.markdown("""
     .stButton button:hover {
         background-color: #2c5282;
     }
-    
+
     /* Encabezados */
     h1, h2, h3, h4 {
         color: #1e2a3e;
     }
-    
-    /* Selectbox y otros inputs */
+
+    /* Selectbox */
     .stSelectbox div[data-baseweb="select"] {
         border-radius: 30px;
         border-color: #cbd5e1;
     }
-    
+
     /* Popover (campana) */
     .stPopover {
         background-color: white;
         border-radius: 20px;
         box-shadow: 0 8px 20px rgba(0,0,0,0.1);
     }
-    
+
     /* Footer */
     footer {
         color: #7f8c8d;
     }
-
-    /* Centrar completamente el encabezado del login */
-.main-header {
-    text-align: center !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
-    width: 100% !important;
-    display: block !important;
-}
-
-/* Opcional: asegurar que el formulario de login también se centre */
-.stTabs {
-    max-width: 500px;
-    margin-left: auto;
-    margin-right: auto;
-}
-
-/* Aumentar el espacio superior en el sidebar */
-section[data-testid="stSidebar"] > div:first-child {
-    padding-top: 8rem !important;  /* Ajusta el valor (2rem, 3rem, etc.) */
-}                
+    
+    /* Ajuste de espaciado superior en el sidebar (opcional) */
+    section[data-testid="stSidebar"] > div:first-child {
+        padding-top: 2rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
+# ==================== PANTALLA DE LOGIN (CENTRADA Y CON MENSAJE) ====================
 def login_screen():
-    # CSS suave y centrado
+    # CSS exclusivo para la pantalla de login (no afecta al resto)
     st.markdown("""
     <style>
-        /* Eliminar espacios no deseados */
+        /* Eliminar cualquier padding/margin heredado */
         .block-container {
-            padding-top: 0 !important;
-            padding-bottom: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
         }
-        /* Contenedor principal del login */
-        .login-wrapper {
+        /* Contenedor principal de login: centrado absoluto */
+        .login-fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             display: flex;
             flex-direction: column;
-            align-items: center;
             justify-content: center;
-            height: 85vh;
-            margin: 0 auto;
+            align-items: center;
+            background: linear-gradient(135deg, #f5f7fc 0%, #e9eef5 100%);
+            z-index: 9999;
         }
-        /* Logo centrado */
-        .login-wrapper .stImage {
+        /* Caja del contenido */
+        .login-box {
             text-align: center;
+            max-width: 450px;
+            width: 90%;
+            padding: 1rem;
+        }
+        /* Logo */
+        .login-box .stImage {
+            display: flex;
+            justify-content: center;
             margin-bottom: 1rem;
+        }
+        /* Mensaje promocional */
+        .login-message {
+            font-size: 1rem;
+            color: #4a627a;
+            margin: 0 0 2rem 0;
+            line-height: 1.4;
+            max-width: 350px;
+            text-align: center;
         }
         /* Tarjeta del formulario */
         .login-card {
@@ -233,8 +211,7 @@ def login_screen():
             padding: 2rem;
             border-radius: 24px;
             box-shadow: 0 8px 24px rgba(0,0,0,0.08);
-            width: 100%;
-            max-width: 450px;
+            text-align: left;
         }
         /* Centrar pestañas */
         .stTabs [data-baseweb="tab-list"] {
@@ -242,60 +219,66 @@ def login_screen():
             gap: 2rem;
         }
     </style>
+    <div class="login-fullscreen">
+        <div class="login-box">
     """, unsafe_allow_html=True)
 
-    # Crear un div envolvente para centrar
-    st.markdown('<div class="login-wrapper">', unsafe_allow_html=True)
-
-    # Imagen (logo) centrada
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.image("assets/velox.png", width=250)
-        st.markdown('<div class="login-card">', unsafe_allow_html=True)
-
-        tab1, tab2 = st.tabs(["🔐 Iniciar Sesión", "📝 Registrarse"])
-
-        with tab1:
-            with st.form("login_form"):
-                email = st.text_input("Email (Gmail)", placeholder="tuemail@gmail.com")
-                password = st.text_input("Contraseña", type="password")
-                if st.form_submit_button("Iniciar Sesión", use_container_width=True):
-                    valido, rol, nombre, secciones = auth_manager.verificar_usuario(email, password)
-                    if valido:
-                        st.session_state['autenticado'] = True
-                        st.session_state['usuario'] = email
-                        st.session_state['rol'] = rol
-                        st.session_state['nombre'] = nombre
-                        st.session_state['secciones'] = secciones
-                        st.session_state['login_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        st.session_state['menu_principal'] = "🏠 Inicio"
-                        st.rerun()
+    # Logo
+    st.image("assets/velox.png", width=250)
+    
+    # Mensaje debajo del logo
+    st.markdown("""
+    <div class="login-message">
+        Encuentra cursos y plantillas personalizables<br>para potenciar tus habilidades
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Tarjeta del formulario
+    st.markdown('<div class="login-card">', unsafe_allow_html=True)
+    
+    tab1, tab2 = st.tabs(["🔐 Iniciar Sesión", "📝 Registrarse"])
+    
+    with tab1:
+        with st.form("login_form"):
+            email = st.text_input("Email (Gmail)", placeholder="tuemail@gmail.com")
+            password = st.text_input("Contraseña", type="password")
+            if st.form_submit_button("Iniciar Sesión", use_container_width=True):
+                valido, rol, nombre, secciones = auth_manager.verificar_usuario(email, password)
+                if valido:
+                    st.session_state['autenticado'] = True
+                    st.session_state['usuario'] = email
+                    st.session_state['rol'] = rol
+                    st.session_state['nombre'] = nombre
+                    st.session_state['secciones'] = secciones
+                    st.session_state['login_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    st.session_state['menu_principal'] = "🏠 Inicio"
+                    st.rerun()
+                else:
+                    st.error("❌ Credenciales incorrectas")
+    
+    with tab2:
+        with st.form("registro_form"):
+            nombre = st.text_input("Nombre completo")
+            email = st.text_input("Email (Gmail)", placeholder="tuemail@gmail.com")
+            password = st.text_input("Contraseña", type="password")
+            confirmar = st.text_input("Confirmar contraseña", type="password")
+            if st.form_submit_button("Registrarse", use_container_width=True):
+                if password != confirmar:
+                    st.error("Las contraseñas no coinciden")
+                elif not email.endswith('@gmail.com'):
+                    st.error("Solo se permiten cuentas de Gmail")
+                else:
+                    exito, msg = auth_manager.registrar_usuario(email, password, nombre)
+                    if exito:
+                        st.success(msg)
+                        st.info("Ahora puedes iniciar sesión")
                     else:
-                        st.error("❌ Credenciales incorrectas")
+                        st.error(msg)
+    
+    st.markdown('</div>', unsafe_allow_html=True)   # cierra login-card
+    st.markdown('</div></div>', unsafe_allow_html=True)   # cierra login-box y login-fullscreen
 
-        with tab2:
-            with st.form("registro_form"):
-                nombre = st.text_input("Nombre completo")
-                email = st.text_input("Email (Gmail)", placeholder="tuemail@gmail.com")
-                password = st.text_input("Contraseña", type="password")
-                confirmar = st.text_input("Confirmar contraseña", type="password")
-                if st.form_submit_button("Registrarse", use_container_width=True):
-                    if password != confirmar:
-                        st.error("Las contraseñas no coinciden")
-                    elif not email.endswith('@gmail.com'):
-                        st.error("Solo se permiten cuentas de Gmail")
-                    else:
-                        exito, msg = auth_manager.registrar_usuario(email, password, nombre)
-                        if exito:
-                            st.success(msg)
-                            st.info("Ahora puedes iniciar sesión")
-                        else:
-                            st.error(msg)
-
-        st.markdown('</div>', unsafe_allow_html=True)  # cierra login-card
-
-    st.markdown('</div>', unsafe_allow_html=True)  # cierra login-wrapper
-
+# ==================== ESTADO DE AUTENTICACIÓN ====================
 if 'autenticado' not in st.session_state:
     st.session_state['autenticado'] = False
 if 'seccion_seleccionada' not in st.session_state:
@@ -304,9 +287,8 @@ if 'seccion_seleccionada' not in st.session_state:
 if not st.session_state['autenticado']:
     login_screen()
 else:
-    # HEADER
+    # ==================== HEADER (solo para usuarios autenticados) ====================
     col_logo, col_user, col_logout = st.columns([1, 3, 1])
-
     with col_logo:
         st.markdown("""
         <style>
@@ -319,7 +301,6 @@ else:
         </style>
         <h1 class="custom-title">🌟 Asistente Inteligente</h1>
         """, unsafe_allow_html=True)
-
     with col_user:
         nombre = st.session_state.get('nombre', 'Usuario')
         rol = st.session_state.get('rol', 'usuario')
@@ -353,17 +334,15 @@ else:
                             st.session_state['categoria_seleccionada'] = pub['categoria']
                             st.session_state['menu_principal'] = "📁 Mis Documentos"
                             st.rerun()
-
     with col_logout:
         if st.button("🚪 Cerrar Sesión"):
             for key in ['autenticado', 'usuario', 'rol', 'nombre', 'secciones', 'login_time', 'seccion_seleccionada']:
                 if key in st.session_state:
                     del st.session_state[key]
             st.rerun()
-
     st.markdown("---")
 
-    # SIDEBAR - MENÚ PRINCIPAL (usando selectbox)
+    # ==================== SIDEBAR (menú principal) ====================
     with st.sidebar:
         st.markdown(f"### Hola, {st.session_state.get('nombre', 'Usuario')}")
         if st.session_state['rol'] == 'master':
@@ -371,11 +350,9 @@ else:
         else:
             opciones_menu = ["🏠 Inicio", "📁 Mis Documentos", "📬 Consultas", "👤 Mi Perfil"]
 
-        # Asegurar que menu_principal tenga un valor válido
         if st.session_state.get('menu_principal') not in opciones_menu:
             st.session_state['menu_principal'] = opciones_menu[0]
 
-        # Usar selectbox (evita conflictos de estado)
         seleccion = st.selectbox(
             "📋 Menú",
             opciones_menu,
@@ -393,7 +370,7 @@ else:
                     del st.session_state[key]
             st.rerun()
 
-    # CONTENIDO PRINCIPAL
+    # ==================== CONTENIDO PRINCIPAL ====================
     menu_actual = st.session_state.get('menu_principal', '🏠 Inicio')
 
     if menu_actual == "🏠 Inicio":
@@ -428,7 +405,6 @@ else:
                         key=f"dashboard_btn_{seccion_id}",
                         use_container_width=True
                     ):
-                        # === CORRECCIÓN: Indentación correcta ===
                         st.session_state['menu_principal'] = "📁 Mis Documentos"
                         st.session_state['seccion_seleccionada_documentos'] = seccion_id
                         st.session_state['categoria_redirigida'] = primera_categoria
@@ -458,22 +434,19 @@ else:
                                 key=f"user_dashboard_btn_{sec_id}",
                                 use_container_width=True
                             ):
-                                # === CORRECCIÓN: Indentación correcta ===
                                 st.session_state['menu_principal'] = "📁 Mis Documentos"
                                 st.session_state['seccion_seleccionada_documentos'] = sec_id
                                 st.session_state['categoria_redirigida'] = primera_categoria
                                 st.rerun()
 
     elif menu_actual == "📁 Mis Documentos":
-        # Procesar redirección desde el dashboard (Inicio) – usando session_state
+        # Procesar redirección
         seccion_preseleccionada = st.session_state.pop('seccion_seleccionada_documentos', None)
         categoria_redirigida = st.session_state.pop('categoria_redirigida', None)
-        # Limpiar cualquier query_params residual
         st.query_params.clear()
 
         st.header("📁 Mis Documentos")
 
-        # Obtener secciones accesibles según rol
         if st.session_state['rol'] == 'master':
             secciones_usuario = list(SECCIONES.keys())
         else:
@@ -490,7 +463,6 @@ else:
                         indice_preseleccionado = idx
                         break
 
-            # Selector de sección
             seccion_seleccionada = st.selectbox(
                 "Seleccionar sección:",
                 options=opciones_secciones,
@@ -500,7 +472,6 @@ else:
             )[0]
             seccion_info = SECCIONES[seccion_seleccionada]
 
-            # Mostrar información de la sección
             st.markdown(f"""
             <div style="background: {seccion_info['color']}10; padding: 1rem; border-radius: 10px; margin-bottom: 1rem;">
                 <h3>{seccion_info['icono']} {seccion_info['nombre']}</h3>
@@ -508,32 +479,23 @@ else:
             </div>
             """, unsafe_allow_html=True)
 
-            # Botón para volver al dashboard
             if st.button("🔙 Volver al Dashboard"):
                 st.rerun()
 
-            # Subcategorías (categorías)
             subcategorias_disponibles = seccion_info.get("subcategorias", ["General"])
             st.markdown("### 📂 Categorías")
 
-            # Inicializar o recuperar categoría preseleccionada
             if 'categoria_seleccionada' not in st.session_state:
                 st.session_state['categoria_seleccionada'] = subcategorias_disponibles[0]
 
-            # Si venimos de una redirección con categoría, sobreescribimos
             if categoria_redirigida and categoria_redirigida in subcategorias_disponibles:
                 st.session_state['categoria_seleccionada'] = categoria_redirigida
 
-            # Mostrar botones de categorías
             cols_cat = st.columns(len(subcategorias_disponibles))
             for idx, cat in enumerate(subcategorias_disponibles):
                 with cols_cat[idx]:
-                    if st.button(
-                        cat,
-                        key=f"cat_{seccion_seleccionada}_{cat}",
-                        use_container_width=True,
-                        type="primary" if st.session_state['categoria_seleccionada'] == cat else "secondary"
-                    ):
+                    if st.button(cat, key=f"cat_{seccion_seleccionada}_{cat}", use_container_width=True,
+                                 type="primary" if st.session_state['categoria_seleccionada'] == cat else "secondary"):
                         st.session_state['categoria_seleccionada'] = cat
                         st.rerun()
 
@@ -541,10 +503,9 @@ else:
             st.markdown(f"**Categoría actual:** {categoria_actual}")
             st.markdown("---")
 
-            # Buscador
             busqueda = st.text_input("🔍 Buscar por nombre o descripción:", key="buscador_mis_docs")
 
-            # ========== DOCUMENTOS PERSONALES (solo master) ==========
+            # Documentos personales (solo master)
             archivos_personales = []
             if st.session_state['rol'] == 'master':
                 with st.expander("📤 Subir documento personal", expanded=False):
@@ -603,7 +564,7 @@ else:
                 else:
                     st.info("No tienes documentos personales en esta categoría")
 
-            # ========== PUBLICACIONES DEL MASTER ==========
+            # Publicaciones del master
             st.markdown("### 📢 Publicaciones del Master")
             publicaciones = storage_manager.obtener_publicaciones_por_seccion(
                 seccion=seccion_seleccionada,
@@ -655,7 +616,6 @@ else:
             else:
                 st.info("No hay publicaciones del master en esta categoría")
 
-            # Formulario para publicar desde personal
             if st.session_state.get('show_publish_form', False) and st.session_state['rol'] == 'master':
                 with st.form("form_publish"):
                     st.markdown("### Publicar documento personal")
@@ -673,6 +633,7 @@ else:
                         else:
                             st.error(msg)
 
+    # ==================== RESTO DE SECCIONES (sin cambios) ====================
     elif menu_actual == "👥 Gestión Usuarios" and st.session_state['rol'] == 'master':
         st.header("👥 Gestión de Usuarios y Permisos")
         tab1, tab2, tab3 = st.tabs(["📋 Lista de Usuarios", "🔐 Asignar Secciones", "📢 Publicar Documentos"])
@@ -806,4 +767,4 @@ else:
                 st.rerun()
 
     st.markdown("---")
-    st.markdown("<div style='text-align:center'>Tu Gestor Documental Inteligente| © 2026</div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:center'>Tu Gestor Documental Inteligente | © 2026</div>", unsafe_allow_html=True)

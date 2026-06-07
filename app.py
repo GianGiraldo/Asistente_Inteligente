@@ -1,4 +1,4 @@
-# app.py - Versión profesional con login centrado y mensaje promocional
+# app.py - Versión limpia y funcional (sin CSS conflictivo)
 import streamlit as st
 import pandas as pd
 from auth import AuthManager
@@ -6,6 +6,7 @@ from storage_manager import StorageManager
 from message_manager import MessageManager
 from datetime import datetime
 from notification_manager import NotificationManager
+import os
 
 st.set_page_config(
     page_title="Asistente Inteligente - Gestión Documental",
@@ -62,20 +63,18 @@ SECCIONES = {
     }
 }
 
-# ==================== ESTILOS GLOBALES (SOLO APARIENCIA, SIN ALTERAR LAYOUT) ====================
+# ==================== ESTILOS GLOBALES (solo estética, sin alterar layout) ====================
 st.markdown("""
 <style>
-    /* Fondo general de la aplicación */
+    /* Fondo general */
     .stApp {
         background: linear-gradient(135deg, #f5f7fc 0%, #e9eef5 100%);
     }
-
     /* Fondo del sidebar */
     .css-1d391kg, .stSidebar {
         background-color: #ffffff;
         border-right: 1px solid #e0e7f0;
     }
-
     /* Tarjetas de métricas */
     .metric-card {
         background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
@@ -101,7 +100,6 @@ st.markdown("""
         margin: 0;
         font-size: 0.9rem;
     }
-
     /* Tarjetas de secciones */
     .section-card, .home-card {
         background: white;
@@ -116,8 +114,7 @@ st.markdown("""
         box-shadow: 0 8px 20px rgba(0,0,0,0.08);
         border-color: #a0c4ff;
     }
-
-    /* Botones principales */
+    /* Botones */
     .stButton button {
         background-color: #4a6fa5;
         color: white;
@@ -128,154 +125,92 @@ st.markdown("""
     .stButton button:hover {
         background-color: #2c5282;
     }
-
     /* Encabezados */
     h1, h2, h3, h4 {
         color: #1e2a3e;
     }
-
     /* Selectbox */
     .stSelectbox div[data-baseweb="select"] {
         border-radius: 30px;
         border-color: #cbd5e1;
     }
-
-    /* Popover (campana) */
+    /* Popover */
     .stPopover {
         background-color: white;
         border-radius: 20px;
         box-shadow: 0 8px 20px rgba(0,0,0,0.1);
     }
-
     /* Footer */
     footer {
         color: #7f8c8d;
     }
-    
-    /* Ajuste de espaciado superior en el sidebar (opcional) */
-    section[data-testid="stSidebar"] > div:first-child {
-        padding-top: 2rem;
-    }
 </style>
 """, unsafe_allow_html=True)
 
-# ==================== PANTALLA DE LOGIN (CENTRADA Y CON MENSAJE) ====================
+# ==================== PANTALLA DE LOGIN (SIMPLIFICADA Y CENTRADA) ====================
 def login_screen():
-    import os
-    # CSS exclusivo para la pantalla de login
-    st.markdown("""
-    <style>
-        .block-container {
-            padding: 0 !important;
-            margin: 0 !important;
-        }
-        .login-fullscreen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            background: linear-gradient(135deg, #f5f7fc 0%, #e9eef5 100%);
-            z-index: 9999;
-        }
-        .login-box {
-            text-align: center;
-            max-width: 450px;
-            width: 90%;
-            padding: 1rem;
-        }
-        .login-box .stImage {
-            display: flex;
-            justify-content: center;
-            margin-bottom: 1rem;
-        }
-        .login-message {
-            font-size: 1rem;
-            color: #4a627a;
-            margin: 0 0 2rem 0;
-            line-height: 1.4;
-            max-width: 350px;
-            text-align: center;
-        }
-        .login-card {
-            background: white;
-            padding: 2rem;
-            border-radius: 24px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.08);
-            text-align: left;
-        }
-        .stTabs [data-baseweb="tab-list"] {
-            justify-content: center;
-            gap: 2rem;
-        }
-    </style>
-    <div class="login-fullscreen">
-        <div class="login-box">
-    """, unsafe_allow_html=True)
-
-    # Logo con verificación de existencia
-    image_path = "assets/velox.png"
-    if os.path.exists(image_path):
-        st.image(image_path, width=250)
-    else:
-        st.warning("Logo no encontrado. Por favor, verifica la ruta 'assets/velox.png'.")
-        st.markdown("<h1 style='text-align:center;'>velox</h1>", unsafe_allow_html=True)
-    
-    # Mensaje promocional
-    st.markdown("""
-    <div class="login-message">
-        Encuentra cursos y plantillas personalizables<br>para potenciar tus habilidades
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Tarjeta del formulario
-    st.markdown('<div class="login-card">', unsafe_allow_html=True)
-    
-    tab1, tab2 = st.tabs(["🔐 Iniciar Sesión", "📝 Registrarse"])
-    
-    with tab1:
-        with st.form("login_form"):
-            email = st.text_input("Email (Gmail)", placeholder="tuemail@gmail.com")
-            password = st.text_input("Contraseña", type="password")
-            if st.form_submit_button("Iniciar Sesión", use_container_width=True):
-                valido, rol, nombre, secciones = auth_manager.verificar_usuario(email, password)
-                if valido:
-                    st.session_state['autenticado'] = True
-                    st.session_state['usuario'] = email
-                    st.session_state['rol'] = rol
-                    st.session_state['nombre'] = nombre
-                    st.session_state['secciones'] = secciones
-                    st.session_state['login_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    st.session_state['menu_principal'] = "🏠 Inicio"
-                    st.rerun()
-                else:
-                    st.error("❌ Credenciales incorrectas")
-    
-    with tab2:
-        with st.form("registro_form"):
-            nombre = st.text_input("Nombre completo")
-            email = st.text_input("Email (Gmail)", placeholder="tuemail@gmail.com")
-            password = st.text_input("Contraseña", type="password")
-            confirmar = st.text_input("Confirmar contraseña", type="password")
-            if st.form_submit_button("Registrarse", use_container_width=True):
-                if password != confirmar:
-                    st.error("Las contraseñas no coinciden")
-                elif not email.endswith('@gmail.com'):
-                    st.error("Solo se permiten cuentas de Gmail")
-                else:
-                    exito, msg = auth_manager.registrar_usuario(email, password, nombre)
-                    if exito:
-                        st.success(msg)
-                        st.info("Ahora puedes iniciar sesión")
+    # Centrar con columnas vacías a los lados
+    left, center, right = st.columns([1, 2, 1])
+    with center:
+        # Logo (con verificación)
+        if os.path.exists("assets/velox.png"):
+            st.image("assets/velox.png", width=250)
+        else:
+            st.warning("Logo no encontrado. Asegúrate de que assets/velox.png existe.")
+            st.markdown("<h1 style='text-align:center;'>velox</h1>", unsafe_allow_html=True)
+        
+        # Mensaje promocional
+        st.markdown("""
+        <div style="text-align: center; margin: 1rem 0 2rem 0; color: #4a627a; font-size: 1rem;">
+            Encuentra cursos y plantillas personalizables<br>para potenciar tus habilidades
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Tarjeta blanca para el formulario
+        st.markdown("""
+        <div style="background: white; padding: 2rem; border-radius: 24px; box-shadow: 0 8px 24px rgba(0,0,0,0.08);">
+        """, unsafe_allow_html=True)
+        
+        tab1, tab2 = st.tabs(["🔐 Iniciar Sesión", "📝 Registrarse"])
+        
+        with tab1:
+            with st.form("login_form"):
+                email = st.text_input("Email (Gmail)", placeholder="tuemail@gmail.com")
+                password = st.text_input("Contraseña", type="password")
+                if st.form_submit_button("Iniciar Sesión", use_container_width=True):
+                    valido, rol, nombre, secciones = auth_manager.verificar_usuario(email, password)
+                    if valido:
+                        st.session_state['autenticado'] = True
+                        st.session_state['usuario'] = email
+                        st.session_state['rol'] = rol
+                        st.session_state['nombre'] = nombre
+                        st.session_state['secciones'] = secciones
+                        st.session_state['login_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        st.session_state['menu_principal'] = "🏠 Inicio"
+                        st.rerun()
                     else:
-                        st.error(msg)
-    
-    st.markdown('</div>', unsafe_allow_html=True)   # cierra login-card
-    st.markdown('</div></div>', unsafe_allow_html=True)   # cierra login-box y login-fullscreen
+                        st.error("❌ Credenciales incorrectas")
+        
+        with tab2:
+            with st.form("registro_form"):
+                nombre = st.text_input("Nombre completo")
+                email = st.text_input("Email (Gmail)", placeholder="tuemail@gmail.com")
+                password = st.text_input("Contraseña", type="password")
+                confirmar = st.text_input("Confirmar contraseña", type="password")
+                if st.form_submit_button("Registrarse", use_container_width=True):
+                    if password != confirmar:
+                        st.error("Las contraseñas no coinciden")
+                    elif not email.endswith('@gmail.com'):
+                        st.error("Solo se permiten cuentas de Gmail")
+                    else:
+                        exito, msg = auth_manager.registrar_usuario(email, password, nombre)
+                        if exito:
+                            st.success(msg)
+                            st.info("Ahora puedes iniciar sesión")
+                        else:
+                            st.error(msg)
+        
+        st.markdown("</div>", unsafe_allow_html=True)  # cierra tarjeta
 
 # ==================== ESTADO DE AUTENTICACIÓN ====================
 if 'autenticado' not in st.session_state:
@@ -286,20 +221,10 @@ if 'seccion_seleccionada' not in st.session_state:
 if not st.session_state['autenticado']:
     login_screen()
 else:
-    # ==================== HEADER (solo para usuarios autenticados) ====================
+    # ==================== HEADER (solo después del login) ====================
     col_logo, col_user, col_logout = st.columns([1, 3, 1])
     with col_logo:
-        st.markdown("""
-        <style>
-        .custom-title {
-            font-size: 1.5rem;
-            white-space: nowrap;
-            margin: 0;
-            padding: 0;
-        }
-        </style>
-        <h1 class="custom-title">🌟 Asistente Inteligente</h1>
-        """, unsafe_allow_html=True)
+        st.markdown("<h1 style='font-size:1.5rem; margin:0;'>🌟 Asistente Inteligente</h1>", unsafe_allow_html=True)
     with col_user:
         nombre = st.session_state.get('nombre', 'Usuario')
         rol = st.session_state.get('rol', 'usuario')
@@ -341,7 +266,7 @@ else:
             st.rerun()
     st.markdown("---")
 
-    # ==================== SIDEBAR (menú principal) ====================
+    # ==================== SIDEBAR ====================
     with st.sidebar:
         st.markdown(f"### Hola, {st.session_state.get('nombre', 'Usuario')}")
         if st.session_state['rol'] == 'master':
@@ -439,7 +364,6 @@ else:
                                 st.rerun()
 
     elif menu_actual == "📁 Mis Documentos":
-        # Procesar redirección
         seccion_preseleccionada = st.session_state.pop('seccion_seleccionada_documentos', None)
         categoria_redirigida = st.session_state.pop('categoria_redirigida', None)
         st.query_params.clear()

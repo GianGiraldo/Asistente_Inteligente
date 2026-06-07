@@ -205,49 +205,61 @@ section[data-testid="stSidebar"] > div:first-child {
 """, unsafe_allow_html=True)
 
 def login_screen():
-    # Inyectar CSS para eliminar espacios en blanco solo en esta pantalla
+    # CSS para eliminar espacios y centrar todo el contenido
     st.markdown("""
     <style>
-        /* Anular el padding-top global que pueda venir de otros estilos */
+        /* Anular cualquier padding/margin del contenedor principal */
         .block-container {
             padding-top: 0 !important;
             padding-bottom: 0 !important;
             margin-top: 0 !important;
             margin-bottom: 0 !important;
         }
-        /* Eliminar márgenes y paddings de las columnas */
-        .stColumn, div[data-testid="column"] {
-            padding: 0 !important;
-            margin: 0 !important;
+        /* Centrar verticalmente el contenido */
+        .main .block-container {
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: center !important;
+            min-height: 100vh !important;
         }
-        /* Eliminar márgenes del contenedor de la imagen */
+        /* Centrar la imagen (logo) */
         .stImage {
-            margin-top: 0 !important;
-            margin-bottom: 0 !important;
+            display: flex !important;
+            justify-content: center !important;
         }
-        /* Ajustar el espacio entre el logo y el formulario */
-        .stMarkdown {
-            margin-top: 0 !important;
-            margin-bottom: 0 !important;
+        .stImage img {
+            width: 250px !important;
+            margin: 0 auto !important;
         }
-        /* Opcional: reducir el espacio de las pestañas (tabs) */
+        /* Tarjeta del formulario */
+        .login-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 24px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+            max-width: 450px;
+            margin: 1rem auto 0 auto;
+        }
+        /* Centrar las pestañas */
         .stTabs [data-baseweb="tab-list"] {
-            margin-top: 0 !important;
-            margin-bottom: 0.5rem !important;
+            justify-content: center !important;
+            gap: 2rem !important;
+        }
+        /* Eliminar espacio extra de las columnas */
+        .stColumn {
+            padding: 0 !important;
+        }
+        .stColumns {
+            margin: 0 !important;
         }
     </style>
     """, unsafe_allow_html=True)
 
-    # Centrar contenido con columnas (sin espacios laterales excesivos)
-    left_pad, center_col, right_pad = st.columns([1, 2, 1])
+    # Usar columnas para centrar el contenido horizontalmente
+    _, center_col, _ = st.columns([1, 2, 1])
     with center_col:
-        # Logo con tamaño ajustable
         st.image("assets/velox.png", width=250)
-        
-        # No agregar márgenes extra entre logo y formulario
-        st.markdown("""
-        <div style="background: white; padding: 2rem; border-radius: 24px; box-shadow: 0 8px 24px rgba(0,0,0,0.08);">
-        """, unsafe_allow_html=True)
+        st.markdown('<div class="login-card">', unsafe_allow_html=True)
         
         tab1, tab2 = st.tabs(["🔐 Iniciar Sesión", "📝 Registrarse"])
         
@@ -288,7 +300,7 @@ def login_screen():
                         else:
                             st.error(msg)
         
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
 if 'autenticado' not in st.session_state:
     st.session_state['autenticado'] = False

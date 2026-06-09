@@ -7,6 +7,7 @@ from message_manager import MessageManager
 from datetime import datetime
 from notification_manager import NotificationManager
 import os
+from streamlit_option_menu import option_menu
 
 st.set_page_config(
     page_title="Asistente Inteligente - Gestión Documental",
@@ -63,6 +64,41 @@ SECCIONES = {
     }
 }
 
+MENU_SIDEBAR_MASTER = [
+    ("Inicio", "house", "🏠 Inicio"),
+    ("Mis Documentos", "folder", "📁 Mis Documentos"),
+    ("Gestión Usuarios", "people", "👥 Gestión Usuarios"),
+    ("Consultas", "envelope", "📬 Consultas"),
+    ("Configuración", "gear", "⚙️ Configuración"),
+]
+MENU_SIDEBAR_USER = [
+    ("Inicio", "house", "🏠 Inicio"),
+    ("Mis Documentos", "folder", "📁 Mis Documentos"),
+    ("Consultas", "envelope", "📬 Consultas"),
+    ("Mi Perfil", "person", "👤 Mi Perfil"),
+]
+SIDEBAR_MENU_STYLES = {
+    "container": {"padding": "0!important", "background-color": "transparent"},
+    "icon": {"color": "#b8c5d6", "font-size": "17px"},
+    "nav-icon": {"font-size": "17px"},
+    "nav-link": {
+        "font-size": "15px",
+        "text-align": "left",
+        "margin": "4px 0",
+        "padding": "10px 14px",
+        "border-radius": "8px",
+        "color": "#e2e8f0",
+        "--hover-color": "#2a3f5f",
+    },
+    "nav-link-selected": {
+        "background-color": "#ffffff",
+        "color": "#1a2744",
+        "font-weight": "600",
+        "border-left": "4px solid #4a6fa5",
+        "padding-left": "10px",
+    },
+}
+
 # ==================== ESTILOS GLOBALES (solo estética, sin alterar layout) ====================
 st.markdown("""
 <style>
@@ -70,11 +106,7 @@ st.markdown("""
     .stApp {
         background: linear-gradient(135deg, #f5f7fc 0%, #e9eef5 100%);
     }
-    /* Fondo del sidebar */
-    .css-1d391kg, .stSidebar {
-        background-color: #ffffff;
-        border-right: 1px solid #e0e7f0;
-    }
+    /* Sidebar: el fondo oscuro se aplica tras el login en el bloque st.sidebar */
     /* Tarjetas de métricas */
     .metric-card {
         background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
@@ -441,30 +473,87 @@ else:
 
     # ==================== SIDEBAR ====================
     with st.sidebar:
-        st.markdown(f"### Hola, {st.session_state.get('nombre', 'Usuario')}")
-        if st.session_state['rol'] == 'master':
-            opciones_menu = ["🏠 Inicio", "📁 Mis Documentos", "👥 Gestión Usuarios", "📬 Consultas", "⚙️ Configuración"]
-        else:
-            opciones_menu = ["🏠 Inicio", "📁 Mis Documentos", "📬 Consultas", "👤 Mi Perfil"]
+        st.markdown("""
+        <style>
+            [data-testid="stSidebar"],
+            [data-testid="stSidebar"] > div:first-child {
+                background-color: #1a2744 !important;
+                border-right: 1px solid #243656;
+            }
+            [data-testid="stSidebar"] h1,
+            [data-testid="stSidebar"] h2,
+            [data-testid="stSidebar"] h3,
+            [data-testid="stSidebar"] p,
+            [data-testid="stSidebar"] label,
+            [data-testid="stSidebar"] .stMarkdown,
+            [data-testid="stSidebar"] [data-testid="stCaptionContainer"] {
+                color: #f1f5f9 !important;
+            }
+            [data-testid="stSidebar"] hr {
+                border-color: #2d3f5f;
+            }
+            [data-testid="stSidebar"] .stButton > button {
+                background-color: #2d3f5f !important;
+                color: #f1f5f9 !important;
+                border: 1px solid #3d5278 !important;
+                border-radius: 8px !important;
+            }
+            [data-testid="stSidebar"] .stButton > button:hover {
+                background-color: #3d5278 !important;
+                border-color: #4a6fa5 !important;
+            }
+            [data-testid="stSidebar"] iframe {
+                width: 100% !important;
+            }
+            [data-testid="stSidebar"] .nav.flex-column {
+                width: 100%;
+            }
+        </style>
+        """, unsafe_allow_html=True)
 
-        if st.session_state.get('menu_principal') not in opciones_menu:
-            st.session_state['menu_principal'] = opciones_menu[0]
+        nombre_sidebar = st.session_state.get("nombre", "Usuario")
+        rol_sidebar = st.session_state.get("rol", "usuario")
+        rol_badge = "Administrador" if rol_sidebar == "master" else "Usuario"
+        st.markdown(f"### Hola, {nombre_sidebar}")
+        st.caption(f"Panel de navegación · {rol_badge}")
 
-        seleccion = st.selectbox(
-            "📋 Menú",
-            opciones_menu,
-            index=opciones_menu.index(st.session_state['menu_principal']),
-            key="menu_select"
+        menu_items = MENU_SIDEBAR_MASTER if rol_sidebar == "master" else MENU_SIDEBAR_USER
+        menu_labels = [item[0] for item in menu_items]
+        menu_icons = [item[1] for item in menu_items]
+        menu_values = [item[2] for item in menu_items]
+        label_to_value = dict(zip(menu_labels, menu_values))
+        value_to_label = dict(zip(menu_values, menu_labels))
+
+        if st.session_state.get("menu_principal") not in menu_values:
+            st.session_state["menu_principal"] = menu_values[0]
+
+        current_label = value_to_label.get(st.session_state["menu_principal"], menu_labels[0])
+        default_index = menu_labels.index(current_label) if current_label in menu_labels else 0
+
+        seleccion_label = option_menu(
+            menu_title=None,
+            options=menu_labels,
+            icons=menu_icons,
+            menu_icon="list",
+            default_index=default_index,
+            orientation="vertical",
+            styles=SIDEBAR_MENU_STYLES,
+            key="sidebar_option_menu",
         )
-        if seleccion != st.session_state['menu_principal']:
-            st.session_state['menu_principal'] = seleccion
-            if seleccion == "🏠 Inicio":
+
+        seleccion = label_to_value[seleccion_label]
+        if seleccion != st.session_state["menu_principal"]:
+            st.session_state["menu_principal"] = seleccion
+            if seleccion_label == "Inicio":
                 st.session_state.seccion_activa = "inicio"
             st.rerun()
 
         st.divider()
-        if st.button("🚪 Cerrar Sesión", use_container_width=True):
-            for key in ['autenticado', 'usuario', 'rol', 'nombre', 'secciones', 'login_time', 'seccion_seleccionada', 'seccion_activa', 'categoria_inicio']:
+        if st.button("Cerrar Sesión", icon="🚪", use_container_width=True, key="sidebar_logout"):
+            for key in [
+                "autenticado", "usuario", "rol", "nombre", "secciones",
+                "login_time", "seccion_seleccionada", "seccion_activa", "categoria_inicio",
+            ]:
                 if key in st.session_state:
                     del st.session_state[key]
             st.rerun()

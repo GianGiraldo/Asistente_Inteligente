@@ -95,10 +95,10 @@ class StorageManager:
         if exito:
             notif_mgr = NotificationManager()
             notif_mgr.crear_notificacion_para_todos(
-                titulo="📢 Nueva publicación",
-                mensaje=f"Se ha publicado un nuevo documento: {archivo.name} en la sección {seccion}",
+                titulo=archivo.name,
+                mensaje=f"Nueva publicación en {seccion} / {subcategoria}",
                 tipo="publicacion",
-                metadata={"seccion": seccion, "subcategoria": subcategoria, "archivo_id": resultado["id"]}
+                metadata={"seccion": seccion, "subcategoria": subcategoria, "archivo_id": resultado["id"]},
             )
         return exito, resultado
 
@@ -279,7 +279,17 @@ class StorageManager:
             }
             self.supabase.table("publicaciones").insert(registro_pub).execute()
 
-            # Opcional: enviar notificación a todos (puedes agregar NotificationManager aquí)
+            notif_mgr = NotificationManager()
+            notif_mgr.crear_notificacion_para_todos(
+                titulo=doc["nombre_original"],
+                mensaje=descripcion or doc.get("descripcion", "Nueva publicación disponible"),
+                tipo="publicacion",
+                metadata={
+                    "seccion": seccion,
+                    "subcategoria": subcategoria,
+                    "archivo_id": nuevo_id,
+                },
+            )
             return True, "Documento publicado exitosamente"
         except Exception as e:
             return False, f"Error al publicar: {str(e)}"

@@ -154,47 +154,53 @@ def login_screen():
         .login-subtitle {
             text-align: center;
             color: #4a627a;
-            font-size: 1.05rem;
-            line-height: 1.65;
-            margin: 0.75rem auto 2rem auto;
-            max-width: 420px;
-        }
-        [data-testid="stVerticalBlockBorderWrapper"] {
-            background: linear-gradient(180deg, #ffffff 0%, #fafbfd 100%);
-            border: 1px solid #e2e8f0 !important;
-            border-radius: 20px;
-            box-shadow: 0 12px 40px rgba(30, 42, 62, 0.08), 0 2px 8px rgba(30, 42, 62, 0.04);
-            padding: 0.25rem 1.25rem 1.5rem 1.25rem;
-        }
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stTabs"] [data-baseweb="tab-list"] {
-            gap: 0.5rem;
-        }
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stForm"] {
-            padding-top: 0.5rem;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            margin: 0.5rem 0 1.75rem 0;
         }
         [data-testid="stImage"] {
             display: flex;
             justify-content: center;
         }
-        [data-testid="stImage"] img {
-            max-width: 250px;
-            width: 100%;
-            height: auto;
+        [data-testid="stVerticalBlockBorderWrapper"] {
+            background-color: #ffffff;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.05);
+            border: 1px solid #eef1f5 !important;
+        }
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stTabs"] [data-baseweb="tab-list"] {
+            gap: 0.25rem;
+            margin-bottom: 0.5rem;
+        }
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stFormSubmitButton"] button {
+            width: 100% !important;
+            background-color: #4a6fa5 !important;
+            color: #ffffff !important;
+            border: none !important;
+            border-radius: 8px !important;
+            padding: 0.65rem 1rem !important;
+            font-weight: 600 !important;
+            transition: background-color 0.2s ease;
+        }
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stFormSubmitButton"] button:hover {
+            background-color: #2c5282 !important;
         }
     </style>
     """, unsafe_allow_html=True)
 
-    # Cabecera: logo y subtítulo centrados
-    _, header_col, _ = st.columns([1, 2, 1])
-    with header_col:
-        _pad_l, logo_col, _pad_r = st.columns([1, 1, 1])
+    col1, col_login, col3 = st.columns([1.2, 1.5, 1.2])
+    with col_login:
+        # Logo centrado
+        _l, logo_col, _r = st.columns([1, 1, 1])
         with logo_col:
             if os.path.exists("assets/velox.png"):
-                st.image("assets/velox.png", use_container_width=True)
+                st.image("assets/velox.png", width=200)
             else:
                 st.warning("Logo no encontrado. Asegúrate de que assets/velox.png existe.")
-                st.markdown("<h1 style='text-align:center;'>velox</h1>", unsafe_allow_html=True)
+                st.markdown("<h1 style='text-align:center; margin:0;'>velox</h1>", unsafe_allow_html=True)
 
+        # Subtítulo centrado
         st.markdown("""
         <p class="login-subtitle">
             Encuentra cursos y plantillas personalizables<br>
@@ -202,9 +208,7 @@ def login_screen():
         </p>
         """, unsafe_allow_html=True)
 
-    # Formulario en tarjeta centrada
-    _, form_col, _ = st.columns([1, 2, 1])
-    with form_col:
+        # Tarjeta del formulario
         with st.container(border=True):
             tab1, tab2 = st.tabs(["🔐 Iniciar Sesión", "📝 Registrarse"])
 

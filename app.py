@@ -443,7 +443,7 @@ else:
     with st.sidebar:
         st.markdown(f"### Hola, {st.session_state.get('nombre', 'Usuario')}")
         if st.session_state['rol'] == 'master':
-            opciones_menu = ["🏠 Inicio", "📁 Mis Documentos", "👥 Gestión Usuarios", "📢 Publicaciones", "⚙️ Configuración"]
+            opciones_menu = ["🏠 Inicio", "📁 Mis Documentos", "👥 Gestión Usuarios", "📬 Consultas", "⚙️ Configuración"]
         else:
             opciones_menu = ["🏠 Inicio", "📁 Mis Documentos", "📬 Consultas", "👤 Mi Perfil"]
 
@@ -780,18 +780,6 @@ else:
                 else:
                     st.error(msg)
 
-    elif menu_actual == "📢 Publicaciones" and st.session_state['rol'] == 'master':
-        st.header("Publicaciones Realizadas")
-        todas = storage_manager.obtener_publicaciones_por_seccion()
-        for pub in todas:
-            with st.expander(f"{pub['nombre_original']} - {pub['fecha'][:10]}"):
-                st.write(f"Sección: {SECCIONES[pub['seccion']]['nombre']}")
-                st.write(f"Subcategoría: {pub.get('subcategoria','General')}")
-                st.write(f"Descripción: {pub.get('descripcion','')}")
-                if st.button(f"Eliminar", key=f"del_all_{pub['id']}"):
-                    storage_manager.eliminar_publicacion(pub['id'])
-                    st.rerun()
-
     elif menu_actual == "⚙️ Configuración" and st.session_state['rol'] == 'master':
         st.header("Configuración")
         col1, col2 = st.columns(2)
@@ -802,39 +790,122 @@ else:
             st.info("Versión 1.0")
 
     elif menu_actual == "📬 Consultas":
-        st.header("Sistema de Consultas")
         if st.session_state['rol'] == 'master':
-            tab1, tab2 = st.tabs(["Pendientes", "Respondidas"])
-            with tab1:
-                pendientes = message_manager.obtener_mensajes_para_master(respondidos=False)
+            st.header("📬 Gestión de Consultas")
+            st.caption("Revisa y responde las consultas enviadas por los usuarios de la plataforma.")
+
+            pendientes = message_manager.obtener_consultas_pendientes()
+            st.markdown(f"### ⏳ Consultas pendientes ({len(pendientes)})")
+
+            if not pendientes:
+                st.info("No hay consultas pendientes por responder.")
+            else:
                 for msg in pendientes:
-                    st.markdown(f"**De:** {msg['nombre_usuario']} ({msg['email']})  \n**Sección:** {SECCIONES[msg['seccion']]['nombre']}  \n**Mensaje:** {msg['mensaje']}")
-                    respuesta = st.text_area("Respuesta", key=f"resp_{msg['id']}")
-                    if st.button("Enviar", key=f"send_{msg['id']}"):
-                        message_manager.responder_mensaje(msg['id'], respuesta, st.session_state['usuario'])
-                        st.rerun()
-                    st.divider()
-            with tab2:
-                respondidos = message_manager.obtener_mensajes_para_master(respondidos=True)
-                for msg in respondidos:
-                    st.markdown(f"**De:** {msg['nombre_usuario']}  \n**Consulta:** {msg['mensaje']}  \n**Respuesta:** {msg.get('respuesta','')}")
+                    seccion_nombre = SECCIONES.get(msg["seccion"], {}).get("nombre", msg["seccion"].capitalize())
+                    fecha = msg.get("fecha", "")
+                    fecha_str = fecha[:16].replace("T", " ") if fecha else "Sin fecha"
+                    with st.container(border=True):
+                        col_info, col_badge = st.columns([4, 1])
+                        with col_info:
+                            st.markdown(
+                                f"**👤 {msg['nombre_usuario']}** · `{msg['email']}`  \n"
+                                f"**📂 Sección:** {seccion_nombre}  \n"
+                                f"**📅** {fecha_str}"
+                            )
+                        with col_badge:
+                            st.markdown(
+                                '<span style="background:#fff3cd;color:#856404;padding:4px 10px;'
+                                'border-radius:12px;font-size:0.8rem;">Pendiente</span>',
+                                unsafe_allow_html=True,
+                            )
+                        st.markdown(
+                            f'<div style="background:#f8f9fa;border-radius:10px;padding:12px;'
+                            f'border-left:4px solid #4a6fa5;margin:8px 0;">{msg["mensaje"]}</div>',
+                            unsafe_allow_html=True,
+                        )
+                        respuesta = st.text_area(
+                            "Escribir respuesta...",
+                            key=f"resp_master_{msg['id']}",
+                            height=100,
+                            placeholder="Escribe aquí la respuesta para el usuario...",
+                        )
+                        if st.button("Enviar Respuesta", key=f"send_master_{msg['id']}", type="primary"):
+                            if respuesta.strip():
+                                exito = message_manager.responder_mensaje(
+                                    msg["id"], respuesta.strip(), st.session_state["usuario"]
+                                )
+                                if exito:
+                                    st.success("✅ Respuesta enviada correctamente")
+                                    st.rerun()
+                                else:
+                                    st.error("❌ No se pudo guardar la respuesta. Intenta de nuevo.")
+                            else:
+                                st.warning("Escribe una respuesta antes de enviar.")
+
+            with st.expander("Ver consultas respondidas"):
+                respondidas = message_manager.obtener_consultas_respondidas()
+                if not respondidas:
+                    st.info("Aún no hay consultas respondidas.")
+                else:
+                    for msg in respondidas:
+                        seccion_nombre = SECCIONES.get(msg["seccion"], {}).get("nombre", msg["seccion"].capitalize())
+                        fecha_resp = msg.get("fecha_respuesta", "")
+                        fecha_resp_str = fecha_resp[:16].replace("T", " ") if fecha_resp else ""
+                        st.markdown(
+                            f"**👤 {msg['nombre_usuario']}** · **📂 {seccion_nombre}**  \n"
+                            f"**Consulta:** {msg['mensaje']}  \n"
+                            f"**Respuesta:** {msg.get('respuesta', '')}  \n"
+                            f"<small>Respondida el {fecha_resp_str}</small>",
+                            unsafe_allow_html=True,
+                        )
+                        st.divider()
         else:
-            st.markdown("Enviar consulta al Master")
+            st.header("📬 Mis Consultas")
+            st.markdown("Envía tu consulta al administrador y revisa las respuestas recibidas.")
             secciones_usuario = auth_manager.obtener_secciones_usuario(st.session_state['usuario'])
             if secciones_usuario:
-                seccion = st.selectbox("Sección relacionada", secciones_usuario, format_func=lambda x: SECCIONES[x]['nombre'])
-                mensaje = st.text_area("Tu consulta", height=150)
-                if st.button("Enviar consulta"):
-                    if mensaje.strip():
-                        message_manager.enviar_mensaje(st.session_state['usuario'], st.session_state['nombre'], seccion, mensaje)
-                        st.success("Enviado")
-                        st.rerun()
-                    else:
-                        st.warning("Escribe tu consulta")
+                with st.container(border=True):
+                    seccion = st.selectbox(
+                        "Sección relacionada",
+                        secciones_usuario,
+                        format_func=lambda x: SECCIONES[x]['nombre'],
+                    )
+                    mensaje = st.text_area("Tu consulta", height=150, placeholder="Escribe tu pregunta aquí...")
+                    if st.button("Enviar consulta", type="primary"):
+                        if mensaje.strip():
+                            exito, texto = message_manager.enviar_mensaje(
+                                st.session_state['usuario'],
+                                st.session_state['nombre'],
+                                seccion,
+                                mensaje.strip(),
+                            )
+                            if exito:
+                                st.success(texto)
+                                st.rerun()
+                            else:
+                                st.error(texto)
+                        else:
+                            st.warning("Escribe tu consulta antes de enviar.")
+            else:
+                st.warning("No tienes secciones asignadas. Contacta al administrador.")
+
             st.markdown("---")
+            st.markdown("### 📋 Historial de consultas")
             historial = message_manager.obtener_mensajes_usuario(st.session_state['usuario'])
-            for msg in historial:
-                st.markdown(f"**Consulta:** {msg['mensaje']}  \n**Respuesta:** {msg.get('respuesta','Pendiente')}")
+            if not historial:
+                st.info("Aún no has enviado consultas.")
+            else:
+                for msg in historial:
+                    seccion_nombre = SECCIONES.get(msg["seccion"], {}).get("nombre", msg["seccion"].capitalize())
+                    respuesta = msg.get("respuesta")
+                    estado = "✅ Respondida" if respuesta else "⏳ Pendiente"
+                    with st.container(border=True):
+                        st.markdown(f"**📂 {seccion_nombre}** · {estado}")
+                        st.markdown(f"**Consulta:** {msg['mensaje']}")
+                        if respuesta:
+                            st.success(f"**Respuesta:** {respuesta}")
+                        else:
+                            st.info("**Respuesta:** Pendiente de respuesta por el administrador.")
 
     elif menu_actual == "👤 Mi Perfil":
         st.header("Mi Perfil")

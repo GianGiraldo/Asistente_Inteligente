@@ -245,14 +245,10 @@ class StorageManager:
             # Descargar contenido original
             contenido = self.supabase.storage.from_(self.bucket_name).download(ruta_relativa)
 
-            # Generar un NUEVO nombre de archivo único (evita duplicados)
-            extension = doc.get("extension") or doc["nombre_original"].split('.')[-1].lower()
-            nuevo_nombre_guardado = f"{uuid.uuid4()}.{extension}"
-
-            # Preparar nueva ruta en publicaciones usando el nuevo nombre
+            # Preparar nueva ruta en publicaciones
             carpeta_dest = f"publicaciones/{seccion}/{subcategoria}"
             partes_limpias = [limpiar_ruta(p) for p in carpeta_dest.split("/")]
-            ruta_nueva = "/".join(partes_limpias) + "/" + nuevo_nombre_guardado
+            ruta_nueva = "/".join(partes_limpias) + "/" + doc["nombre_guardado"]
 
             # Subir a la carpeta de publicaciones
             self.supabase.storage.from_(self.bucket_name).upload(
@@ -262,19 +258,19 @@ class StorageManager:
             )
             url_publica = self.supabase.storage.from_(self.bucket_name).get_public_url(ruta_nueva)
 
-            # Crear registro en publicaciones con el nuevo nombre
+            # Crear registro en publicaciones
             nuevo_id = str(uuid.uuid4())
             registro_pub = {
                 "id": nuevo_id,
                 "nombre_original": doc["nombre_original"],
-                "nombre_guardado": nuevo_nombre_guardado,      # ← NUEVO nombre único
+                "nombre_guardado": doc["nombre_guardado"],
                 "seccion": seccion,
                 "subcategoria": subcategoria,
                 "fecha": datetime.now().isoformat(),
                 "descripcion": descripcion or doc.get("descripcion", ""),
                 "tamaño_bytes": doc["tamaño_bytes"],
                 "tamaño_kb": doc["tamaño_kb"],
-                "extension": extension,
+                "extension": doc["extension"],
                 "ruta_completa": url_publica,
                 "titulo": doc["nombre_original"],
                 "mensaje": descripcion or doc.get("descripcion", ""),

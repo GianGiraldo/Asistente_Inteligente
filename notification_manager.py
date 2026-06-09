@@ -39,6 +39,23 @@ class NotificationManager:
             .execute()
         return result.data or []
 
+    def obtener_ultimas_no_leidas(self, usuario_email, limite=10):
+        """Últimas notificaciones pendientes de leer para el panel de la campana."""
+        try:
+            result = (
+                self.supabase.table("notificaciones")
+                .select("*")
+                .eq("usuario_email", usuario_email)
+                .eq("leido", False)
+                .order("fecha_creacion", desc=True)
+                .limit(limite)
+                .execute()
+            )
+            return result.data or []
+        except Exception as e:
+            print(f"Error obteniendo últimas notificaciones: {e}")
+            return []
+
     def contar_no_leidas(self, usuario_email):
         """Cuenta cuántas notificaciones no leídas tiene un usuario"""
         result = self.supabase.table("notificaciones") \

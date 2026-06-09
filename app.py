@@ -1,4 +1,5 @@
 # app.py - Versión limpia y funcional (sin CSS conflictivo)
+import json
 import os
 from datetime import datetime
 
@@ -295,6 +296,154 @@ def volver_al_inicio():
 def seleccionar_categoria_inicio(categoria):
     st.session_state.categoria_inicio = categoria
 
+def _formatear_fecha_notif(fecha_raw):
+    if not fecha_raw:
+        return "Fecha desconocida"
+    try:
+        texto = str(fecha_raw).replace("Z", "+00:00")
+        dt = datetime.fromisoformat(texto)
+        return dt.strftime("%d/%m/%Y %H:%M")
+    except (ValueError, TypeError):
+        return str(fecha_raw)[:16].replace("T", " ")
+
+def _parsear_metadata_notif(metadata):
+    if isinstance(metadata, dict):
+        return metadata
+    if isinstance(metadata, str) and metadata.strip():
+        try:
+            return json.loads(metadata)
+        except json.JSONDecodeError:
+            return {}
+    return {}
+
+def abrir_notificacion(notificacion_id, seccion, categoria=None):
+    notification_manager.marcar_como_leida(notificacion_id, st.session_state["usuario"])
+    st.session_state["menu_principal"] = "🏠 Inicio"
+    st.session_state.seccion_activa = seccion or "inicio"
+    if categoria and seccion:
+        st.session_state.categoria_inicio = categoria
+
+def render_campana_notificaciones():
+    usuario = st.session_state["usuario"]
+    no_leidas = notification_manager.contar_no_leidas(usuario)
+    badge_text = str(no_leidas) if no_leidas < 100 else "99+"
+
+    st.markdown("""
+    <style>
+        .notif-bell-anchor {
+            position: relative;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            margin-bottom: -2.4rem;
+            padding-right: 0.35rem;
+            pointer-events: none;
+            z-index: 2;
+        }
+        .notif-badge-pill {
+            background: linear-gradient(135deg, #f5c518 0%, #f0a500 100%);
+            color: #1a2744;
+            border-radius: 999px;
+            min-width: 22px;
+            height: 22px;
+            padding: 0 6px;
+            font-size: 11px;
+            font-weight: 800;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #ffffff;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+        }
+        div[data-testid="stPopover"] > button {
+            background: #f1f5f9 !important;
+            border: 1px solid #dce5f0 !important;
+            border-radius: 12px !important;
+            font-size: 1.35rem !important;
+            padding: 0.45rem 0.85rem !important;
+            box-shadow: 0 2px 8px rgba(30, 42, 62, 0.08) !important;
+        }
+        div[data-testid="stPopover"] > button:hover {
+            background: #e8eef5 !important;
+            border-color: #4a6fa5 !important;
+        }
+        .notif-panel-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #1e2a3e;
+            margin: 0 0 0.25rem 0;
+        }
+        .notif-card {
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            border-radius: 12px;
+            padding: 12px 14px;
+            margin-bottom: 8px;
+            border: 1px solid #e2e8f0;
+            border-left: 4px solid #4a6fa5;
+        }
+        .notif-card-title {
+            font-weight: 700;
+            color: #1e2a3e;
+            font-size: 0.95rem;
+            margin-bottom: 4px;
+        }
+        .notif-card-msg {
+            font-size: 0.82rem;
+            color: #475569;
+            margin-bottom: 6px;
+            line-height: 1.45;
+        }
+        .notif-card-meta {
+            font-size: 0.75rem;
+            color: #64748b;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    if no_leidas > 0:
+        st.markdown(
+            f'<div class="notif-bell-anchor"><span class="notif-badge-pill">{badge_text}</span></div>',
+            unsafe_allow_html=True,
+        )
+
+    with st.popover("🔔", use_container_width=True, help="Notificaciones pendientes"):
+        st.markdown('<p class="notif-panel-title">Notificaciones</p>', unsafe_allow_html=True)
+        st.caption("Publicaciones pendientes de leer")
+        notificaciones = notification_manager.obtener_ultimas_no_leidas(usuario, limite=10)
+
+        if not notificaciones:
+            st.info("No tienes notificaciones pendientes.")
+            return
+
+        for notif in notificaciones:
+            metadata = _parsear_metadata_notif(notif.get("metadata"))
+            seccion = metadata.get("seccion", "")
+            categoria = metadata.get("subcategoria") or metadata.get("categoria") or "General"
+            seccion_nombre = SECCIONES.get(seccion, {}).get("nombre", seccion.capitalize() if seccion else "General")
+            fecha_str = _formatear_fecha_notif(notif.get("fecha_creacion"))
+            titulo = notif.get("titulo", "Nueva publicación")
+            mensaje = notif.get("mensaje", "")
+
+            st.markdown(f"""
+            <div class="notif-card">
+                <div class="notif-card-title">{titulo}</div>
+                <div class="notif-card-msg">{mensaje}</div>
+                <div class="notif-card-meta">📂 {seccion_nombre} · 🕐 {fecha_str}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            st.button(
+                "Ver publicación →",
+                key=f"notif_btn_{notif['id']}",
+                use_container_width=True,
+                on_click=abrir_notificacion,
+                kwargs={
+                    "notificacion_id": notif["id"],
+                    "seccion": seccion,
+                    "categoria": categoria,
+                },
+            )
+
 def render_vista_seccion_inicio(seccion_id):
     if seccion_id not in SECCIONES:
         st.session_state.seccion_activa = "inicio"
@@ -440,31 +589,7 @@ else:
         with subcol1:
             st.markdown(f"**🌟 {nombre}**  \n<small>{rol_texto}</small>", unsafe_allow_html=True)
         with subcol2:
-            bell_html = '🔔'
-            with st.popover(bell_html, use_container_width=True):
-                st.markdown("### 📢 Últimas publicaciones")
-                publicaciones = notification_manager.obtener_ultimas_publicaciones(limite=10)
-                if not publicaciones:
-                    st.info("No hay publicaciones recientes.")
-                else:
-                    for pub in publicaciones:
-                        fecha = pub.get('fecha_creacion', '')
-                        fecha_str = fecha[:16] if isinstance(fecha, str) else str(fecha)[:16] if fecha else "Fecha desconocida"
-                        st.markdown(f"""
-                        <div style="background:#f8f9fa; border-radius:12px; padding:12px; margin-bottom:12px; border-left:4px solid #667eea;">
-                            <div style="font-weight:bold;">{pub['titulo']}</div>
-                            <div style="font-size:0.85rem; color:#555;">{pub['mensaje']}</div>
-                            <div style="font-size:0.7rem; color:#888; display:flex; justify-content:space-between;">
-                                <span>📅 {fecha_str}</span>
-                                <span>📂 {pub['seccion'].capitalize()} / {pub['categoria']}</span>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        if st.button(f"🔍 Ver contenido", key=f"ver_{pub['id']}", use_container_width=True):
-                            st.session_state['seccion_seleccionada'] = pub['seccion']
-                            st.session_state['categoria_seleccionada'] = pub['categoria']
-                            st.session_state['menu_principal'] = "📁 Mis Documentos"
-                            st.rerun()
+            render_campana_notificaciones()
     with col_logout:
         if st.button("🚪 Cerrar Sesión"):
             for key in ['autenticado', 'usuario', 'rol', 'nombre', 'secciones', 'login_time', 'seccion_seleccionada', 'seccion_activa', 'categoria_inicio']:

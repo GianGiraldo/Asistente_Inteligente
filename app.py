@@ -794,7 +794,8 @@ else:
             st.header("📬 Gestión de Consultas")
             st.caption("Revisa y responde las consultas enviadas por los usuarios de la plataforma.")
 
-            pendientes = message_manager.obtener_consultas_pendientes()
+            # Consultas pendientes (no respondidas)
+            pendientes = message_manager.obtener_mensajes_para_master(respondidos=False)
             st.markdown(f"### ⏳ Consultas pendientes ({len(pendientes)})")
 
             if not pendientes:
@@ -842,8 +843,9 @@ else:
                             else:
                                 st.warning("Escribe una respuesta antes de enviar.")
 
+            # Consultas respondidas
             with st.expander("Ver consultas respondidas"):
-                respondidas = message_manager.obtener_consultas_respondidas()
+                respondidas = message_manager.obtener_mensajes_para_master(respondidos=True)
                 if not respondidas:
                     st.info("Aún no hay consultas respondidas.")
                 else:
@@ -860,6 +862,7 @@ else:
                         )
                         st.divider()
         else:
+            # Usuario normal: enviar consulta
             st.header("📬 Mis Consultas")
             st.markdown("Envía tu consulta al administrador y revisa las respuestas recibidas.")
             secciones_usuario = auth_manager.obtener_secciones_usuario(st.session_state['usuario'])

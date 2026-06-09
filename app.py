@@ -1,13 +1,15 @@
 # app.py - Versión limpia y funcional (sin CSS conflictivo)
-import streamlit as st
-import pandas as pd
-from auth import AuthManager
-from storage_manager import StorageManager
-from message_manager import MessageManager
-from datetime import datetime
-from notification_manager import NotificationManager
 import os
+from datetime import datetime
+
+import pandas as pd
+import streamlit as st
 from streamlit_option_menu import option_menu
+
+from auth import AuthManager
+from message_manager import MessageManager
+from notification_manager import NotificationManager
+from storage_manager import StorageManager
 
 st.set_page_config(
     page_title="Asistente Inteligente - Gestión Documental",

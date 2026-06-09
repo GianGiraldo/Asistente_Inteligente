@@ -989,7 +989,10 @@ else:
             archivo = st.file_uploader("Archivo", type=['pdf','xlsx','xls','docx','doc'])
             desc = st.text_area("Descripción")
             if archivo and st.button("Publicar"):
-                exito, msg = storage_manager.publicar_documento(archivo, seccion, subcat, desc)
+                exito, msg = storage_manager.publicar_documento(
+                    archivo, seccion, subcat, desc,
+                    publicador_email=st.session_state["usuario"],
+                )
                 if exito:
                     st.success("Documento publicado")
                     st.rerun()

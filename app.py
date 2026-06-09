@@ -147,70 +147,103 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ==================== PANTALLA DE LOGIN (SIMPLIFICADA Y CENTRADA) ====================
+# ==================== PANTALLA DE LOGIN ====================
 def login_screen():
-    # Centrar con columnas vacías a los lados
-    left, center, right = st.columns([1, 2, 1])
-    with center:
-        # Logo (con verificación)
-        if os.path.exists("assets/velox.png"):
-            st.image("assets/velox.png", width=250)
-        else:
-            st.warning("Logo no encontrado. Asegúrate de que assets/velox.png existe.")
-            st.markdown("<h1 style='text-align:center;'>velox</h1>", unsafe_allow_html=True)
-        
-        # Mensaje promocional
+    st.markdown("""
+    <style>
+        .login-subtitle {
+            text-align: center;
+            color: #4a627a;
+            font-size: 1.05rem;
+            line-height: 1.65;
+            margin: 0.75rem auto 2rem auto;
+            max-width: 420px;
+        }
+        [data-testid="stVerticalBlockBorderWrapper"] {
+            background: linear-gradient(180deg, #ffffff 0%, #fafbfd 100%);
+            border: 1px solid #e2e8f0 !important;
+            border-radius: 20px;
+            box-shadow: 0 12px 40px rgba(30, 42, 62, 0.08), 0 2px 8px rgba(30, 42, 62, 0.04);
+            padding: 0.25rem 1.25rem 1.5rem 1.25rem;
+        }
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stTabs"] [data-baseweb="tab-list"] {
+            gap: 0.5rem;
+        }
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stForm"] {
+            padding-top: 0.5rem;
+        }
+        [data-testid="stImage"] {
+            display: flex;
+            justify-content: center;
+        }
+        [data-testid="stImage"] img {
+            max-width: 250px;
+            width: 100%;
+            height: auto;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Cabecera: logo y subtítulo centrados
+    _, header_col, _ = st.columns([1, 2, 1])
+    with header_col:
+        _pad_l, logo_col, _pad_r = st.columns([1, 1, 1])
+        with logo_col:
+            if os.path.exists("assets/velox.png"):
+                st.image("assets/velox.png", use_container_width=True)
+            else:
+                st.warning("Logo no encontrado. Asegúrate de que assets/velox.png existe.")
+                st.markdown("<h1 style='text-align:center;'>velox</h1>", unsafe_allow_html=True)
+
         st.markdown("""
-        <div style="text-align: center; margin: 1rem 0 2rem 0; color: #4a627a; font-size: 1rem;">
-            Encuentra cursos y plantillas personalizables<br>para potenciar tus habilidades
-        </div>
+        <p class="login-subtitle">
+            Encuentra cursos y plantillas personalizables<br>
+            para potenciar tus habilidades
+        </p>
         """, unsafe_allow_html=True)
-        
-        # Tarjeta blanca para el formulario
-        st.markdown("""
-        <div style="background: white; padding: 2rem; border-radius: 24px; box-shadow: 0 8px 24px rgba(0,0,0,0.08);">
-        """, unsafe_allow_html=True)
-        
-        tab1, tab2 = st.tabs(["🔐 Iniciar Sesión", "📝 Registrarse"])
-        
-        with tab1:
-            with st.form("login_form"):
-                email = st.text_input("Email (Gmail)", placeholder="tuemail@gmail.com")
-                password = st.text_input("Contraseña", type="password")
-                if st.form_submit_button("Iniciar Sesión", use_container_width=True):
-                    valido, rol, nombre, secciones = auth_manager.verificar_usuario(email, password)
-                    if valido:
-                        st.session_state['autenticado'] = True
-                        st.session_state['usuario'] = email
-                        st.session_state['rol'] = rol
-                        st.session_state['nombre'] = nombre
-                        st.session_state['secciones'] = secciones
-                        st.session_state['login_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        st.session_state['menu_principal'] = "🏠 Inicio"
-                        st.rerun()
-                    else:
-                        st.error("❌ Credenciales incorrectas")
-        
-        with tab2:
-            with st.form("registro_form"):
-                nombre = st.text_input("Nombre completo")
-                email = st.text_input("Email (Gmail)", placeholder="tuemail@gmail.com")
-                password = st.text_input("Contraseña", type="password")
-                confirmar = st.text_input("Confirmar contraseña", type="password")
-                if st.form_submit_button("Registrarse", use_container_width=True):
-                    if password != confirmar:
-                        st.error("Las contraseñas no coinciden")
-                    elif not email.endswith('@gmail.com'):
-                        st.error("Solo se permiten cuentas de Gmail")
-                    else:
-                        exito, msg = auth_manager.registrar_usuario(email, password, nombre)
-                        if exito:
-                            st.success(msg)
-                            st.info("Ahora puedes iniciar sesión")
+
+    # Formulario en tarjeta centrada
+    _, form_col, _ = st.columns([1, 2, 1])
+    with form_col:
+        with st.container(border=True):
+            tab1, tab2 = st.tabs(["🔐 Iniciar Sesión", "📝 Registrarse"])
+
+            with tab1:
+                with st.form("login_form"):
+                    email = st.text_input("Email (Gmail)", placeholder="tuemail@gmail.com")
+                    password = st.text_input("Contraseña", type="password")
+                    if st.form_submit_button("Iniciar Sesión", use_container_width=True):
+                        valido, rol, nombre, secciones = auth_manager.verificar_usuario(email, password)
+                        if valido:
+                            st.session_state['autenticado'] = True
+                            st.session_state['usuario'] = email
+                            st.session_state['rol'] = rol
+                            st.session_state['nombre'] = nombre
+                            st.session_state['secciones'] = secciones
+                            st.session_state['login_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            st.session_state['menu_principal'] = "🏠 Inicio"
+                            st.rerun()
                         else:
-                            st.error(msg)
-        
-        st.markdown("</div>", unsafe_allow_html=True)  # cierra tarjeta
+                            st.error("❌ Credenciales incorrectas")
+
+            with tab2:
+                with st.form("registro_form"):
+                    nombre = st.text_input("Nombre completo")
+                    email = st.text_input("Email (Gmail)", placeholder="tuemail@gmail.com")
+                    password = st.text_input("Contraseña", type="password")
+                    confirmar = st.text_input("Confirmar contraseña", type="password")
+                    if st.form_submit_button("Registrarse", use_container_width=True):
+                        if password != confirmar:
+                            st.error("Las contraseñas no coinciden")
+                        elif not email.endswith('@gmail.com'):
+                            st.error("Solo se permiten cuentas de Gmail")
+                        else:
+                            exito, msg = auth_manager.registrar_usuario(email, password, nombre)
+                            if exito:
+                                st.success(msg)
+                                st.info("Ahora puedes iniciar sesión")
+                            else:
+                                st.error(msg)
 
 # ==================== ESTADO DE AUTENTICACIÓN ====================
 if 'autenticado' not in st.session_state:

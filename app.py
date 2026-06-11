@@ -187,6 +187,104 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==================== PANTALLA DE ACCESO, PAGO Y LOGIN ====================
+YAPE_QR_PATH = "assets/qr_pago.png"
+YAPE_FORM_KEYS = [
+    "yape_ui_nombre", "yape_ui_email", "yape_ui_password",
+    "yape_ui_celular", "yape_ui_codigo",
+]
+
+def render_tab_yape_plim():
+    """Pestaña Yape/Plim: diseño en columnas y registro seguro en Supabase."""
+    if st.session_state.pop("yape_registro_ok", False):
+        st.toast("¡Solicitud enviada al panel Master!", icon="🎉")
+        st.success(
+            "🎉 ¡Registro recibido correctamente! Tu código de operación ya fue enviado al panel "
+            "del Administrador Master. Procesaremos tu activación en unos minutos. ¡Bienvenido!"
+        )
+
+    st.markdown('<span class="yape-badge">🇵🇪 Pago local · Yape o Plim</span>', unsafe_allow_html=True)
+    st.markdown("#### Escanea, paga y completa tu registro")
+    st.caption("Un solo paso para que el Master verifique tu pago y active tu acceso al aplicativo.")
+
+    col_pago, col_form = st.columns([1, 1.2], gap="large")
+
+    with col_pago:
+        with st.container(border=True):
+            st.metric(label="Monto a transferir", value="S/ 9.90")
+            if os.path.exists(YAPE_QR_PATH):
+                st.image(
+                    YAPE_QR_PATH,
+                    caption="Escanea aquí con Yape o Plim",
+                    use_container_width=True,
+                )
+            else:
+                st.warning(f"No se encontró la imagen en `{YAPE_QR_PATH}`")
+            st.caption("💡 Tip: Recuerda tomar una captura de pantalla a tu constancia al terminar el pago.")
+
+    with col_form:
+        with st.container(border=True):
+            st.markdown("**📝 Datos de registro y verificación**")
+            st.caption("Usa el mismo correo y celular de tu comprobante de pago.")
+
+            nombre = st.text_input(
+                "Nombre completo",
+                placeholder="Juan Pérez",
+                key="yape_ui_nombre",
+            )
+            email = st.text_input(
+                "Correo electrónico",
+                placeholder="ejemplo@correo.com",
+                key="yape_ui_email",
+            )
+            password = st.text_input(
+                "Contraseña",
+                type="password",
+                placeholder="Crea una contraseña segura",
+                key="yape_ui_password",
+            )
+            celular = st.text_input(
+                "Celular de la operación",
+                placeholder="999888777",
+                max_chars=9,
+                key="yape_ui_celular",
+            )
+            codigo = st.text_input(
+                "Código de Operación",
+                placeholder="Ej: 123456",
+                max_chars=8,
+                help="Código numérico de 6 a 8 dígitos que aparece en tu comprobante de Yape/Plim",
+                key="yape_ui_codigo",
+            )
+
+            with st.expander("❓ ¿Dónde encuentro mi Código de Operación?"):
+                st.markdown(
+                    "En **Yape**, figura abajo del monto como *«Código de operación»*.  \n"
+                    "En **Plim**, figura en el detalle como *«Número de operación»*.  \n\n"
+                    "Recuerda que solo se validan **códigos reales** emitidos por tu app de pagos."
+                )
+
+            if st.button(
+                "🚀 Enviar verificación y Registrarse",
+                use_container_width=True,
+                type="primary",
+                key="yape_btn_registrar",
+            ):
+                try:
+                    with st.spinner("Validando datos y registrando en Supabase..."):
+                        exito, msg = payment_manager.registrar_verificacion_yape_plim(
+                            nombre, email, password, celular, codigo
+                        )
+                    if exito:
+                        for key in YAPE_FORM_KEYS:
+                            st.session_state.pop(key, None)
+                        st.session_state["yape_registro_ok"] = True
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {msg}")
+                except Exception as e:
+                    st.error(f"❌ Error inesperado al registrar: {e}")
+                    print(f"Error en registro Yape/Plim: {e}")
+
 def login_screen():
     st.markdown("""
     <style>
@@ -197,6 +295,15 @@ def login_screen():
             font-size: 1.35rem; font-weight: 700;
         }
         .payment-card-title { font-size: 1.1rem; font-weight: 700; color: #1e2a3e; margin-bottom: 0.5rem; }
+        .yape-panel {
+            background: linear-gradient(160deg, #f8fbff 0%, #eef4fb 100%);
+            border-radius: 16px; padding: 0.25rem;
+        }
+        .yape-badge {
+            display: inline-block; background: #10b981; color: white;
+            padding: 4px 12px; border-radius: 999px; font-size: 0.78rem; font-weight: 600;
+            margin-bottom: 0.75rem;
+        }
         [data-testid="stVerticalBlockBorderWrapper"] {
             background-color: #ffffff; border-radius: 12px; padding: 24px;
             box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.05); border: 1px solid #eef1f5 !important;
@@ -224,7 +331,7 @@ def login_screen():
         tab_login, tab_culqi, tab_yape = st.tabs([
             "🔐 Ya tengo cuenta",
             "💳 Pago con tarjeta (Culqi)",
-            "📱 Yape / Plim",
+            "📲 Yape / Plim",
         ])
 
         with tab_login:
@@ -273,43 +380,7 @@ def login_screen():
                         st.error(f"❌ {msg}")
 
         with tab_yape:
-            st.markdown('<p class="payment-card-title">Pago manual Yape / Plim</p>', unsafe_allow_html=True)
-            st.caption("Realiza el pago y envía tus datos. El administrador verificará y activará tu cuenta.")
-
-            qr_path = payment_manager.obtener_ruta_qr_yape()
-            qcol1, qcol2 = st.columns([1, 1])
-            with qcol1:
-                if os.path.exists(qr_path):
-                    st.image(qr_path, caption=f"Escanea y paga S/ {MONTO_SOLES:.2f}", use_container_width=True)
-                else:
-                    st.warning(f"Coloca tu QR en `{qr_path}` o configura payments.yape_qr_path en secrets.toml")
-                    st.info(f"Monto exacto: **S/ {MONTO_SOLES:.2f}**")
-            with qcol2:
-                st.markdown("""
-                **Pasos:**
-                1. Escanea el QR y paga **S/ 9.90**
-                2. Guarda el **código de operación**
-                3. Completa el formulario →
-                """)
-
-            with st.form("form_yape"):
-                nombre = st.text_input("Nombre completo", key="yape_nombre")
-                email = st.text_input("Correo electrónico", placeholder="nombre@correo.com", key="yape_email")
-                celular = st.text_input("Celular desde el que yapeaste", placeholder="987654321", key="yape_cel")
-                codigo = st.text_input("Código de operación *", placeholder="Ej. 00123456", key="yape_codigo")
-                password = st.text_input("Contraseña para tu cuenta", type="password", key="yape_pass")
-                confirmar = st.text_input("Confirmar contraseña", type="password", key="yape_pass2")
-                metodo = st.selectbox("Método utilizado", ["yape", "plim"], format_func=lambda x: x.upper())
-
-                if st.form_submit_button("Enviar solicitud de activación", type="primary", use_container_width=True):
-                    with st.spinner("Registrando solicitud..."):
-                        exito, msg = payment_manager.registrar_pago_manual_yape(
-                            email, celular, codigo, nombre, password, confirmar, metodo=metodo
-                        )
-                    if exito:
-                        st.success(f"✅ {msg}")
-                    else:
-                        st.error(f"❌ {msg}")
+            render_tab_yape_plim()
 
 # ==================== NAVEGACIÓN INTERNA - INICIO ====================
 def activar_seccion_inicio(seccion_id):
@@ -359,7 +430,7 @@ def render_gestion_cobranzas_master():
             "Celular": p.get("celular"),
             "Código": p.get("codigo_operacion"),
             "Monto": f"S/ {float(p.get('monto', MONTO_SOLES)):.2f}",
-            "Método": (p.get("metodo_pago") or "yape").upper(),
+            "Método": (p.get("metodo_pago") or "yape_plim").replace("_", " ").upper(),
             "Fecha": _formatear_fecha_notif(p.get("fecha")),
         }
         for p in pagos
@@ -373,7 +444,7 @@ def render_gestion_cobranzas_master():
             st.markdown(
                 f"**{pago.get('nombre', 'Sin nombre')}** · `{pago.get('email')}`  \n"
                 f"Celular: **{pago.get('celular')}** · Código: **`{pago.get('codigo_operacion')}`** · "
-                f"Método: **{(pago.get('metodo_pago') or 'yape').upper()}**"
+                f"Método: **{(pago.get('metodo_pago') or 'yape_plim').replace('_', ' ').upper()}**"
             )
             col_ok, col_no = st.columns(2)
             with col_ok:

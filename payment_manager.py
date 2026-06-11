@@ -15,6 +15,7 @@ MONTO_CENTIMOS = 990
 MONEDA = "PEN"
 METODO_CULQI = "culqi"
 METODO_YAPE = "yape"
+METODO_YAPE_PLIM = "yape_plim"
 ESTADO_PENDIENTE = "pendiente"
 ESTADO_APROBADO = "aprobado"
 ESTADO_RECHAZADO = "rechazado"
@@ -23,7 +24,7 @@ EMAIL_REGEX = re.compile(
     r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 )
 CELULAR_REGEX = re.compile(r"^9\d{8}$")
-CODIGO_OPERACION_REGEX = re.compile(r"^[A-Za-z0-9\-]{4,30}$")
+CODIGO_OPERACION_REGEX = re.compile(r"^\d{6,8}$")
 
 
 def _format_error(exc: Exception) -> str:
@@ -60,9 +61,9 @@ class PaymentManager:
 
     @staticmethod
     def validar_codigo_operacion(codigo: str) -> Tuple[bool, str]:
-        limpio = str(codigo or "").strip().upper()
+        limpio = re.sub(r"\D", "", str(codigo or "").strip())
         if not CODIGO_OPERACION_REGEX.match(limpio):
-            return False, "El código de operación debe tener entre 4 y 30 caracteres alfanuméricos"
+            return False, "El código de operación debe ser numérico de 6 a 8 dígitos (como en Yape o Plim)"
         return True, limpio
 
     @staticmethod
@@ -234,16 +235,26 @@ class PaymentManager:
 
         return True, "¡Pago confirmado! Tu cuenta está activa. Ya puedes iniciar sesión."
 
-    def registrar_pago_manual_yape(
+    def registrar_verificacion_yape_plim(
         self,
+        nombre: str,
         email: str,
+        password: str,
         celular: str,
         codigo_operacion: str,
-        nombre: str,
-        password: str,
-        confirmar_password: str,
-        metodo: str = METODO_YAPE,
     ) -> Tuple[bool, str]:
+        """Registro + pago pendiente Yape/Plim (users inactivo + pagos_pendientes)."""
+        campos_obligatorios = {
+            "Nombre completo": nombre,
+            "Correo electrónico": email,
+            "Contraseña": password,
+            "Celular de la operación": celular,
+            "Código de operación": codigo_operacion,
+        }
+        vacios = [etiqueta for etiqueta, valor in campos_obligatorios.items() if not str(valor or "").strip()]
+        if vacios:
+            return False, f"Completa todos los campos obligatorios: {', '.join(vacios)}"
+
         ok_email, email_norm = self.validar_email(email)
         if not ok_email:
             return False, email_norm
@@ -253,10 +264,36 @@ class PaymentManager:
         ok_cod, cod_norm = self.validar_codigo_operacion(codigo_operacion)
         if not ok_cod:
             return False, cod_norm
-        if not nombre or not nombre.strip():
-            return False, "El nombre es obligatorio"
+        if len(password) < 6:
+            return False, "La contraseña debe tener al menos 6 caracteres"
+
+        return self._guardar_registro_yape_plim(email_norm, cel_norm, cod_norm, nombre.strip(), password)
+
+    def registrar_pago_manual_yape(
+        self,
+        email: str,
+        celular: str,
+        codigo_operacion: str,
+        nombre: str,
+        password: str,
+        confirmar_password: str,
+        metodo: str = METODO_YAPE_PLIM,
+    ) -> Tuple[bool, str]:
         if password != confirmar_password:
             return False, "Las contraseñas no coinciden"
+        ok, msg = self.registrar_verificacion_yape_plim(nombre, email, password, celular, codigo_operacion)
+        if not ok:
+            return False, msg
+        return True, msg
+
+    def _guardar_registro_yape_plim(
+        self,
+        email_norm: str,
+        cel_norm: str,
+        cod_norm: str,
+        nombre: str,
+        password: str,
+    ) -> Tuple[bool, str]:
 
         if self.codigo_operacion_existe(cod_norm):
             return False, "Este código de operación ya fue registrado. Verifica o contacta soporte."
@@ -284,21 +321,18 @@ class PaymentManager:
             "monto": MONTO_SOLES,
             "fecha": datetime.now().isoformat(),
             "estado": ESTADO_PENDIENTE,
-            "nombre": nombre.strip(),
-            "metodo_pago": metodo,
+            "nombre": nombre,
+            "metodo_pago": METODO_YAPE_PLIM,
         }
         try:
             result = self.supabase.table("pagos_pendientes").insert(registro).execute()
             if not result.data:
-                return False, "No se pudo guardar la solicitud de pago"
-            return True, (
-                "Solicitud registrada. Tu pago será verificado por el administrador. "
-                "Recibirás acceso cuando sea aprobado."
-            )
+                return False, "No se pudo guardar la solicitud de pago en Supabase"
+            return True, "ok"
         except Exception as e:
             err = _format_error(e)
             if "duplicate" in err.lower() or "unique" in err.lower():
-                return False, "Este código de operación ya fue registrado"
+                return False, "Este código de operación ya fue registrado. Verifica tu comprobante."
             return False, f"Error guardando pago pendiente: {err}"
 
     def listar_pagos_pendientes(self) -> List[Dict[str, Any]]:
@@ -402,7 +436,7 @@ class PaymentManager:
         import streamlit as st
 
         pagos = st.secrets.get("payments", {})
-        return pagos.get("yape_qr_path", "assets/yape_qr.png")
+        return pagos.get("yape_qr_path", "assets/qr_pago.png")
 
     @staticmethod
     def html_culqi_checkout(public_key: str) -> str:

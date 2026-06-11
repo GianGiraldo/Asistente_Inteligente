@@ -5,11 +5,13 @@ from datetime import datetime
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 from streamlit_option_menu import option_menu
 
 from auth import AuthManager
 from message_manager import MessageManager
 from notification_manager import NotificationManager
+from payment_manager import PaymentManager, MONTO_SOLES
 from storage_manager import StorageManager
 
 st.set_page_config(
@@ -25,9 +27,10 @@ def init_managers():
     storage = StorageManager()
     messages = MessageManager()
     notifications = NotificationManager()
-    return auth, storage, messages, notifications
+    payments = PaymentManager()
+    return auth, storage, messages, notifications, payments
 
-auth_manager, storage_manager, message_manager, notification_manager = init_managers()
+auth_manager, storage_manager, message_manager, notification_manager, payment_manager = init_managers()
 
 SECCIONES = {
     "contabilidad": {
@@ -71,6 +74,7 @@ MENU_SIDEBAR_MASTER = [
     ("Inicio", "house", "🏠 Inicio"),
     ("Mis Documentos", "folder", "📁 Mis Documentos"),
     ("Gestión Usuarios", "people", "👥 Gestión Usuarios"),
+    ("Cobranzas", "credit-card", "💳 Cobranzas"),
     ("Consultas", "envelope", "📬 Consultas"),
     ("Configuración", "gear", "⚙️ Configuración"),
 ]
@@ -182,107 +186,130 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ==================== PANTALLA DE LOGIN ====================
+# ==================== PANTALLA DE ACCESO, PAGO Y LOGIN ====================
 def login_screen():
     st.markdown("""
     <style>
-        .login-subtitle {
-            text-align: center;
-            color: #4a627a;
-            font-size: 0.95rem;
-            line-height: 1.6;
-            margin: 0.5rem 0 1.75rem 0;
+        .login-subtitle { text-align: center; color: #4a627a; font-size: 0.95rem; line-height: 1.6; margin: 0.5rem 0 1.5rem 0; }
+        .price-badge {
+            text-align: center; background: linear-gradient(135deg, #4a6fa5, #2c5282);
+            color: white; padding: 1rem 1.5rem; border-radius: 16px; margin-bottom: 1.25rem;
+            font-size: 1.35rem; font-weight: 700;
         }
-        [data-testid="stImage"] {
-            display: flex;
-            justify-content: center;
-        }
+        .payment-card-title { font-size: 1.1rem; font-weight: 700; color: #1e2a3e; margin-bottom: 0.5rem; }
         [data-testid="stVerticalBlockBorderWrapper"] {
-            background-color: #ffffff;
-            border-radius: 12px;
-            padding: 30px;
-            box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.05);
-            border: 1px solid #eef1f5 !important;
-        }
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stTabs"] [data-baseweb="tab-list"] {
-            gap: 0.25rem;
-            margin-bottom: 0.5rem;
-        }
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stFormSubmitButton"] button {
-            width: 100% !important;
-            background-color: #4a6fa5 !important;
-            color: #ffffff !important;
-            border: none !important;
-            border-radius: 8px !important;
-            padding: 0.65rem 1rem !important;
-            font-weight: 600 !important;
-            transition: background-color 0.2s ease;
-        }
-        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stFormSubmitButton"] button:hover {
-            background-color: #2c5282 !important;
+            background-color: #ffffff; border-radius: 12px; padding: 24px;
+            box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.05); border: 1px solid #eef1f5 !important;
         }
     </style>
     """, unsafe_allow_html=True)
 
-    col1, col_login, col3 = st.columns([1.2, 1.5, 1.2])
-    with col_login:
-        # Logo centrado
+    col1, col_center, col3 = st.columns([1, 2, 1])
+    with col_center:
         _l, logo_col, _r = st.columns([1, 1, 1])
         with logo_col:
             if os.path.exists("assets/velox.png"):
-                st.image("assets/velox.png", width=200)
+                st.image("assets/velox.png", width=180)
             else:
-                st.warning("Logo no encontrado. Asegúrate de que assets/velox.png existe.")
-                st.markdown("<h1 style='text-align:center; margin:0;'>velox</h1>", unsafe_allow_html=True)
+                st.markdown("<h1 style='text-align:center;'>velox</h1>", unsafe_allow_html=True)
 
-        # Subtítulo centrado
         st.markdown("""
         <p class="login-subtitle">
-            Encuentra cursos y plantillas personalizables<br>
-            para potenciar tus habilidades
+            Accede a cursos, plantillas y herramientas profesionales<br>
+            con un único pago de acceso
         </p>
+        <div class="price-badge">Tarifa única · S/ 9.90</div>
         """, unsafe_allow_html=True)
 
-        # Tarjeta del formulario
-        with st.container(border=True):
-            tab1, tab2 = st.tabs(["🔐 Iniciar Sesión", "📝 Registrarse"])
+        tab_login, tab_culqi, tab_yape = st.tabs([
+            "🔐 Ya tengo cuenta",
+            "💳 Pago con tarjeta (Culqi)",
+            "📱 Yape / Plim",
+        ])
 
-            with tab1:
-                with st.form("login_form"):
-                    email = st.text_input("Email (Gmail)", placeholder="tuemail@gmail.com")
-                    password = st.text_input("Contraseña", type="password")
-                    if st.form_submit_button("Iniciar Sesión", use_container_width=True):
-                        valido, rol, nombre, secciones = auth_manager.verificar_usuario(email, password)
-                        if valido:
-                            st.session_state['autenticado'] = True
-                            st.session_state['usuario'] = email
-                            st.session_state['rol'] = rol
-                            st.session_state['nombre'] = nombre
-                            st.session_state['secciones'] = secciones
-                            st.session_state['login_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                            st.session_state['menu_principal'] = "🏠 Inicio"
-                            st.rerun()
-                        else:
-                            st.error("❌ Credenciales incorrectas")
+        with tab_login:
+            with st.form("login_form"):
+                email = st.text_input("Correo electrónico", placeholder="nombre@correo.com")
+                password = st.text_input("Contraseña", type="password")
+                if st.form_submit_button("Iniciar Sesión", use_container_width=True):
+                    valido, rol, nombre, secciones, error_msg = auth_manager.verificar_usuario(email, password)
+                    if valido:
+                        st.session_state['autenticado'] = True
+                        st.session_state['usuario'] = email.strip().lower()
+                        st.session_state['rol'] = rol
+                        st.session_state['nombre'] = nombre
+                        st.session_state['secciones'] = secciones
+                        st.session_state['login_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        st.session_state['menu_principal'] = "🏠 Inicio"
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {error_msg or 'Credenciales incorrectas'}")
 
-            with tab2:
-                with st.form("registro_form"):
-                    nombre = st.text_input("Nombre completo")
-                    email = st.text_input("Email (Gmail)", placeholder="tuemail@gmail.com")
-                    password = st.text_input("Contraseña", type="password")
-                    confirmar = st.text_input("Confirmar contraseña", type="password")
-                    if st.form_submit_button("Registrarse", use_container_width=True):
-                        if password != confirmar:
-                            st.error("Las contraseñas no coinciden")
-                        elif not email.endswith('@gmail.com'):
-                            st.error("Solo se permiten cuentas de Gmail")
-                        else:
-                            exito, msg = auth_manager.registrar_usuario(email, password, nombre)
-                            if exito:
-                                st.success(msg)
-                                st.info("Ahora puedes iniciar sesión")
-                            else:
-                                st.error(msg)
+        with tab_culqi:
+            st.markdown('<p class="payment-card-title">Registro + pago automático con Culqi</p>', unsafe_allow_html=True)
+            st.caption("Al confirmar el pago tu cuenta se activa de inmediato.")
+            public_key = payment_manager.obtener_public_key_culqi()
+            components.html(payment_manager.html_culqi_checkout(public_key), height=130, scrolling=True)
+
+            with st.form("form_culqi"):
+                nombre = st.text_input("Nombre completo", key="culqi_nombre")
+                email = st.text_input("Correo electrónico certificado", placeholder="nombre@correo.com", key="culqi_email")
+                password = st.text_input("Contraseña", type="password", key="culqi_pass")
+                confirmar = st.text_input("Confirmar contraseña", type="password", key="culqi_pass2")
+                token_culqi = st.text_input(
+                    "Token Culqi (se genera al pagar con el botón de arriba)",
+                    placeholder="tok_test_...",
+                    help="Copia el token que aparece tras completar el pago con tarjeta.",
+                )
+                if st.form_submit_button("Confirmar registro y activar acceso", type="primary", use_container_width=True):
+                    with st.spinner("Procesando pago con Culqi..."):
+                        exito, msg = payment_manager.procesar_registro_culqi(
+                            email, nombre, password, confirmar, token_culqi
+                        )
+                    if exito:
+                        st.success(f"✅ {msg}")
+                        st.info("Ve a la pestaña «Ya tengo cuenta» para iniciar sesión.")
+                    else:
+                        st.error(f"❌ {msg}")
+
+        with tab_yape:
+            st.markdown('<p class="payment-card-title">Pago manual Yape / Plim</p>', unsafe_allow_html=True)
+            st.caption("Realiza el pago y envía tus datos. El administrador verificará y activará tu cuenta.")
+
+            qr_path = payment_manager.obtener_ruta_qr_yape()
+            qcol1, qcol2 = st.columns([1, 1])
+            with qcol1:
+                if os.path.exists(qr_path):
+                    st.image(qr_path, caption=f"Escanea y paga S/ {MONTO_SOLES:.2f}", use_container_width=True)
+                else:
+                    st.warning(f"Coloca tu QR en `{qr_path}` o configura payments.yape_qr_path en secrets.toml")
+                    st.info(f"Monto exacto: **S/ {MONTO_SOLES:.2f}**")
+            with qcol2:
+                st.markdown("""
+                **Pasos:**
+                1. Escanea el QR y paga **S/ 9.90**
+                2. Guarda el **código de operación**
+                3. Completa el formulario →
+                """)
+
+            with st.form("form_yape"):
+                nombre = st.text_input("Nombre completo", key="yape_nombre")
+                email = st.text_input("Correo electrónico", placeholder="nombre@correo.com", key="yape_email")
+                celular = st.text_input("Celular desde el que yapeaste", placeholder="987654321", key="yape_cel")
+                codigo = st.text_input("Código de operación *", placeholder="Ej. 00123456", key="yape_codigo")
+                password = st.text_input("Contraseña para tu cuenta", type="password", key="yape_pass")
+                confirmar = st.text_input("Confirmar contraseña", type="password", key="yape_pass2")
+                metodo = st.selectbox("Método utilizado", ["yape", "plim"], format_func=lambda x: x.upper())
+
+                if st.form_submit_button("Enviar solicitud de activación", type="primary", use_container_width=True):
+                    with st.spinner("Registrando solicitud..."):
+                        exito, msg = payment_manager.registrar_pago_manual_yape(
+                            email, celular, codigo, nombre, password, confirmar, metodo=metodo
+                        )
+                    if exito:
+                        st.success(f"✅ {msg}")
+                    else:
+                        st.error(f"❌ {msg}")
 
 # ==================== NAVEGACIÓN INTERNA - INICIO ====================
 def activar_seccion_inicio(seccion_id):
@@ -305,6 +332,83 @@ def _formatear_fecha_notif(fecha_raw):
         return dt.strftime("%d/%m/%Y %H:%M")
     except (ValueError, TypeError):
         return str(fecha_raw)[:16].replace("T", " ")
+
+def render_gestion_cobranzas_master():
+    """Panel Master: aprobar o rechazar pagos Yape/Plim pendientes."""
+    st.header("💳 Gestión de Cobranzas y Activaciones")
+    st.caption("Revisa pagos manuales Yape/Plim y activa el acceso de los alumnos.")
+
+    if st.session_state.get("pago_flash"):
+        tipo, texto = st.session_state.pop("pago_flash")
+        if tipo == "success":
+            st.success(texto)
+        elif tipo == "error":
+            st.error(texto)
+
+    pagos = payment_manager.listar_pagos_pendientes()
+    st.markdown(f"### ⏳ Pagos pendientes ({len(pagos)})")
+
+    if not pagos:
+        st.info("No hay pagos manuales pendientes de revisión.")
+        return
+
+    df = pd.DataFrame([
+        {
+            "Email": p.get("email"),
+            "Nombre": p.get("nombre", "—"),
+            "Celular": p.get("celular"),
+            "Código": p.get("codigo_operacion"),
+            "Monto": f"S/ {float(p.get('monto', MONTO_SOLES)):.2f}",
+            "Método": (p.get("metodo_pago") or "yape").upper(),
+            "Fecha": _formatear_fecha_notif(p.get("fecha")),
+        }
+        for p in pagos
+    ])
+    st.dataframe(df, hide_index=True, use_container_width=True)
+    st.markdown("---")
+
+    for pago in pagos:
+        pago_id = pago["id"]
+        with st.container(border=True):
+            st.markdown(
+                f"**{pago.get('nombre', 'Sin nombre')}** · `{pago.get('email')}`  \n"
+                f"Celular: **{pago.get('celular')}** · Código: **`{pago.get('codigo_operacion')}`** · "
+                f"Método: **{(pago.get('metodo_pago') or 'yape').upper()}**"
+            )
+            col_ok, col_no = st.columns(2)
+            with col_ok:
+                if st.button(
+                    "✅ Aprobar Pago",
+                    key=f"aprobar_{pago_id}",
+                    type="primary",
+                    use_container_width=True,
+                    disabled=st.session_state.get("pago_procesando") == pago_id,
+                ):
+                    st.session_state["pago_procesando"] = pago_id
+                    ok, msg = payment_manager.aprobar_pago(pago_id, st.session_state["usuario"])
+                    st.session_state.pop("pago_procesando", None)
+                    st.session_state["pago_flash"] = ("success" if ok else "error", msg)
+                    st.rerun()
+            with col_no:
+                motivo_key = f"motivo_{pago_id}"
+                motivo = st.text_input(
+                    "Motivo de rechazo",
+                    key=motivo_key,
+                    placeholder="Ej. Código incorrecto o monto no coincide",
+                )
+                if st.button(
+                    "❌ Rechazar Pago",
+                    key=f"rechazar_{pago_id}",
+                    use_container_width=True,
+                    disabled=st.session_state.get("pago_procesando") == pago_id,
+                ):
+                    st.session_state["pago_procesando"] = pago_id
+                    ok, msg = payment_manager.rechazar_pago(
+                        pago_id, st.session_state["usuario"], motivo
+                    )
+                    st.session_state.pop("pago_procesando", None)
+                    st.session_state["pago_flash"] = ("success" if ok else "error", msg)
+                    st.rerun()
 
 def _parsear_metadata_notif(metadata):
     if isinstance(metadata, dict):
@@ -982,7 +1086,14 @@ else:
                 data = []
                 for email, u in usuarios.items():
                     secciones = auth_manager.obtener_secciones_usuario(email)
-                    data.append({"Email": email, "Nombre": u["nombre"], "Rol": "👑 Master" if u["rol"]=="master" else "👤 Usuario", "Acceso": f"{len(secciones)}/{len(SECCIONES)}"})
+                    data.append({
+                        "Email": email,
+                        "Nombre": u["nombre"],
+                        "Rol": "👑 Master" if u["rol"] == "master" else "👤 Usuario",
+                        "Pago": "✅" if u.get("pago_confirmado") else "⏳",
+                        "Activo": "✅" if u.get("activo") else "❌",
+                        "Acceso": f"{len(secciones)}/{len(SECCIONES)}",
+                    })
                 st.dataframe(pd.DataFrame(data), hide_index=True, use_container_width=True)
                 st.markdown("---")
                 usuarios_eliminar = [e for e in usuarios if e != st.session_state['usuario']]
@@ -1028,6 +1139,9 @@ else:
                     st.rerun()
                 else:
                     st.error(f"❌ Error en la publicación: {resultado}")
+
+    elif menu_actual == "💳 Cobranzas" and st.session_state['rol'] == 'master':
+        render_gestion_cobranzas_master()
 
     elif menu_actual == "⚙️ Configuración" and st.session_state['rol'] == 'master':
         st.header("Configuración")

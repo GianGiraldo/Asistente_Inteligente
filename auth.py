@@ -1,15 +1,19 @@
-# auth.py - Versión robusta con PBKDF2 y sal
+# auth.py - Versión robusta con PBKDF2, sal y control de pago
 import hashlib
 import secrets
 from datetime import datetime
 from typing import Optional, Tuple, Dict, List, Any
+
 from supabase_client import get_supabase
+from payment_manager import PaymentManager
+
 
 class AuthManager:
     """Gestor de autenticación y usuarios con Supabase"""
 
     def __init__(self):
         self.supabase = get_supabase()
+        self.payments = PaymentManager()
 
     def _hash_password(self, password: str, salt: Optional[str] = None) -> Tuple[str, str]:
         """Hashea una contraseña con sal usando PBKDF2."""
@@ -24,64 +28,80 @@ class AuthManager:
         return computed_hash == stored_hash
 
     def registrar_usuario(self, email: str, password: str, nombre: str) -> Tuple[bool, str]:
+        """Registro legacy: crea usuario pendiente de pago (sin acceso hasta activación)."""
+        ok_email, email_norm = self.payments.validar_email(email)
+        if not ok_email:
+            return False, email_norm
+        if not nombre or not nombre.strip():
+            return False, "El nombre es obligatorio"
+        if len(password) < 6:
+            return False, "La contraseña debe tener al menos 6 caracteres"
+
+        ok, msg = self.payments._crear_usuario_pendiente(email_norm, password, nombre)
+        if not ok:
+            return False, msg
+        if msg == "usuario_existente_pendiente":
+            return True, "Cuenta registrada. Completa el pago para activar tu acceso."
+        return True, "Cuenta creada. Completa el pago para activar tu acceso."
+
+    def verificar_usuario(
+        self, email: str, password: str
+    ) -> Tuple[bool, Optional[str], Optional[str], List[str], Optional[str]]:
+        """
+        Verifica credenciales y acceso por pago.
+        Retorna: (ok, rol, nombre, secciones, mensaje_error)
+        """
         try:
-            if not email or not password or not nombre:
-                return False, "Todos los campos son obligatorios"
-            if not email.endswith('@gmail.com'):
-                return False, "Solo se permiten cuentas de Gmail"
-            if len(password) < 6:
-                return False, "La contraseña debe tener al menos 6 caracteres"
+            ok_email, email_norm = self.payments.validar_email(email)
+            if not ok_email:
+                return False, None, None, [], email_norm
 
-            existing = self.supabase.table("users").select("*").eq("email", email).execute()
-            if existing.data:
-                return False, "El usuario ya existe"
-
-            password_hash, salt = self._hash_password(password)
-            data = {
-                "email": email,
-                "password": password_hash,
-                "password_salt": salt,
-                "nombre": nombre,
-                "rol": "usuario",
-                "secciones": ["excel"],
-                "creado": datetime.now().isoformat(),
-                "activo": True
-            }
-            result = self.supabase.table("users").insert(data).execute()
-            if result.data:
-                return True, "Usuario registrado exitosamente"
-            return False, "Error al registrar usuario"
-        except Exception as e:
-            print(f"Error en registro: {str(e)}")
-            return False, "Error interno del servidor"
-
-    def verificar_usuario(self, email: str, password: str) -> Tuple[bool, Optional[str], Optional[str], List[str]]:
-        try:
-            result = self.supabase.table("users").select("*").eq("email", email).execute()
+            result = self.supabase.table("users").select("*").eq("email", email_norm).execute()
             if not result.data:
-                return False, None, None, []
+                return False, None, None, [], "Credenciales incorrectas"
 
             user = result.data[0]
             stored_hash = user.get("password", "")
             salt = user.get("password_salt", "")
+            password_ok = False
 
-            # Migración de contraseñas antiguas (sin sal)
             if not salt:
                 if stored_hash.lower() == hashlib.sha256(password.encode()).hexdigest().lower():
                     new_hash, new_salt = self._hash_password(password)
                     self.supabase.table("users").update({
                         "password": new_hash,
                         "password_salt": new_salt
-                    }).eq("email", email).execute()
-                    return True, user["rol"], user["nombre"], user.get("secciones", [])
-                return False, None, None, []
+                    }).eq("email", email_norm).execute()
+                    password_ok = True
+            elif self._verify_password(password, stored_hash, salt):
+                password_ok = True
 
-            if self._verify_password(password, stored_hash, salt):
-                return True, user["rol"], user["nombre"], user.get("secciones", [])
-            return False, None, None, []
+            if not password_ok:
+                return False, None, None, [], "Credenciales incorrectas"
+
+            rol = user.get("rol", "usuario")
+            if not self.payments.usuario_tiene_acceso(user):
+                if user.get("pago_confirmado") is False or user.get("activo") is False:
+                    pendiente = (
+                        self.supabase.table("pagos_pendientes")
+                        .select("id")
+                        .eq("email", email_norm)
+                        .eq("estado", "pendiente")
+                        .limit(1)
+                        .execute()
+                    )
+                    if pendiente.data:
+                        return False, None, None, [], (
+                            "Tu pago Yape/Plim está pendiente de verificación por el administrador."
+                        )
+                return False, None, None, [], (
+                    "Tu cuenta no tiene acceso activo. Completa el pago de S/ 9.90 para ingresar."
+                )
+
+            return True, rol, user["nombre"], user.get("secciones", []), None
         except Exception as e:
             print(f"Error en verificación: {str(e)}")
-            return False, None, None, []
+            return False, None, None, [], "Error interno del servidor"
 
     def obtener_secciones_usuario(self, email: str) -> List[str]:
         try:
@@ -182,7 +202,7 @@ class AuthManager:
 
     def cambiar_contrasena(self, email: str, old_password: str, new_password: str) -> Tuple[bool, str]:
         try:
-            ok, _, _, _ = self.verificar_usuario(email, old_password)
+            ok, _, _, _, _ = self.verificar_usuario(email, old_password)
             if not ok:
                 return False, "Contraseña actual incorrecta"
             if len(new_password) < 6:

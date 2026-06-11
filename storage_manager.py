@@ -57,18 +57,22 @@ class StorageManager:
 
         try:
             if es_publicacion:
-                carpeta = f"publicaciones/{seccion}/{subcategoria}"
+                # Forzamos que "📈 Excel" o "Excel" se transforme en "excel"
+                seccion_limpia = "".join(c for c in seccion.lower() if c.isalnum() or c.isspace()).strip()
+                if " " in seccion_limpia:
+                    seccion_limpia = seccion_limpia.split()[-1] # Si viene "📈 excel", se queda con "excel"
+
+                carpeta = f"publicaciones/{seccion_limpia}/{subcategoria}"
                 tabla = "publicaciones"
                 data_insert = {
                     "id": str(uuid.uuid4()),
                     "nombre_original": archivo.name,
-                    "nombre_guardado": None,
-                    "seccion": seccion,
+                    "seccion": seccion_limpia, # <-- Esto garantiza consistencia con la tabla users
                     "subcategoria": subcategoria,
                     "descripcion": descripcion,
                     "titulo": archivo.name,
                     "mensaje": descripcion or "",
-                    "categoria": subcategoria,          # Columna requerida
+                    "categoria": subcategoria,          
                     "creado_por": "master"
                 }
             else:

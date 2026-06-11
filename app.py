@@ -935,12 +935,12 @@ else:
                     subcat_dest = st.selectbox("Subcategoría", SECCIONES[seccion_dest]["subcategorias"])
                     comentario = st.text_area("Comentario")
                     if st.form_submit_button("Confirmar publicación"):
-                        exito, msg = storage_manager.publicar_desde_personal(archivo_id, st.session_state['usuario'], seccion_dest, subcat_dest, comentario)
+                        with st.spinner("Publicando y generando alertas..."):
+                            exito, msg = storage_manager.publicar_desde_personal(archivo_id, st.session_state['usuario'], seccion_dest, subcat_dest, comentario)
                         if exito:
-                            st.success("Publicado")
+                            st.success("✅ ¡Publicado exitosamente!")
                             del st.session_state['show_publish_form']
                             del st.session_state['archivo_a_publicar']
-                            st.rerun()
                         else:
                             st.error(msg)
 
@@ -989,13 +989,16 @@ else:
             archivo = st.file_uploader("Archivo", type=['pdf','xlsx','xls','docx','doc'])
             desc = st.text_area("Descripción")
             if archivo and st.button("Publicar"):
-                exito, msg = storage_manager.publicar_documento(
-                    archivo, seccion, subcat, desc,
-                    publicador_email=st.session_state["usuario"],
-                )
+                # Agregamos un spinner visual para asegurar que termine todo el proceso en la BD
+                with st.spinner("Subiendo archivo y notificando a los alumnos..."):
+                    exito, msg = storage_manager.publicar_documento(
+                        archivo, seccion, subcat, desc,
+                        publicador_email=st.session_state["usuario"],
+                    )
                 if exito:
-                    st.success("Documento publicado")
-                    st.rerun()
+                    st.success("✅ Documento publicado y alumnos notificados con éxito.")
+                    # Quitamos el st.rerun() directo para dar tiempo a la base de datos de procesar todo.
+                    # En su lugar, añadimos un pequeño botón de confirmación o dejamos que el estado fluya.
                 else:
                     st.error(msg)
 

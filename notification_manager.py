@@ -71,28 +71,33 @@ class NotificationManager:
                 email = self._normalizar_email(usuario.get("email"))
                 rol = (usuario.get("rol") or "usuario").strip().lower()
                 
-                # Obtener y normalizar las secciones del usuario
+                # 1. Recuperar el array de secciones
                 secciones_usuario_raw = usuario.get("secciones") or []
                 
-                # Nos aseguramos de que sea una lista y limpiamos cada elemento
+                # Si por alguna razón Supabase lo devuelve como string de texto plano
                 if isinstance(secciones_usuario_raw, str):
-                    # Por si Supabase lo devuelve como string plano ej: '["excel","laboral"]'
                     import json
                     try:
                         secciones_usuario_raw = json.loads(secciones_usuario_raw)
                     except:
-                        secciones_usuario_raw = [secciones_usuario_raw]
-                
-                # Convertimos toda la lista a minúsculas y sin espacios laterales
-                secciones_usuario = [str(s).strip().lower() for s in secciones_usuario_raw]
+                        secciones_usuario_raw = secciones_usuario_raw.replace("{", "").replace("}", "").split(",")
 
-                # Validaciones de exclusión básicas
+                # 2. Normalizar las secciones del usuario a minúsculas y limpias
+                secciones_usuario = [str(s).strip().lower() for s in secciones_usuario_raw]
+                
+                # Exclusiones automáticas
                 if not email or email == excluir or rol == "master":
                     continue
                 
-                # Segmentación: Si el documento tiene sección, validamos de forma limpia
-                if seccion_documento and (seccion_documento not in secciones_usuario):
-                    continue
+                # 3. Normalizar la sección del documento que se acaba de subir
+                if seccion_documento:
+                    seccion_doc_clean = "".join(c for c in str(seccion_documento).lower() if c.isalnum() or c.isspace()).strip()
+                    if " " in seccion_doc_clean:
+                        seccion_doc_clean = seccion_doc_clean.split()[-1] # Se queda con "excel"
+                    
+                    # Comparación robusta en minúsculas
+                    if seccion_doc_clean not in secciones_usuario:
+                        continue
 
                 alumnos.append(email)
 

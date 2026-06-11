@@ -941,8 +941,13 @@ else:
                             st.success("✅ ¡Publicado exitosamente!")
                             del st.session_state['show_publish_form']
                             del st.session_state['archivo_a_publicar']
+                            # Forzamos el reinicio limpio de la interfaz gráfica
+                            st.rerun()
                         else:
-                            st.error(msg)
+                            if "no se pudo notificar" in str(msg).lower():
+                                st.warning(f"⚠️ El documento se publicó, pero hubo un problema con las notificaciones: {msg}")
+                            else:
+                                st.error(msg)
 
     # ==================== RESTO DE SECCIONES (sin cambios) ====================
     elif menu_actual == "👥 Gestión Usuarios" and st.session_state['rol'] == 'master':

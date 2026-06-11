@@ -17,6 +17,23 @@ class StorageManager:
         self.supabase = get_supabase()
         self.bucket_name = "documentos"
 
+    def _notificar_publicacion_alumnos(self, titulo, mensaje, metadata, publicador_email=None):
+        """Notifica a alumnos sin interrumpir el flujo principal de publicación."""
+        try:
+            notif_mgr = NotificationManager()
+            ok, _, _ = notif_mgr.crear_notificacion_para_alumnos(
+                titulo=titulo,
+                mensaje=mensaje,
+                tipo="publicacion",
+                metadata=metadata,
+                publicador_email=publicador_email,
+            )
+            if not ok:
+                st.warning("El documento se publicó, pero no se pudo notificar a todos los usuarios.")
+        except Exception as e:
+            print(f"Error al notificar publicación: {e}")
+            st.warning("El documento se publicó, pero no se pudo notificar a todos los usuarios.")
+
     def _subir_archivo(self, archivo, carpeta):
         """Sube un archivo al bucket y retorna (url, nombre_guardado)."""
         partes_carpeta = [limpiar_ruta(parte) for parte in carpeta.split("/")]
@@ -89,16 +106,15 @@ class StorageManager:
         except Exception as e:
             return False, f"Error al guardar archivo: {str(e)}"
 
-    def publicar_documento(self, archivo, seccion, subcategoria, descripcion=""):
+    def publicar_documento(self, archivo, seccion, subcategoria, descripcion="", publicador_email=None):
         """Publica un documento directamente desde el panel de administración."""
         exito, resultado = self.guardar_archivo(archivo, seccion, subcategoria, "master", descripcion, es_publicacion=True)
         if exito:
-            notif_mgr = NotificationManager()
-            notif_mgr.crear_notificacion_para_todos(
+            self._notificar_publicacion_alumnos(
                 titulo=archivo.name,
                 mensaje=f"Nueva publicación en {seccion} / {subcategoria}",
-                tipo="publicacion",
                 metadata={"seccion": seccion, "subcategoria": subcategoria, "archivo_id": resultado["id"]},
+                publicador_email=publicador_email,
             )
         return exito, resultado
 
@@ -278,18 +294,17 @@ class StorageManager:
                 "creado_por": usuario
             }
             self.supabase.table("publicaciones").insert(registro_pub).execute()
-
-            notif_mgr = NotificationManager()
-            notif_mgr.crear_notificacion_para_todos(
-                titulo=doc["nombre_original"],
-                mensaje=descripcion or doc.get("descripcion", "Nueva publicación disponible"),
-                tipo="publicacion",
-                metadata={
-                    "seccion": seccion,
-                    "subcategoria": subcategoria,
-                    "archivo_id": nuevo_id,
-                },
-            )
-            return True, "Documento publicado exitosamente"
         except Exception as e:
             return False, f"Error al publicar: {str(e)}"
+
+        self._notificar_publicacion_alumnos(
+            titulo=doc["nombre_original"],
+            mensaje=descripcion or doc.get("descripcion", "Nueva publicación disponible"),
+            metadata={
+                "seccion": seccion,
+                "subcategoria": subcategoria,
+                "archivo_id": nuevo_id,
+            },
+            publicador_email=usuario,
+        )
+        return True, "Documento publicado exitosamente"

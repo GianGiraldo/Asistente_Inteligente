@@ -28,36 +28,63 @@ class NotificationManager:
         return result.data[0] if result.data else None
 
     def obtener_emails_alumnos(self, excluir_email=None):
-        """Obtiene correos de alumnos desde la tabla usuarios (FK de notificaciones)."""
+        """Obtiene correos de alumnos desde la tabla real 'users' (Excluye al Master)."""
         excluir = self._normalizar_email(excluir_email)
         try:
-            result = self.supabase.table("usuarios").select("email, rol").execute()
+            # Apuntamos a la tabla 'users' que es la real de tu app
+            result = self.supabase.table("users").select("email, rol").execute()
             emails = []
             for usuario in result.data or []:
                 email = self._normalizar_email(usuario.get("email"))
                 rol = (usuario.get("rol") or "usuario").strip().lower()
+                
+                # Filtramos para no mandarle la notificación al propio Master
                 if not email or email == excluir or rol == "master":
                     continue
                 emails.append(email)
             return list(dict.fromkeys(emails))
         except Exception as e:
-            print(f"Error obteniendo alumnos desde usuarios: {e}")
+            print(f"Error obteniendo alumnos desde la tabla users: {e}")
             return []
 
     def crear_notificacion_para_alumnos(
         self, titulo, mensaje, tipo="publicacion", metadata=None, publicador_email=None
     ):
         """
-        Inserta notificaciones en bloque solo para alumnos registrados en usuarios.
-        Excluye al Master/publicador. Retorna (éxito, cantidad, error).
+        Inserta notificaciones en bloque solo para alumnos que tengan acceso 
+        a la sección específica del documento.
         """
         try:
-            alumnos = self.obtener_emails_alumnos(excluir_email=publicador_email)
+            # Extraemos la sección desde los metadatos que envía el storage_manager
+            meta = metadata or {}
+            seccion_documento = meta.get("seccion")
+
+            # 1. Traemos todos los usuarios reales
+            result = self.supabase.table("users").select("email, rol, secciones").eq("activo", True).execute()
+            
+            alumnos = []
+            excluir = self._normalizar_email(publicador_email)
+
+            for usuario in result.data or []:
+                email = self._normalizar_email(usuario.get("email"))
+                rol = (usuario.get("rol") or "usuario").strip().lower()
+                secciones_usuario = usuario.get("secciones") or []
+
+                # Validaciones de exclusión básicas
+                if not email or email == excluir or rol == "master":
+                    continue
+                
+                # Segmentación inteligente: Si el documento tiene sección, 
+                # solo notificamos a los alumnos asignados a ella.
+                if seccion_documento and (seccion_documento not in secciones_usuario):
+                    continue
+
+                alumnos.append(email)
+
             if not alumnos:
                 return True, 0, None
 
             ahora = datetime.now().isoformat()
-            meta = metadata or {}
             registros = [
                 {
                     "id": str(uuid.uuid4()),

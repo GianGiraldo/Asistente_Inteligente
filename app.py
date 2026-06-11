@@ -325,14 +325,18 @@ def _mostrar_alerta_publicacion(exito, resultado):
     if isinstance(resultado, dict):
         count = resultado.get("notificaciones_creadas", 0)
         err = resultado.get("notificacion_error")
+        ok_notif = resultado.get("notificaciones_ok", count > 0)
     else:
         count = 0
         err = None
+        ok_notif = False
 
     if count > 0:
         st.success(f"✅ Documento publicado. {count} alumno(s) notificado(s).")
+    elif err and not ok_notif and "No hay alumnos" not in err:
+        st.error(f"❌ Documento publicado, pero Supabase rechazó las notificaciones: {err}")
     else:
-        detalle = err or "Verifica que haya alumnos activos con acceso a esa sección."
+        detalle = err or "Verifica usuarios activos con rol 'usuario' y la sección en users.secciones."
         st.warning(f"⚠️ Documento publicado, pero no se notificó a ningún alumno. {detalle}")
 
 def abrir_notificacion(notificacion_id, seccion, categoria=None):
@@ -439,7 +443,9 @@ def render_campana_notificaciones():
             seccion = metadata.get("seccion", "")
             categoria = metadata.get("subcategoria") or metadata.get("categoria") or "General"
             seccion_nombre = SECCIONES.get(seccion, {}).get("nombre", seccion.capitalize() if seccion else "General")
-            fecha_str = _formatear_fecha_notif(notif.get("fecha_creacion"))
+            fecha_str = _formatear_fecha_notif(
+                notif.get("fecha_creacion") or (notif.get("metadata") or {}).get("fecha")
+            )
             titulo = notif.get("titulo", "Nueva publicación")
             mensaje = notif.get("mensaje", "")
 

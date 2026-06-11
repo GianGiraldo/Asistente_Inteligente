@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 import mimetypes
 import unicodedata
-from notification_manager import NotificationManager
+from notification_manager import NotificationManager, normalizar_seccion
 
 def limpiar_ruta(texto):
     """Limpia una ruta eliminando tildes y convirtiendo a minúsculas."""
@@ -18,21 +18,23 @@ class StorageManager:
         self.bucket_name = "documentos"
 
     def _notificar_publicacion_alumnos(self, titulo, mensaje, metadata, publicador_email=None):
-        """Notifica a alumnos sin interrumpir el flujo principal de publicación."""
+        """Notifica a alumnos. Retorna (ok, cantidad, error)."""
         try:
             notif_mgr = NotificationManager()
-            ok, _, _ = notif_mgr.crear_notificacion_para_alumnos(
+            ok, count, err = notif_mgr.crear_notificacion_para_alumnos(
                 titulo=titulo,
                 mensaje=mensaje,
-                tipo="publicacion",
                 metadata=metadata,
                 publicador_email=publicador_email,
             )
-            if not ok:
-                st.warning("El documento se publicó, pero no se pudo notificar a todos los usuarios.")
+            if not ok and err:
+                st.error(f"Error al crear notificaciones en Supabase: {err}")
+            return ok, count, err
         except Exception as e:
-            print(f"Error al notificar publicación: {e}")
-            st.warning("El documento se publicó, pero no se pudo notificar a todos los usuarios.")
+            err = str(e)
+            print(f"Error al notificar publicación: {err}")
+            st.error(f"Error al crear notificaciones en Supabase: {err}")
+            return False, 0, err
 
     def _subir_archivo(self, archivo, carpeta):
         """Sube un archivo al bucket y retorna (url, nombre_guardado)."""
@@ -57,11 +59,7 @@ class StorageManager:
 
         try:
             if es_publicacion:
-                # Forzamos que "📈 Excel" o "Excel" se transforme en "excel"
-                seccion_limpia = "".join(c for c in seccion.lower() if c.isalnum() or c.isspace()).strip()
-                if " " in seccion_limpia:
-                    seccion_limpia = seccion_limpia.split()[-1] # Si viene "📈 excel", se queda con "excel"
-
+                seccion_limpia = normalizar_seccion(seccion)
                 carpeta = f"publicaciones/{seccion_limpia}/{subcategoria}"
                 tabla = "publicaciones"
                 data_insert = {
@@ -113,13 +111,24 @@ class StorageManager:
     def publicar_documento(self, archivo, seccion, subcategoria, descripcion="", publicador_email=None):
         """Publica un documento directamente desde el panel de administración."""
         exito, resultado = self.guardar_archivo(archivo, seccion, subcategoria, "master", descripcion, es_publicacion=True)
-        if exito:
-            self._notificar_publicacion_alumnos(
-                titulo=archivo.name,
-                mensaje=f"Nueva publicación en {seccion} / {subcategoria}",
-                metadata={"seccion": seccion, "subcategoria": subcategoria, "archivo_id": resultado["id"]},
+        if exito and isinstance(resultado, dict):
+            seccion_guardada = normalizar_seccion(resultado.get("seccion") or seccion)
+            resultado["seccion"] = seccion_guardada
+            titulo_notif = resultado.get("titulo") or archivo.name
+            mensaje_notif = resultado.get("mensaje") or descripcion or f"Nueva publicación en {seccion_guardada}"
+            ok, count, err = self._notificar_publicacion_alumnos(
+                titulo=titulo_notif,
+                mensaje=mensaje_notif,
+                metadata={
+                    "seccion": seccion_guardada,
+                    "subcategoria": subcategoria,
+                    "archivo_id": resultado["id"],
+                },
                 publicador_email=publicador_email,
             )
+            resultado["notificaciones_creadas"] = count
+            resultado["notificacion_error"] = err
+            resultado["notificaciones_ok"] = ok
         return exito, resultado
 
     def listar_archivos_usuario(self, usuario, seccion=None, subcategoria=None, incluir_publicaciones=False):
@@ -266,7 +275,8 @@ class StorageManager:
             contenido = self.supabase.storage.from_(self.bucket_name).download(ruta_relativa)
 
             # Preparar nueva ruta en publicaciones
-            carpeta_dest = f"publicaciones/{seccion}/{subcategoria}"
+            seccion_limpia = normalizar_seccion(seccion)
+            carpeta_dest = f"publicaciones/{seccion_limpia}/{subcategoria}"
             partes_limpias = [limpiar_ruta(p) for p in carpeta_dest.split("/")]
             ruta_nueva = "/".join(partes_limpias) + "/" + doc["nombre_guardado"]
 
@@ -284,7 +294,7 @@ class StorageManager:
                 "id": nuevo_id,
                 "nombre_original": doc["nombre_original"],
                 "nombre_guardado": doc["nombre_guardado"],
-                "seccion": seccion,
+                "seccion": seccion_limpia,
                 "subcategoria": subcategoria,
                 "fecha": datetime.now().isoformat(),
                 "descripcion": descripcion or doc.get("descripcion", ""),
@@ -301,14 +311,19 @@ class StorageManager:
         except Exception as e:
             return False, f"Error al publicar: {str(e)}"
 
-        self._notificar_publicacion_alumnos(
-            titulo=doc["nombre_original"],
-            mensaje=descripcion or doc.get("descripcion", "Nueva publicación disponible"),
+        ok, count, err = self._notificar_publicacion_alumnos(
+            titulo=registro_pub["titulo"],
+            mensaje=registro_pub["mensaje"] or "Nueva publicación disponible",
             metadata={
-                "seccion": seccion,
+                "seccion": seccion_limpia,
                 "subcategoria": subcategoria,
                 "archivo_id": nuevo_id,
             },
             publicador_email=usuario,
         )
-        return True, "Documento publicado exitosamente"
+        return True, {
+            "mensaje": "Documento publicado exitosamente",
+            "notificaciones_creadas": count,
+            "notificacion_error": err,
+            "notificaciones_ok": ok,
+        }

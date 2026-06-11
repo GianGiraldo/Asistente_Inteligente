@@ -52,14 +52,16 @@ class NotificationManager:
     ):
         """
         Inserta notificaciones en bloque solo para alumnos que tengan acceso 
-        a la sección específica del documento.
+        a la sección específica del documento (Ignora mayúsculas y espacios).
         """
         try:
-            # Extraemos la sección desde los metadatos que envía el storage_manager
             meta = metadata or {}
+            # 1. Normalizamos la sección del documento (ej: "Excel " -> "excel")
             seccion_documento = meta.get("seccion")
+            if seccion_documento:
+                seccion_documento = str(seccion_documento).strip().lower()
 
-            # 1. Traemos todos los usuarios reales
+            # Traemos todos los usuarios activos
             result = self.supabase.table("users").select("email, rol, secciones").eq("activo", True).execute()
             
             alumnos = []
@@ -68,20 +70,34 @@ class NotificationManager:
             for usuario in result.data or []:
                 email = self._normalizar_email(usuario.get("email"))
                 rol = (usuario.get("rol") or "usuario").strip().lower()
-                secciones_usuario = usuario.get("secciones") or []
+                
+                # Obtener y normalizar las secciones del usuario
+                secciones_usuario_raw = usuario.get("secciones") or []
+                
+                # Nos aseguramos de que sea una lista y limpiamos cada elemento
+                if isinstance(secciones_usuario_raw, str):
+                    # Por si Supabase lo devuelve como string plano ej: '["excel","laboral"]'
+                    import json
+                    try:
+                        secciones_usuario_raw = json.loads(secciones_usuario_raw)
+                    except:
+                        secciones_usuario_raw = [secciones_usuario_raw]
+                
+                # Convertimos toda la lista a minúsculas y sin espacios laterales
+                secciones_usuario = [str(s).strip().lower() for s in secciones_usuario_raw]
 
                 # Validaciones de exclusión básicas
                 if not email or email == excluir or rol == "master":
                     continue
                 
-                # Segmentación inteligente: Si el documento tiene sección, 
-                # solo notificamos a los alumnos asignados a ella.
+                # Segmentación: Si el documento tiene sección, validamos de forma limpia
                 if seccion_documento and (seccion_documento not in secciones_usuario):
                     continue
 
                 alumnos.append(email)
 
             if not alumnos:
+                print(f"⚠️ Alerta: No se encontraron alumnos asignados a la sección '{seccion_documento}'")
                 return True, 0, None
 
             ahora = datetime.now().isoformat()
@@ -99,9 +115,10 @@ class NotificationManager:
                 for email in alumnos
             ]
             self.supabase.table("notificaciones").insert(registros).execute()
+            print(f"✅ Éxito: Se crearon {len(registros)} notificaciones para la sección '{seccion_documento}'")
             return True, len(registros), None
         except Exception as e:
-            print(f"Error en notificación masiva a alumnos: {e}")
+            print(f"❌ Error en notificación masiva a alumnos: {e}")
             return False, 0, str(e)
 
     def crear_notificacion_para_todos(self, titulo, mensaje, tipo="publicacion", metadata=None, publicador_email=None):

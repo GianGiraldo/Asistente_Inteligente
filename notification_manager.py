@@ -1,6 +1,22 @@
-from supabase_client import get_supabase
-from datetime import datetime
+import json
+import unicodedata
 import uuid
+from datetime import datetime
+
+from supabase_client import get_supabase
+
+
+def normalizar_seccion(seccion):
+    """Normaliza una sección: minúsculas, sin tildes/emojis y clave canónica."""
+    if not seccion:
+        return ""
+    texto = unicodedata.normalize("NFKD", str(seccion).strip().lower())
+    texto = texto.encode("ASCII", "ignore").decode("ASCII")
+    texto = "".join(c for c in texto if c.isalnum() or c.isspace()).strip()
+    if " " in texto:
+        texto = texto.split()[-1]
+    return texto
+
 
 class NotificationManager:
     def __init__(self):
@@ -9,6 +25,19 @@ class NotificationManager:
     @staticmethod
     def _normalizar_email(email):
         return (email or "").strip().lower()
+
+    @staticmethod
+    def _parsear_secciones(secciones_raw):
+        if not secciones_raw:
+            return []
+        if isinstance(secciones_raw, str):
+            try:
+                secciones_raw = json.loads(secciones_raw)
+            except json.JSONDecodeError:
+                secciones_raw = secciones_raw.replace("{", "").replace("}", "").split(",")
+        if not isinstance(secciones_raw, (list, tuple)):
+            secciones_raw = [secciones_raw]
+        return [str(s).strip() for s in secciones_raw if str(s).strip()]
 
     def crear_notificacion(self, usuario_email, titulo, mensaje, tipo="info", metadata=None):
         """Inserta una notificación para un usuario específico."""
@@ -59,57 +88,44 @@ class NotificationManager:
         """
         try:
             meta = metadata if isinstance(metadata, dict) else {}
-            
-            # 1. Normalizamos la sección del documento
-            seccion_documento = meta.get("seccion")
+            seccion_documento = normalizar_seccion(meta.get("seccion"))
             if seccion_documento:
-                seccion_documento = str(seccion_documento).strip().lower()
+                meta["seccion"] = seccion_documento
 
-            # Traemos todos los usuarios activos
-            result = self.supabase.table("users").select("email, rol, secciones").eq("activo", True).execute()
-            
+            result = self.supabase.table("users").select(
+                "email, rol, secciones, secciones_asignadas, activo"
+            ).execute()
+
             alumnos = []
             excluir = self._normalizar_email(publicador_email)
 
             for usuario in result.data or []:
+                if usuario.get("activo") is False:
+                    continue
+
                 email = self._normalizar_email(usuario.get("email"))
                 rol = (usuario.get("rol") or "usuario").strip().lower()
-                
-                # Recuperar y limpiar las secciones del usuario
-                secciones_usuario_raw = usuario.get("secciones") or []
-                if isinstance(secciones_usuario_raw, str):
-                    import json
-                    try:
-                        secciones_usuario_raw = json.loads(secciones_usuario_raw)
-                    except:
-                        secciones_usuario_raw = secciones_usuario_raw.replace("{", "").replace("}", "").split(",")
-                
-                secciones_usuario = [str(s).strip().lower() for s in secciones_usuario_raw]
-                
+
+                secciones_raw = usuario.get("secciones_asignadas") or usuario.get("secciones")
+                secciones_norm = {
+                    normalizar_seccion(s)
+                    for s in self._parsear_secciones(secciones_raw)
+                    if normalizar_seccion(s)
+                }
+
                 if not email or email == excluir or rol == "master":
                     continue
-                
-                # Filtrado Ultra-Flexible de la Sección del Documento
-                if seccion_documento:
-                    seccion_doc_min = str(seccion_documento).lower().strip()
-                    seccion_doc_limpia = "".join(c for c in seccion_doc_min if c.isalnum() or c.isspace()).strip()
-                    
-                    coincide = False
-                    for su in secciones_usuario:
-                        if su in seccion_doc_limpia or seccion_doc_limpia in su:
-                            coincide = True
-                            break
-                    
-                    if not coincide:
-                        continue 
+
+                if seccion_documento and seccion_documento not in secciones_norm:
+                    continue
 
                 alumnos.append(email)
 
             if not alumnos:
-                print(f"⚠️ Alerta: No se encontraron alumnos asignados a la sección '{seccion_documento}'")
-                return True, 0, None
+                msg = f"No hay alumnos activos asignados a la sección '{seccion_documento or 'general'}'"
+                print(f"⚠️ Alerta: {msg}")
+                return False, 0, msg
 
-            # Si la metadata va vacía, le asignamos valores por defecto para que no falle el JSONB
             if not meta:
                 meta = {"seccion": seccion_documento or "general", "modulo": "publicaciones"}
 

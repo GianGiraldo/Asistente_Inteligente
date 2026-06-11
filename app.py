@@ -316,6 +316,25 @@ def _parsear_metadata_notif(metadata):
             return {}
     return {}
 
+def _mostrar_alerta_publicacion(exito, resultado):
+    """Muestra feedback de publicación según cuántas notificaciones se crearon."""
+    if not exito:
+        st.error(f"❌ Error en la publicación: {resultado}")
+        return
+
+    if isinstance(resultado, dict):
+        count = resultado.get("notificaciones_creadas", 0)
+        err = resultado.get("notificacion_error")
+    else:
+        count = 0
+        err = None
+
+    if count > 0:
+        st.success(f"✅ Documento publicado. {count} alumno(s) notificado(s).")
+    else:
+        detalle = err or "Verifica que haya alumnos activos con acceso a esa sección."
+        st.warning(f"⚠️ Documento publicado, pero no se notificó a ningún alumno. {detalle}")
+
 def abrir_notificacion(notificacion_id, seccion, categoria=None):
     notification_manager.marcar_como_leida(notificacion_id, st.session_state["usuario"])
     st.session_state["menu_principal"] = "🏠 Inicio"
@@ -936,18 +955,16 @@ else:
                     comentario = st.text_area("Comentario")
                     if st.form_submit_button("Confirmar publicación"):
                         with st.spinner("Publicando y generando alertas..."):
-                            exito, msg = storage_manager.publicar_desde_personal(archivo_id, st.session_state['usuario'], seccion_dest, subcat_dest, comentario)
+                            exito, resultado = storage_manager.publicar_desde_personal(
+                                archivo_id, st.session_state['usuario'], seccion_dest, subcat_dest, comentario
+                            )
                         if exito:
-                            st.success("✅ ¡Publicado exitosamente!")
+                            _mostrar_alerta_publicacion(exito, resultado)
                             del st.session_state['show_publish_form']
                             del st.session_state['archivo_a_publicar']
-                            # Forzamos el reinicio limpio de la interfaz gráfica
                             st.rerun()
                         else:
-                            if "no se pudo notificar" in str(msg).lower():
-                                st.warning(f"⚠️ El documento se publicó, pero hubo un problema con las notificaciones: {msg}")
-                            else:
-                                st.error(msg)
+                            st.error(resultado)
 
     # ==================== RESTO DE SECCIONES (sin cambios) ====================
     elif menu_actual == "👥 Gestión Usuarios" and st.session_state['rol'] == 'master':
@@ -995,21 +1012,16 @@ else:
             desc = st.text_area("Descripción")
             if archivo and st.button("Publicar", key="btn_publicar_gestion_usuarios"):
                 with st.spinner("Subiendo archivo y notificando a los alumnos..."):
-                    exito, msg = storage_manager.publicar_documento(
+                    exito, resultado = storage_manager.publicar_documento(
                         archivo, seccion, subcat, desc,
                         publicador_email=st.session_state["usuario"],
                     )
-                
-                # CONTROL ÚNICO DE ALERTAS: Limpiamos la pantalla y evitamos duplicidad visual
+
                 if exito:
-                    st.success("✅ Documento publicado y alumnos notificados con éxito.")
-                    # Usamos st.rerun() para limpiar alertas fantasmas de la memoria de sesión
+                    _mostrar_alerta_publicacion(exito, resultado)
                     st.rerun()
                 else:
-                    if "no se pudo notificar" in str(msg).lower():
-                        st.warning(f"⚠️ El documento se publicó, pero ocurrió un aviso con las notificaciones: {msg}")
-                    else:
-                        st.error(f"❌ Error en la publicación: {msg}")
+                    st.error(f"❌ Error en la publicación: {resultado}")
 
     elif menu_actual == "⚙️ Configuración" and st.session_state['rol'] == 'master':
         st.header("Configuración")

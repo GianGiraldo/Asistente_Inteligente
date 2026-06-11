@@ -988,19 +988,23 @@ else:
             subcat = st.selectbox("Subcategoría", SECCIONES[seccion]["subcategorias"])
             archivo = st.file_uploader("Archivo", type=['pdf','xlsx','xls','docx','doc'])
             desc = st.text_area("Descripción")
-            if archivo and st.button("Publicar"):
-                # Agregamos un spinner visual para asegurar que termine todo el proceso en la BD
+            if archivo and st.button("Publicar", key="btn_publicar_gestion_usuarios"):
                 with st.spinner("Subiendo archivo y notificando a los alumnos..."):
                     exito, msg = storage_manager.publicar_documento(
                         archivo, seccion, subcat, desc,
                         publicador_email=st.session_state["usuario"],
                     )
+                
+                # CONTROL ÚNICO DE ALERTAS: Limpiamos la pantalla y evitamos duplicidad visual
                 if exito:
                     st.success("✅ Documento publicado y alumnos notificados con éxito.")
-                    # Quitamos el st.rerun() directo para dar tiempo a la base de datos de procesar todo.
-                    # En su lugar, añadimos un pequeño botón de confirmación o dejamos que el estado fluya.
+                    # Usamos st.rerun() para limpiar alertas fantasmas de la memoria de sesión
+                    st.rerun()
                 else:
-                    st.error(msg)
+                    if "no se pudo notificar" in str(msg).lower():
+                        st.warning(f"⚠️ El documento se publicó, pero ocurrió un aviso con las notificaciones: {msg}")
+                    else:
+                        st.error(f"❌ Error en la publicación: {msg}")
 
     elif menu_actual == "⚙️ Configuración" and st.session_state['rol'] == 'master':
         st.header("Configuración")

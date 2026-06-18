@@ -1,28 +1,129 @@
-# app.py - Versión limpia y funcional (sin CSS conflictivo)
+# app.py — Asistente Inteligente veloX (OAuth Google + Business Hub)
+import base64
+import html as html_module
 import json
 import os
+import re
+import time
 from datetime import datetime
+from typing import Optional
 
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_option_menu import option_menu
 
-from auth import AuthManager
+from analytics_charts import (
+    chart_acceso_usuarios,
+    chart_actividad_secciones_usuario,
+    chart_cobranzas_pendientes,
+    chart_documentos_por_seccion,
+)
+from auth import AuthManager, SETUP_PASSWORD_REQUIRED
 from message_manager import MessageManager
-from notification_manager import NotificationManager
+from notification_manager import (
+    LIMITE_NOTIFICACIONES_CAMPANA,
+    NotificationManager,
+    normalizar_seccion,
+)
 from payment_manager import PaymentManager, MONTO_SOLES
 from storage_manager import StorageManager
-
-st.set_page_config(
-    page_title="Asistente Inteligente - Gestión Documental",
-    page_icon="📁",
-    layout="wide",
-    initial_sidebar_state="expanded"
+from ui_theme import (
+    inject_global_theme,
+    inject_section_catalog_css,
+    inject_sidebar_theme,
+    inject_welcome_layout,
+    MAIN_CONTENT_AREA_CSS,
+    VELOX_ULTRA_COMPACT_LAYOUT_CSS,
 )
 
+st.set_page_config(
+    page_title="Asistente Inteligente veloX",
+    page_icon="⚡",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+VELOX_BANNER_PATH = "assets/nuevo_banner_2026.png"
+
+VELOX_TOP_AREA_COMPACT_CSS = """
+<style>
+    /* 1. Forzar cero absoluto en contenedores principales */
+    [data-testid="stHeader"] {
+        display: none !important;
+        height: 0px !important;
+        margin: 0px !important;
+        padding: 0px !important;
+    }
+    .stDecoration,
+    [data-testid="stDecoration"] {
+        display: none !important;
+        height: 0px !important;
+    }
+    .stApp {
+        margin-top: 0px !important;
+        padding-top: 0px !important;
+    }
+    [data-testid="stAppViewContainer"],
+    [data-testid="stMain"],
+    [data-testid="stMainBlockContainer"],
+    section.main,
+    section.main > div {
+        padding-top: 0px !important;
+        margin-top: 0px !important;
+    }
+
+    /* 2. Margen negativo agresivo al bloque de contenido */
+    .main .block-container {
+        padding-top: 0rem !important;
+        margin-top: -60px !important;
+        max-width: 100% !important;
+    }
+
+    /* Reset contenedores Streamlit en el área central (sin padding fantasma) */
+    [data-testid="stMain"] .element-container,
+    [data-testid="stMain"] [data-testid="element-container"],
+    [data-testid="stMain"] .stMarkdown {
+        padding-top: 0px !important;
+    }
+
+    /* 3. Banner en la cúspide: primer hijo del bloque vertical raíz */
+    .main .block-container > div > [data-testid="stVerticalBlock"] > div:first-child [data-testid="stImage"],
+    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="element-container"]:first-child [data-testid="stImage"],
+    .st-key-velox_top_banner [data-testid="stImage"] {
+        margin-top: -20px !important;
+        padding-top: 0px !important;
+    }
+    .main .block-container > div > [data-testid="stVerticalBlock"] > div:first-child,
+    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="element-container"]:first-child,
+    [data-testid="stMain"] [data-testid="element-container"]:has(.st-key-velox_top_banner),
+    .st-key-velox_top_banner {
+        margin-top: -50px !important;
+        padding-top: 0px !important;
+        margin-bottom: -40px !important;
+    }
+    .st-key-velox_top_banner [data-testid="stImage"] img,
+    [data-testid="stMain"] [data-testid="stImage"] img {
+        margin-top: -20px !important;
+        padding-top: 0px !important;
+        display: block !important;
+        width: 100% !important;
+    }
+</style>
+"""
+
+
+def render_velox_top_banner():
+    """Banner principal post-login, compactado al tope del área central."""
+    st.markdown(VELOX_TOP_AREA_COMPACT_CSS, unsafe_allow_html=True)
+    if not os.path.exists(VELOX_BANNER_PATH):
+        return
+    with st.container(key="velox_top_banner"):
+        st.image(VELOX_BANNER_PATH, use_container_width=True)
+
+
 @st.cache_resource
-def init_managers():
+def init_managers(_cache_version=3):
     auth = AuthManager()
     storage = StorageManager()
     messages = MessageManager()
@@ -31,6 +132,19 @@ def init_managers():
     return auth, storage, messages, notifications, payments
 
 auth_manager, storage_manager, message_manager, notification_manager, payment_manager = init_managers()
+
+# ==================== AUTH TEMPRANO (antes de UI de login) ====================
+auth_manager.inicializar_estado_auth()
+try:
+    _auth_ok, _auth_msg = auth_manager.procesar_retorno_auth_url()
+    if _auth_ok:
+        st.rerun()
+    if _auth_msg:
+        st.session_state["auth_callback_error"] = _auth_msg
+except Exception as e:
+    st.session_state["auth_callback_error"] = f"Error de autenticación: {e}"
+
+inject_global_theme()
 
 SECCIONES = {
     "contabilidad": {
@@ -41,17 +155,17 @@ SECCIONES = {
         "subcategorias": ["Minicursos", "Formatos y Plantillas"]
     },
     "laboral": {
-        "nombre": "👥 Laboral",
-        "icono": "👥",
+        "nombre": "📉 Power BI",
+        "icono": "📉",
         "color": "#3498db",
-        "descripcion": "Contratos, nóminas, documentos laborales",
+        "descripcion": "Dashboards interactivos, análisis de datos y reportes visuales",
         "subcategorias": ["Minicursos", "Formatos y Plantillas"]
     },
     "financiero": {
-        "nombre": "💰 Financiero",
-        "icono": "💰",
+        "nombre": "🌐 Comercio Exterior",
+        "icono": "🌐",
         "color": "#f1c40f",
-        "descripcion": "Estados financieros, proyecciones",
+        "descripcion": "Importaciones, exportaciones, aduanas y operaciones internacionales",
         "subcategorias": ["Minicursos", "Formatos y Plantillas"]
     },
     "logistico": {
@@ -84,36 +198,212 @@ MENU_SIDEBAR_USER = [
     ("Consultas", "envelope", "📬 Consultas"),
     ("Mi Perfil", "person", "👤 Mi Perfil"),
 ]
+MENU_SIDEBAR_PERFIL = ("Mi Perfil", "person", "👤 Mi Perfil")
 SIDEBAR_MENU_STYLES = {
-    "container": {"padding": "0!important", "background-color": "transparent"},
-    "icon": {"color": "#b8c5d6", "font-size": "17px"},
-    "nav-icon": {"font-size": "17px"},
+    "container": {
+        "padding": "8px 10px !important",
+        "background-color": "#ffffff !important",
+        "border-radius": "16px !important",
+        "overflow": "hidden !important",
+    },
+    "icon": {"color": "#4a70a8", "font-size": "17px"},
+    "nav-icon": {"font-size": "17px", "color": "#4a70a8"},
     "nav-link": {
-        "font-size": "15px",
+        "display": "flex",
+        "align-items": "center",
+        "gap": "12px",
+        "font-size": "14px",
         "text-align": "left",
-        "margin": "4px 0",
-        "padding": "10px 14px",
-        "border-radius": "8px",
-        "color": "#e2e8f0",
-        "--hover-color": "#2a3f5f",
+        "white-space": "nowrap",
+        "margin": "0 0 6px 0",
+        "padding": "10px 12px",
+        "border-radius": "12px",
+        "color": "#1a2744",
+        "background-color": "#F1F3F5",
+        "font-weight": "600",
+        "--hover-color": "#E4E8EE",
     },
     "nav-link-selected": {
-        "background-color": "#ffffff",
-        "color": "#1a2744",
-        "font-weight": "600",
-        "border-left": "4px solid #4a6fa5",
-        "padding-left": "10px",
+        "display": "flex",
+        "align-items": "center",
+        "gap": "12px",
+        "white-space": "nowrap",
+        "text-align": "left",
+        "background-color": "#1a2744",
+        "color": "#ffffff",
+        "font-weight": "700",
+        "border-left": "none",
+        "padding-left": "12px",
+        "border-radius": "12px",
+        "margin": "0 0 6px 0",
+        "box-shadow": "0 4px 14px rgba(0, 0, 0, 0.22)",
     },
 }
+
+SIDEBAR_NAV_CAPSULE_CSS = """
+<style>
+    /* Panel blanco exterior del menú de módulos (option_menu) */
+    [data-testid="stSidebar"] .st-key-sidebar_menu_panel {
+        background-color: #ffffff !important;
+        border-radius: 16px !important;
+        overflow: hidden !important;
+        padding: 6px 8px !important;
+        margin: 6px 0 10px !important;
+        box-shadow: 0 2px 12px rgba(15, 23, 42, 0.1) !important;
+        border: 1px solid rgba(226, 232, 240, 0.95) !important;
+    }
+    [data-testid="stSidebar"] .st-key-sidebar_menu_panel [data-testid="stElementContainer"],
+    [data-testid="stSidebar"] .st-key-sidebar_menu_panel [data-testid="stVerticalBlock"] {
+        background: transparent !important;
+    }
+    [data-testid="stSidebar"] .st-key-sidebar_menu_panel iframe {
+        display: block !important;
+        width: 100% !important;
+        border: none !important;
+        border-radius: 14px !important;
+    }
+    /* Módulos del menú lateral — cápsulas redondeadas (solo sidebar) */
+    [data-testid="stSidebar"] .nav,
+    [data-testid="stSidebar"] .nav-pills,
+    [data-testid="stSidebar"] .navbar-nav {
+        background: transparent !important;
+        gap: 6px;
+    }
+    [data-testid="stSidebar"] .nav-item {
+        border-radius: 12px !important;
+        overflow: hidden;
+        margin: 0 0 6px 0 !important;
+    }
+    /* Inactivos: fondo gris claro delimitado sobre panel blanco */
+    [data-testid="stSidebar"] .nav-link:not(.nav-link-selected),
+    [data-testid="stSidebar"] a.nav-link:not(.nav-link-selected) {
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+        flex-wrap: nowrap !important;
+        white-space: nowrap !important;
+        border-radius: 12px !important;
+        transition: all 0.3s ease !important;
+        background-color: #F1F3F5 !important;
+        color: #1a2744 !important;
+        border: 1px solid #E4E7EB !important;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06) !important;
+        font-weight: 600 !important;
+        margin: 0 0 6px 0 !important;
+        padding: 10px 12px !important;
+        min-height: 2.65rem;
+        line-height: 1.35 !important;
+        text-align: left !important;
+    }
+    [data-testid="stSidebar"] .nav-link:not(.nav-link-selected):hover,
+    [data-testid="stSidebar"] a.nav-link:not(.nav-link-selected):hover {
+        background-color: #E4E8EE !important;
+        color: #1a2744 !important;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1) !important;
+        border-color: #CBD5E1 !important;
+    }
+    [data-testid="stSidebar"] .nav-link-selected,
+    [data-testid="stSidebar"] a.nav-link-selected {
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+        flex-wrap: nowrap !important;
+        white-space: nowrap !important;
+        border-radius: 12px !important;
+        transition: all 0.3s ease !important;
+        background-color: #1a2744 !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(255, 255, 255, 0.12) !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+        font-weight: 700 !important;
+        margin: 0 0 6px 0 !important;
+        padding: 10px 12px !important;
+        text-align: left !important;
+    }
+    [data-testid="stSidebar"] .nav-link-selected:hover,
+    [data-testid="stSidebar"] a.nav-link-selected:hover {
+        background-color: #243556 !important;
+        color: #ffffff !important;
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28) !important;
+    }
+    [data-testid="stSidebar"] .nav-link .nav-icon,
+    [data-testid="stSidebar"] .nav-link svg,
+    [data-testid="stSidebar"] .nav-link-selected .nav-icon,
+    [data-testid="stSidebar"] .nav-link-selected svg {
+        display: inline-flex !important;
+        align-items: center !important;
+        flex-shrink: 0 !important;
+        margin-right: 0 !important;
+    }
+    [data-testid="stSidebar"] .nav-link .nav-icon,
+    [data-testid="stSidebar"] .nav-link svg {
+        color: #4a70a8 !important;
+        fill: #4a70a8 !important;
+    }
+    [data-testid="stSidebar"] .nav-link-selected .nav-icon,
+    [data-testid="stSidebar"] .nav-link-selected svg {
+        color: #ffffff !important;
+        fill: #ffffff !important;
+    }
+    [data-testid="stSidebar"] .nav-link p,
+    [data-testid="stSidebar"] .nav-link-selected p {
+        margin: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        text-align: left !important;
+        white-space: nowrap !important;
+        flex: 1 1 auto !important;
+        line-height: 1.2 !important;
+    }
+    /* Cerrar sesión y otros botones del sidebar (misma cápsula) */
+    [data-testid="stSidebar"] .stButton > button {
+        border-radius: 14px !important;
+        transition: all 0.3s ease !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        min-height: 2.65rem !important;
+    }
+    [data-testid="stSidebar"] .stButton > button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.14) !important;
+    }
+    /* Logo y perfil compacto del sidebar */
+    [data-testid="stSidebar"] .sidebar-brand-logo {
+        display: block;
+        margin: 0 auto;
+        max-width: 112px;
+        width: 100%;
+        height: auto;
+    }
+    [data-testid="stSidebar"] .sidebar-profile--compact {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        text-align: center !important;
+    }
+    [data-testid="stSidebar"] .sidebar-profile-email--hero {
+        color: #FFFFFF !important;
+        text-align: center !important;
+        font-weight: 600 !important;
+    }
+    [data-testid="stSidebar"] .sidebar-profile--compact [data-testid="stCaptionContainer"],
+    [data-testid="stSidebar"] .sidebar-profile--compact [data-testid="stCaptionContainer"] p {
+        color: rgba(255, 255, 255, 0.92) !important;
+        text-align: center !important;
+    }
+</style>
+"""
 
 # ==================== ESTILOS GLOBALES (solo estética, sin alterar layout) ====================
 st.markdown("""
 <style>
-    /* Fondo general */
+    /* Shell general (sidebar conserva su azul vía SIDEBAR_CSS en ui_theme) */
     .stApp {
-        background: linear-gradient(135deg, #f5f7fc 0%, #e9eef5 100%);
+        background-color: #F8F9FA;
     }
-    /* Sidebar: el fondo oscuro se aplica tras el login en el bloque st.sidebar */
     /* Tarjetas de métricas */
     .metric-card {
         background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
@@ -164,9 +454,16 @@ st.markdown("""
     .stButton button:hover {
         background-color: #2c5282;
     }
-    /* Encabezados */
-    h1, h2, h3, h4 {
-        color: #1e2a3e;
+    /* Encabezados — solo área central (no sidebar) */
+    [data-testid="stMain"] h1,
+    [data-testid="stMain"] h2,
+    [data-testid="stMain"] h3,
+    [data-testid="stMain"] h4,
+    section.main h1,
+    section.main h2,
+    section.main h3,
+    section.main h4 {
+        color: #0f172a;
     }
     /* Selectbox */
     .stSelectbox div[data-baseweb="select"] {
@@ -183,204 +480,2239 @@ st.markdown("""
     footer {
         color: #7f8c8d;
     }
+    /* Campos de texto — fondo blanco y borde gris oscuro (global) */
+    div[data-testid="stTextInput"] input,
+    .stTextInput > div > div > input,
+    .velox-portal-form div[data-testid="stTextInput"] input,
+    .velox-portal-form .stTextInput > div > div > input,
+    .main .block-container div[data-testid="stTextInput"] input {
+        background-color: #FFFFFF !important;
+        color: #1A2332 !important;
+        border: 1.5px solid #555555 !important;
+        border-radius: 8px !important;
+        padding: 8px 12px !important;
+    }
+    div[data-testid="stTextInput"] input:focus,
+    .stTextInput > div > div > input:focus,
+    .velox-portal-form div[data-testid="stTextInput"] input:focus,
+    .velox-portal-form .stTextInput > div > div > input:focus,
+    .main .block-container div[data-testid="stTextInput"] input:focus {
+        border-color: #1A2332 !important;
+        box-shadow: 0 0 0 1px #1A2332 !important;
+        outline: none !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# ==================== PANTALLA DE ACCESO, PAGO Y LOGIN ====================
-YAPE_QR_PATH = "assets/qr_pago.png"
-YAPE_FORM_KEYS = [
-    "yape_ui_nombre", "yape_ui_email", "yape_ui_password",
-    "yape_ui_celular", "yape_ui_codigo",
-]
+st.markdown(MAIN_CONTENT_AREA_CSS, unsafe_allow_html=True)
+st.markdown(VELOX_ULTRA_COMPACT_LAYOUT_CSS, unsafe_allow_html=True)
+st.markdown(SIDEBAR_NAV_CAPSULE_CSS, unsafe_allow_html=True)
+st.markdown(VELOX_TOP_AREA_COMPACT_CSS, unsafe_allow_html=True)
 
-def render_tab_yape_plim():
-    """Pestaña Yape/Plim: diseño en columnas y registro seguro en Supabase."""
-    if st.session_state.pop("yape_registro_ok", False):
-        st.toast("¡Solicitud enviada al panel Master!", icon="🎉")
-        st.success(
-            "🎉 ¡Registro recibido correctamente! Tu código de operación ya fue enviado al panel "
-            "del Administrador Master. Procesaremos tu activación en unos minutos. ¡Bienvenido!"
+VELOX_TEXT_INPUT_CSS = """
+<style>
+    div[data-testid="stTextInput"] input,
+    .stTextInput > div > div > input,
+    .velox-portal-form div[data-testid="stTextInput"] input,
+    .velox-portal-form .stTextInput > div > div > input,
+    .main .block-container div[data-testid="stTextInput"] input {
+        background-color: #FFFFFF !important;
+        color: #1A2332 !important;
+        border: 1.5px solid #555555 !important;
+        border-radius: 8px !important;
+        padding: 8px 12px !important;
+    }
+    div[data-testid="stTextInput"] input:focus,
+    .stTextInput > div > div > input:focus,
+    .velox-portal-form div[data-testid="stTextInput"] input:focus,
+    .velox-portal-form .stTextInput > div > div > input:focus,
+    .main .block-container div[data-testid="stTextInput"] input:focus {
+        border-color: #1A2332 !important;
+        box-shadow: 0 0 0 1px #1A2332 !important;
+        outline: none !important;
+    }
+</style>
+"""
+
+
+def inject_velox_text_input_styles():
+    st.markdown(VELOX_TEXT_INPUT_CSS, unsafe_allow_html=True)
+
+
+def inject_olvido_password_link_styles():
+    st.markdown(FORGOT_PASSWORD_LINK_CSS, unsafe_allow_html=True)
+
+
+def inject_login_portal_brand_styles():
+    st.markdown(LOGIN_PORTAL_BRAND_CSS, unsafe_allow_html=True)
+
+# ==================== PASARELA DE BIENVENIDA veloX (Premium) ====================
+YAPE_QR_PATH = "assets/qr_pago.png"
+WHATSAPP_ADMIN_LINK = "https://w.app/s58dpa"
+YAPE_OAUTH_KEYS = ["yape_oauth_celular", "yape_comprobante_upload"]
+WELCOME_TAB_LOGIN = 0
+WELCOME_TAB_REGISTER = 1
+WELCOME_TAB_SETUP_PASSWORD = 2
+VISTA_LOGIN = "login"
+VISTA_RECUPERAR_PASSWORD = "recuperar_password"
+MIN_PASSWORD_RECUPERACION = 6
+VELOX_ROJO_CORPORATIVO = "#C41E3A"
+VELOX_ROJO_CORPORATIVO_HOVER = "#9B1830"
+VELOX_AZUL_MARCA = "#1A2332"
+VELOX_AZUL_MARCA_HOVER = "#243044"
+VELOX_CIAN_MARCA = "#00B4D8"
+VELOX_CIAN_MARCA_HOVER = "#0096B8"
+
+LOGIN_PORTAL_BRAND_CSS = f"""
+<style>
+    /* Portal de autenticación: flex-start en contenedor elástico (responsivo a zoom) */
+    html:has(.velox-id-bar),
+    body:has(.velox-id-bar),
+    .stApp:has(.velox-id-bar),
+    .stApp:has(.velox-id-bar) div.stAppViewContainer,
+    .stApp:has(.velox-id-bar) [data-testid="stAppViewContainer"] {{
+        padding-top: 0px !important;
+        margin-top: 0px !important;
+        top: 0 !important;
+    }}
+    .stApp:has(.velox-id-bar) [data-testid="stHeader"],
+    .stApp:has(.velox-id-bar) header {{
+        display: none !important;
+        height: 0px !important;
+        opacity: 0 !important;
+        margin: 0px !important;
+        padding: 0px !important;
+    }}
+    .stApp:has(.velox-id-bar) [data-testid="stMain"] > div,
+    .stApp:has(.velox-id-bar) section.main > div {{
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: flex-start !important;
+        align-items: center !important;
+        height: 100vh !important;
+        min-height: 100vh !important;
+        padding-top: 0px !important;
+        margin-top: 0px !important;
+    }}
+    .stApp:has(.velox-id-bar) div.stAppViewContainer > section.main > div.block-container,
+    .stApp:has(.velox-id-bar) [data-testid="stAppViewContainer"] > section.main > div.block-container,
+    .stApp:has(.velox-id-bar) .main .block-container {{
+        padding-top: 20px !important;
+        margin-top: 0px !important;
+        transform: none !important;
+        max-width: 440px !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        display: block !important;
+        position: static !important;
+        width: min(440px, calc(100vw - 1.5rem)) !important;
+    }}
+    .stApp:has(.velox-id-bar) .main .block-container [data-testid="stVerticalBlock"],
+    .stApp:has(.velox-id-bar) .velox-portal-body [data-testid="stVerticalBlock"],
+    .stApp:has(.velox-id-bar) .velox-portal-form [data-testid="stVerticalBlock"] {{
+        transform: none !important;
+        gap: 0.5rem !important;
+        width: 100% !important;
+        padding-top: 0px !important;
+        margin-top: 0px !important;
+    }}
+    .stApp:has(.velox-id-bar) [data-testid="stVerticalBlock"] > div:first-child,
+    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > div:first-child,
+    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="element-container"]:first-child {{
+        margin-top: 0px !important;
+        margin-bottom: -10px !important;
+        padding-top: 0px !important;
+    }}
+    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > div:nth-child(even),
+    .stApp:has(.velox-id-bar) .velox-portal-form [data-testid="element-container"]:first-of-type,
+    .stApp:has(.velox-id-bar) [data-testid="stVerticalBlockBorderWrapper"] + [data-testid="element-container"] {{
+        margin-top: -2px !important;
+    }}
+    .stApp:has(.velox-id-bar) .velox-brand-stack {{
+        margin-top: 0 !important;
+        margin-bottom: 0.5rem !important;
+    }}
+
+    /* Tarjeta blanca del login: columna central al ancho completo del bloque */
+    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type {{
+        width: 100% !important;
+        justify-content: center !important;
+    }}
+    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(1),
+    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(1),
+    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(3),
+    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(3) {{
+        display: none !important;
+    }}
+    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2),
+    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) {{
+        max-width: 440px !important;
+        width: 100% !important;
+        flex: 1 1 100% !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }}
+    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) [data-testid="stVerticalBlockBorderWrapper"],
+    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) [data-testid="stVerticalBlockBorderWrapper"] {{
+        max-width: 440px !important;
+        width: 100% !important;
+        margin: 0 auto !important;
+    }}
+
+    /* Barra superior del formulario de acceso */
+    .stApp:has(.velox-id-bar) .velox-id-bar,
+    .stApp:has(.velox-id-bar) .velox-id-bar--register {{
+        margin: 0.65rem 0.75rem 0.25rem !important;
+    }}
+    .velox-id-bar,
+    .velox-id-bar--register,
+    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) [data-testid="stVerticalBlockBorderWrapper"] .velox-id-bar,
+    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) [data-testid="stVerticalBlockBorderWrapper"] .velox-id-bar {{
+        background: {VELOX_CIAN_MARCA} !important;
+        background-image: none !important;
+        border: none !important;
+        border-bottom: none !important;
+        color: #FFFFFF !important;
+        font-size: 1.2rem !important;
+        font-weight: bold !important;
+        border-radius: 20px !important;
+        margin: 0.65rem 0.75rem 0.85rem !important;
+        padding: 0.72rem 1rem !important;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }}
+
+    /* Botones principales: Iniciar Sesión y Registrarme */
+    .st-key-btn_iniciar_sesion_velox [data-testid="stBaseButton-primary"] button,
+    .st-key-btn_iniciar_sesion_velox .stButton > button,
+    .st-key-btn_registrarme_portal .stButton > button,
+    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) [data-testid="stBaseButton-primary"] button,
+    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) [data-testid="stBaseButton-primary"] button,
+    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) .st-key-btn_registrarme_portal .stButton > button {{
+        background: {VELOX_CIAN_MARCA} !important;
+        background-color: {VELOX_CIAN_MARCA} !important;
+        background-image: none !important;
+        color: #FFFFFF !important;
+        font-size: 1.2rem !important;
+        font-weight: bold !important;
+        border: 1px solid {VELOX_CIAN_MARCA} !important;
+        border-radius: 20px !important;
+        box-shadow: 0 4px 14px rgba(0, 180, 216, 0.35) !important;
+        transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease !important;
+    }}
+    .st-key-btn_iniciar_sesion_velox [data-testid="stBaseButton-primary"] button p,
+    .st-key-btn_iniciar_sesion_velox .stButton > button p,
+    .st-key-btn_registrarme_portal .stButton > button p,
+    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) [data-testid="stBaseButton-primary"] button p,
+    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) [data-testid="stBaseButton-primary"] button p,
+    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) .st-key-btn_registrarme_portal .stButton > button p,
+    .st-key-btn_iniciar_sesion_velox [data-testid="stBaseButton-primary"] button span,
+    .st-key-btn_iniciar_sesion_velox .stButton > button span,
+    .st-key-btn_registrarme_portal .stButton > button span,
+    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) [data-testid="stBaseButton-primary"] button span,
+    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) [data-testid="stBaseButton-primary"] button span,
+    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) .st-key-btn_registrarme_portal .stButton > button span {{
+        color: #FFFFFF !important;
+        font-size: 1.2rem !important;
+        font-weight: bold !important;
+    }}
+
+    .st-key-btn_iniciar_sesion_velox [data-testid="stBaseButton-primary"] button:hover,
+    .st-key-btn_iniciar_sesion_velox .stButton > button:hover,
+    .st-key-btn_registrarme_portal .stButton > button:hover,
+    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) [data-testid="stBaseButton-primary"] button:hover,
+    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) [data-testid="stBaseButton-primary"] button:hover,
+    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) .st-key-btn_registrarme_portal .stButton > button:hover {{
+        background: {VELOX_CIAN_MARCA_HOVER} !important;
+        background-color: {VELOX_CIAN_MARCA_HOVER} !important;
+        color: #FFFFFF !important;
+        font-size: 1.2rem !important;
+        font-weight: bold !important;
+        border-color: {VELOX_CIAN_MARCA_HOVER} !important;
+        box-shadow: 0 6px 18px rgba(0, 150, 184, 0.42) !important;
+    }}
+
+    .st-key-btn_iniciar_sesion_velox [data-testid="stBaseButton-primary"] button:focus,
+    .st-key-btn_iniciar_sesion_velox .stButton > button:focus,
+    .st-key-btn_registrarme_portal .stButton > button:focus,
+    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) [data-testid="stBaseButton-primary"] button:focus,
+    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) [data-testid="stBaseButton-primary"] button:focus,
+    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) .st-key-btn_registrarme_portal .stButton > button:focus {{
+        background: {VELOX_CIAN_MARCA} !important;
+        color: #FFFFFF !important;
+        font-size: 1.2rem !important;
+        font-weight: bold !important;
+        border-color: {VELOX_CIAN_MARCA} !important;
+        box-shadow: 0 0 0 2px rgba(0, 180, 216, 0.35) !important;
+    }}
+
+    /* Campos del formulario de login: foco alineado con el cian de marca */
+    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) div[data-testid="stTextInput"] input:focus,
+    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTextInput"] input:focus,
+    .velox-portal-form div[data-testid="stTextInput"] input:focus,
+    .velox-portal-form .stTextInput > div > div > input:focus {{
+        border-color: {VELOX_CIAN_MARCA} !important;
+        box-shadow: 0 0 0 1px {VELOX_CIAN_MARCA} !important;
+    }}
+</style>
+"""
+
+FORGOT_PASSWORD_LINK_CSS = f"""
+<style>
+    .st-key-btn_olvido_password {{
+        display: flex !important;
+        justify-content: flex-end !important;
+        width: 100% !important;
+    }}
+    .st-key-btn_olvido_password [data-testid="stButton"],
+    .st-key-btn_olvido_password .stButton {{
+        width: auto !important;
+        margin: 0 !important;
+    }}
+    .st-key-btn_olvido_password .stButton > button {{
+        background: transparent !important;
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        color: {VELOX_ROJO_CORPORATIVO} !important;
+        font-size: 0.88rem !important;
+        font-weight: 500 !important;
+        text-decoration: underline !important;
+        text-underline-offset: 2px;
+        padding: 0 !important;
+        min-height: auto !important;
+        height: auto !important;
+        line-height: 1.4 !important;
+        width: auto !important;
+        white-space: nowrap;
+    }}
+    .st-key-btn_olvido_password .stButton > button:hover,
+    .st-key-btn_olvido_password .stButton > button:focus,
+    .st-key-btn_olvido_password .stButton > button:active {{
+        color: {VELOX_ROJO_CORPORATIVO_HOVER} !important;
+        background: transparent !important;
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+    }}
+</style>
+"""
+
+GOOGLE_SVG_ICON = (
+    '<svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">'
+    '<path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.13 13.09 17.62 9.5 24 9.5z"/>'
+    '<path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.56 2.95-2.24 5.46-4.72 7.15l7.19 5.58C43.98 37.13 48 31.18 48 24.55z"/>'
+    '<path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C2.38 15.62 0 20.94 0 26.5s2.38 10.88 6.44 14.79l7.98-6.19z"/>'
+    '<path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.19-5.58c-2.01 1.35-4.59 2.15-8.7 2.15-6.38 0-11.78-4.25-13.71-10.07l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>'
+    "</svg>"
+)
+
+MSG_REGISTRO_YAPE_OK = (
+    "🎉 ¡Registro recibido correctamente! Tu código de operación ya fue enviado al panel "
+    "del Administrador Master. Procesaremos tu activación en unos minutos. ¡Bienvenido!"
+)
+MSG_REGISTRO_COMPLETADO = (
+    "¡Registro completado con éxito! Tu acceso a veloX está siendo procesado. "
+    "Si pagaste con Tarjeta tu acceso ya está activo; si pagaste con Yape/Plim, "
+    "estará habilitado en breve tras la confirmación de la captura."
+)
+REGISTRO_SESSION_KEYS = (
+    "registro_en_progreso",
+    "registro_pago_ok",
+    "registro_metodo_pago_usado",
+    "registro_password_ok",
+    "registro_listo_confirmacion",
+)
+
+
+def render_google_oauth_button(
+    label: str = "Iniciar sesión con Google",
+    oauth_url: Optional[str] = None,
+) -> bool:
+    url = oauth_url or st.session_state.get("google_oauth_url")
+    if not url:
+        url = auth_manager.ensure_google_oauth_url()
+    if url:
+        st.markdown(
+            f'<div class="google-btn-wrap"><a href="{url}" target="_self">'
+            f"{GOOGLE_SVG_ICON} {label}</a></div>",
+            unsafe_allow_html=True,
+        )
+        return True
+    st.error(
+        "No se pudo iniciar OAuth. Revisa el bloque [google_oauth] en "
+        "`.streamlit/secrets.toml` y la URL de redirección en Supabase."
+    )
+    return False
+
+
+VELOX_LOGO_PATH = "assets/velox.png"
+VELOX_LOGO_BLANCO_PATH = "assets/logo_blanco.png"
+VELOX_LOGO_SINFONDO_PATH = "assets/logo_blanco_sinfondo.png"
+
+
+@st.cache_data
+def _velox_logo_data_uri(path: str = VELOX_LOGO_PATH) -> Optional[str]:
+    """Data URI del logo local para incrustarlo en HTML sin depender de st.image."""
+    if not os.path.exists(path):
+        return None
+    with open(path, "rb") as img_file:
+        encoded = base64.b64encode(img_file.read()).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
+
+
+def render_velox_brand_header():
+    logo_src = _velox_logo_data_uri()
+    if logo_src:
+        st.markdown(
+            f"""
+            <div style="display: flex; justify-content: center; align-items: center; width: 100%; margin-top: 10px; margin-bottom: 5px;">
+                <img src="{logo_src}" width="190" alt="veloX" style="display: block; margin: 0 auto; max-width: 190px; height: auto;">
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            '<div style="display: flex; justify-content: center; align-items: center; width: 100%; '
+            'margin-top: 10px; margin-bottom: 5px;">'
+            '<div class="velox-logo-fallback">⚡ veloX</div></div>',
+            unsafe_allow_html=True,
+        )
+    st.markdown(
+        '<div class="velox-brand-stack">'
+        '<p class="velox-tagline velox-tagline--center">Accede a cursos, plantillas y herramientas '
+        "profesionales con un único pago de acceso</p>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def _open_portal_scroll():
+    st.markdown('<div class="velox-portal-scroll">', unsafe_allow_html=True)
+    st.markdown('<div class="velox-portal-body">', unsafe_allow_html=True)
+
+
+def _close_portal_scroll():
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def render_activation_banner():
+    if st.session_state.get("autenticado") and not st.session_state.get("acceso_pagado"):
+        nombre = st.session_state.get("nombre", "Usuario")
+        st.markdown(
+            f'<div class="velox-activation-banner">'
+            f"<strong>{nombre}</strong>, completa tu activación en "
+            f"<em>Registro (pago)</em> para ingresar al hub veloX."
+            f"</div>",
+            unsafe_allow_html=True,
         )
 
-    st.markdown('<span class="yape-badge">🇵🇪 Pago local · Yape o Plim</span>', unsafe_allow_html=True)
-    st.markdown("#### Escanea, paga y completa tu registro")
-    st.caption("Un solo paso para que el Master verifique tu pago y active tu acceso al aplicativo.")
 
-    col_pago, col_form = st.columns([1, 1.2], gap="large")
+def render_divider_or(text: str = "o ingresa con tu cuenta administradora"):
+    st.markdown(
+        f'<div class="velox-divider-or"><span>{text}</span></div>',
+        unsafe_allow_html=True,
+    )
+
+
+def _init_welcome_tab_state():
+    if "welcome_active_tab" not in st.session_state:
+        st.session_state.welcome_active_tab = WELCOME_TAB_LOGIN
+
+
+def _init_login_form_state():
+    if st.session_state.get("login_recordarme") and st.session_state.get("login_email_saved"):
+        if "login_email" not in st.session_state:
+            st.session_state.login_email = st.session_state.login_email_saved
+    elif "login_recordarme" not in st.session_state:
+        st.session_state.login_recordarme = bool(st.session_state.get("login_email_saved"))
+
+
+def _reset_registro_flujo():
+    for key in REGISTRO_SESSION_KEYS:
+        st.session_state.pop(key, None)
+
+
+def _iniciar_registro_flujo():
+    _reset_registro_flujo()
+    st.session_state.registro_en_progreso = True
+
+
+def _registro_bloquea_acceso_app() -> bool:
+    """Evita entrar al hub hasta pulsar OK al final del registro."""
+    return bool(st.session_state.get("registro_en_progreso"))
+
+
+def _marcar_pago_registro_completado(metodo: str):
+    st.session_state.registro_pago_ok = True
+    st.session_state.registro_metodo_pago_usado = metodo
+
+
+def _finalizar_registro_y_volver_login():
+    _reset_registro_flujo()
+    st.session_state.welcome_active_tab = WELCOME_TAB_LOGIN
+    auth_manager.cerrar_sesion(silent=True)
+    st.rerun()
+
+
+def render_portal_id_bar():
+    """Barra corporativa de identificación (sin botón Registro flotante)."""
+    _init_welcome_tab_state()
+    active = st.session_state.welcome_active_tab
+
+    if active == WELCOME_TAB_LOGIN:
+        st.markdown(
+            '<div class="velox-id-bar">Correo Electrónico</div>',
+            unsafe_allow_html=True,
+        )
+    elif active == WELCOME_TAB_SETUP_PASSWORD:
+        st.markdown(
+            '<div class="velox-id-bar velox-id-bar--register">Configura tu acceso veloX</div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown('<div class="velox-back-login">', unsafe_allow_html=True)
+        if st.button("← Volver al inicio de sesión", key="nav_volver_login_setup"):
+            st.session_state.welcome_active_tab = WELCOME_TAB_LOGIN
+            st.session_state.pop("velox_setup_email", None)
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+    else:
+        st.markdown(
+            '<div class="velox-id-bar velox-id-bar--register">Registro y activación</div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown('<div class="velox-back-login">', unsafe_allow_html=True)
+        if st.button("← Volver al inicio de sesión", key="nav_volver_login"):
+            _reset_registro_flujo()
+            auth_manager.cerrar_sesion(silent=True)
+            st.session_state.welcome_active_tab = WELCOME_TAB_LOGIN
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+
+@st.dialog("Recuperar contraseña")
+def _dialog_recuperar_password():
+    st.markdown(
+        "Ingresa tu correo electrónico y te enviaremos un enlace para restablecer tu contraseña."
+    )
+    email_recuperacion = st.text_input(
+        "Correo electrónico",
+        value=(st.session_state.get("login_email") or "").strip(),
+        key="recuperar_password_email",
+        placeholder="Correo electrónico",
+    )
+    if st.button(
+        "Enviar enlace de recuperación",
+        type="primary",
+        use_container_width=True,
+        key="btn_enviar_recuperacion_password",
+    ):
+        with st.spinner("Enviando enlace..."):
+            ok, msg = auth_manager.enviar_enlace_recuperacion_password(email_recuperacion)
+        if ok:
+            st.success(msg)
+        else:
+            st.error(msg)
+
+
+def _en_vista_recuperacion_password() -> bool:
+    return auth_manager.en_modo_recuperacion_password()
+
+
+def _validar_passwords_recuperacion(nueva: str, confirmar: str) -> Optional[str]:
+    nueva_l = (nueva or "").strip()
+    confirmar_l = (confirmar or "").strip()
+    if not nueva_l or not confirmar_l:
+        return "Completa ambos campos de contraseña."
+    if len(nueva_l) < MIN_PASSWORD_RECUPERACION:
+        return f"La contraseña debe tener al menos {MIN_PASSWORD_RECUPERACION} caracteres."
+    if nueva_l != confirmar_l:
+        return "Las contraseñas no coinciden."
+    return None
+
+
+def render_tab_recuperar_password():
+    """Formulario exclusivo tras enlace de recuperación Supabase."""
+    st.markdown('<div class="velox-portal-body velox-portal-body--login">', unsafe_allow_html=True)
+    st.markdown('<div class="velox-portal-form">', unsafe_allow_html=True)
+
+    st.markdown(
+        '<div class="velox-id-bar velox-id-bar--register">Restablecer Contraseña</div>',
+        unsafe_allow_html=True,
+    )
+    st.caption("Define una nueva contraseña para tu cuenta veloX.")
+
+    email_recuperacion = (st.session_state.get("recovery_email") or "").strip()
+    if email_recuperacion:
+        st.caption(f"Cuenta: **{email_recuperacion}**")
+
+    nueva_password = st.text_input(
+        "Nueva Contraseña",
+        type="password",
+        key="recovery_new_password",
+        placeholder="Mínimo 6 caracteres",
+    )
+    confirmar_password = st.text_input(
+        "Confirmar Contraseña",
+        type="password",
+        key="recovery_confirm_password",
+        placeholder="Repite la contraseña",
+    )
+
+    if st.button(
+        "Actualizar Contraseña",
+        type="primary",
+        key="btn_actualizar_password_recuperacion",
+        use_container_width=True,
+    ):
+        error_validacion = _validar_passwords_recuperacion(nueva_password, confirmar_password)
+        if error_validacion:
+            st.error(error_validacion)
+        else:
+            with st.spinner("Actualizando contraseña..."):
+                ok, msg = auth_manager.completar_recuperacion_password(nueva_password.strip())
+            if ok:
+                st.success(msg)
+                st.info("Redirigiendo al inicio de sesión...")
+                time.sleep(2)
+                auth_manager.finalizar_recuperacion_password()
+                st.rerun()
+            else:
+                st.error(msg)
+
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def render_tab_login_portal(oauth_url: Optional[str] = None):
+    """Portada: correo/contraseña, Iniciar Sesión y enlace a Registrarme."""
+    _ = oauth_url
+    _init_login_form_state()
+    st.session_state["oauth_intent"] = "login"
+
+    denied = st.session_state.pop("oauth_login_denied_msg", None)
+    if denied:
+        st.error(denied)
+
+    st.markdown('<div class="velox-portal-body velox-portal-body--login">', unsafe_allow_html=True)
+    st.markdown('<div class="velox-portal-form">', unsafe_allow_html=True)
+
+    st.text_input(
+        "Correo electrónico",
+        key="login_email",
+        label_visibility="collapsed",
+        placeholder="Correo electrónico",
+    )
+    st.text_input(
+        "Contraseña",
+        type="password",
+        key="login_password",
+        label_visibility="collapsed",
+        placeholder="Contraseña",
+    )
+
+    inject_olvido_password_link_styles()
+    recordarme_col, forgot_col = st.columns([3, 1], vertical_alignment="center")
+    with recordarme_col:
+        st.toggle("Recordarme", key="login_recordarme")
+    with forgot_col:
+        if st.button("¿Olvidaste tu contraseña?", key="btn_olvido_password"):
+            _dialog_recuperar_password()
+
+    if st.session_state.get("login_recordarme") and st.session_state.get("login_email"):
+        st.session_state.login_email_saved = st.session_state.login_email.strip()
+
+    if st.button(
+        "Iniciar Sesión",
+        type="primary",
+        key="btn_iniciar_sesion_velox",
+        use_container_width=True,
+    ):
+        with st.spinner("Validando credenciales..."):
+            exito, msg = auth_manager.iniciar_sesion_velox(
+                st.session_state.get("login_email", ""),
+                st.session_state.get("login_password", ""),
+            )
+        if msg == SETUP_PASSWORD_REQUIRED:
+            st.session_state.welcome_active_tab = WELCOME_TAB_SETUP_PASSWORD
+            st.rerun()
+        elif exito:
+            st.rerun()
+        else:
+            st.error(msg)
+
+    if st.button("Registrarme", key="btn_registrarme_portal", use_container_width=True):
+        _iniciar_registro_flujo()
+        st.session_state.welcome_active_tab = WELCOME_TAB_REGISTER
+        st.session_state["oauth_intent"] = "register"
+        st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def render_tab_setup_password_velox():
+    """Primera configuración de contraseña veloX para cuentas ya aprobadas."""
+    email = (st.session_state.get("velox_setup_email") or st.session_state.get("login_email") or "").strip().lower()
+    if not email:
+        st.session_state.welcome_active_tab = WELCOME_TAB_LOGIN
+        st.rerun()
+
+    _open_portal_scroll()
+    st.markdown(
+        '<p class="velox-section-caption" style="text-align:center;margin-bottom:1rem;">'
+        "Configura tu contraseña exclusiva para veloX. "
+        "Tus permisos actuales (rol, acceso y pago) se mantienen intactos."
+        "</p>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f'<div class="velox-identity-badge" style="margin-bottom:1rem;">'
+        f"✅ Cuenta verificada: <strong>{email}</strong></div>",
+        unsafe_allow_html=True,
+    )
+
+    st.markdown('<div class="velox-portal-form">', unsafe_allow_html=True)
+    st.text_input(
+        "Nueva contraseña veloX",
+        type="password",
+        key="velox_setup_password",
+        label_visibility="collapsed",
+        placeholder="Nueva contraseña (mín. 6 caracteres)",
+    )
+    st.text_input(
+        "Confirmar contraseña veloX",
+        type="password",
+        key="velox_setup_password_confirm",
+        label_visibility="collapsed",
+        placeholder="Confirmar contraseña",
+    )
+
+    st.markdown('<div class="velox-btn-primary">', unsafe_allow_html=True)
+    if st.button("Guardar contraseña y continuar", key="btn_guardar_password_velox", use_container_width=True):
+        with st.spinner("Guardando contraseña de forma segura..."):
+            exito, msg = auth_manager.configurar_password_velox(
+                email,
+                st.session_state.get("velox_setup_password", ""),
+                st.session_state.get("velox_setup_password_confirm", ""),
+            )
+        if exito:
+            st.session_state.welcome_active_tab = WELCOME_TAB_LOGIN
+            st.success(msg)
+            st.rerun()
+        else:
+            st.error(msg)
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+    _close_portal_scroll()
+
+
+def _permitir_navegacion_iframe_componentes():
+    """Permite redirección top-level desde iframes de componentes (token Culqi)."""
+    components.html(
+        """
+<script>
+(function () {
+  function patchIframes() {
+    document.querySelectorAll("iframe[sandbox]").forEach(function (iframe) {
+      if (!iframe.sandbox.contains("allow-top-navigation-by-user-activation")) {
+        iframe.sandbox.add("allow-top-navigation-by-user-activation");
+      }
+    });
+  }
+  patchIframes();
+  new MutationObserver(patchIframes).observe(document.body, { childList: true, subtree: true });
+})();
+</script>
+""",
+        height=0,
+    )
+
+
+def _sincronizar_token_culqi_query() -> bool:
+    """Lee culqi_token de la URL (iframe Culqi) y lo guarda en session_state."""
+    raw = st.query_params.get("culqi_token")
+    if not raw:
+        return False
+    token = str(raw).strip()
+    if not token:
+        return False
+    st.session_state["culqi_oauth_token"] = token
+    try:
+        del st.query_params["culqi_token"]
+    except Exception:
+        pass
+    return True
+
+
+def _procesar_culqi_si_hay_token():
+    token = (st.session_state.get("culqi_oauth_token") or "").strip()
+    if not token:
+        return
+    if not st.session_state.get("autenticado"):
+        st.warning("Verifica tu cuenta con Google antes de pagar con tarjeta.")
+        return
+    with st.spinner("Procesando cargo Culqi y activando acceso..."):
+        exito, msg = payment_manager.procesar_pago_culqi_oauth(
+            st.session_state["usuario"],
+            st.session_state.get("nombre", ""),
+            token,
+        )
+    if exito:
+        auth_manager.refrescar_estado_acceso()
+        st.session_state.pop("culqi_oauth_token", None)
+        if st.session_state.get("registro_en_progreso"):
+            _marcar_pago_registro_completado("culqi")
+            st.rerun()
+        st.success(f"✅ {msg}")
+        st.rerun()
+    else:
+        st.error(f"❌ {msg}")
+
+
+def _render_culqi_checkout_section():
+    st.markdown('<p class="velox-section-title">Pago seguro con tarjeta</p>', unsafe_allow_html=True)
+    st.markdown(
+        '<p class="velox-section-caption">Activación inmediata tras confirmación Culqi.</p>',
+        unsafe_allow_html=True,
+    )
+
+    if _sincronizar_token_culqi_query():
+        _procesar_culqi_si_hay_token()
+
+    _permitir_navegacion_iframe_componentes()
+
+    _, culqi_col, _ = st.columns([0.2, 1.6, 0.2])
+    with culqi_col:
+        public_key = payment_manager.obtener_public_key_culqi()
+        if not public_key:
+            st.error("Configura culqi.public_key en `.streamlit/secrets.toml`.")
+            return
+
+        components.html(
+            payment_manager.html_culqi_checkout(public_key),
+            height=payment_manager.culqi_checkout_height(),
+            scrolling=False,
+        )
+
+        token_actual = (st.session_state.get("culqi_oauth_token") or "").strip()
+        if not token_actual:
+            st.text_input(
+                "Token Culqi (solo si la confirmación automática falla)",
+                placeholder="tok_test_…",
+                key="culqi_oauth_token",
+                label_visibility="collapsed",
+            )
+            st.caption(
+                "Tras pagar en Culqi, la confirmación se procesa sola. "
+                "Si no ocurre, pega aquí el token y pulsa confirmar."
+            )
+        else:
+            st.success(f"Token Culqi recibido: `{token_actual[:16]}…`")
+
+        if st.button(
+            "Confirmar pago Culqi y activar acceso",
+            type="primary",
+            use_container_width=True,
+            key="btn_confirmar_culqi",
+            disabled=not (st.session_state.get("culqi_oauth_token") or "").strip(),
+        ):
+            _procesar_culqi_si_hay_token()
+
+
+def _render_yape_plim_section():
+    email = st.session_state.get("usuario", "")
+    nombre = st.session_state.get("nombre", "")
+
+    col_pago, col_form = st.columns([1, 1.12], gap="large")
 
     with col_pago:
+        st.markdown('<div class="velox-qr-panel">', unsafe_allow_html=True)
         with st.container(border=True):
-            st.metric(label="Monto a transferir", value="S/ 9.90")
+            st.markdown('<p class="velox-section-title">Escanea y paga</p>', unsafe_allow_html=True)
+            st.markdown(
+                '<p class="velox-section-caption">Transferencia con Yape o Plim. '
+                "El pago puede ser tuyo o de un tercero.</p>",
+                unsafe_allow_html=True,
+            )
             if os.path.exists(YAPE_QR_PATH):
-                st.image(
-                    YAPE_QR_PATH,
-                    caption="Escanea aquí con Yape o Plim",
-                    use_container_width=True,
-                )
+                st.image(YAPE_QR_PATH, caption="Escanea con Yape o Plim", use_container_width=True)
             else:
-                st.warning(f"No se encontró la imagen en `{YAPE_QR_PATH}`")
-            st.caption("💡 Tip: Recuerda tomar una captura de pantalla a tu constancia al terminar el pago.")
+                st.warning(f"No se encontró `{YAPE_QR_PATH}`")
+            st.caption("💡 Conserva la captura de tu comprobante.")
+        st.markdown("</div>", unsafe_allow_html=True)
 
     with col_form:
         with st.container(border=True):
-            st.markdown("**📝 Datos de registro y verificación**")
-            st.caption("Usa el mismo correo y celular de tu comprobante de pago.")
+            st.markdown(
+                '<p class="velox-section-title">Datos de verificación</p>',
+                unsafe_allow_html=True,
+            )
+            if nombre:
+                st.text_input("Nombre (desde Google)", value=nombre, disabled=True)
 
-            nombre = st.text_input(
-                "Nombre completo",
-                placeholder="Juan Pérez",
-                key="yape_ui_nombre",
+            comprobante = st.file_uploader(
+                "📸 Adjunta la captura o foto de tu comprobante de pago",
+                type=["jpg", "jpeg"],
+                key="yape_comprobante_upload",
             )
-            email = st.text_input(
-                "Correo electrónico",
-                placeholder="ejemplo@correo.com",
-                key="yape_ui_email",
-            )
-            password = st.text_input(
-                "Contraseña",
-                type="password",
-                placeholder="Crea una contraseña segura",
-                key="yape_ui_password",
-            )
+
             celular = st.text_input(
                 "Celular de la operación",
                 placeholder="999888777",
                 max_chars=9,
-                key="yape_ui_celular",
-            )
-            codigo = st.text_input(
-                "Código de Operación",
-                placeholder="Ej: 123456",
-                max_chars=8,
-                help="Código numérico de 6 a 8 dígitos que aparece en tu comprobante de Yape/Plim",
-                key="yape_ui_codigo",
+                key="yape_oauth_celular",
             )
 
-            with st.expander("❓ ¿Dónde encuentro mi Código de Operación?"):
-                st.markdown(
-                    "En **Yape**, figura abajo del monto como *«Código de operación»*.  \n"
-                    "En **Plim**, figura en el detalle como *«Número de operación»*.  \n\n"
-                    "Recuerda que solo se validan **códigos reales** emitidos por tu app de pagos."
-                )
-
+            puede_enviar = comprobante is not None and bool(str(celular or "").strip())
             if st.button(
-                "🚀 Enviar verificación y Registrarse",
+                "🚀 Enviar verificación y registrarme",
                 use_container_width=True,
                 type="primary",
-                key="yape_btn_registrar",
+                key="btn_enviar_yape",
+                disabled=not puede_enviar,
             ):
                 try:
-                    with st.spinner("Validando datos y registrando en Supabase..."):
-                        exito, msg = payment_manager.registrar_verificacion_yape_plim(
-                            nombre, email, password, celular, codigo
-                        )
+                    progress = st.progress(0, text="Subiendo comprobante...")
+                    progress.progress(35, text="Conectando con Supabase...")
+                    exito, msg = payment_manager.registrar_comprobante_yape_oauth(
+                        email=email,
+                        nombre=nombre,
+                        celular=celular,
+                        comprobante_file=comprobante,
+                    )
+                    progress.progress(100, text="Listo")
                     if exito:
-                        for key in YAPE_FORM_KEYS:
-                            st.session_state.pop(key, None)
-                        st.session_state["yape_registro_ok"] = True
+                        for k in YAPE_OAUTH_KEYS:
+                            st.session_state.pop(k, None)
+                        _marcar_pago_registro_completado("yape")
                         st.rerun()
                     else:
                         st.error(f"❌ {msg}")
                 except Exception as e:
-                    st.error(f"❌ Error inesperado al registrar: {e}")
-                    print(f"Error en registro Yape/Plim: {e}")
+                    st.error(f"❌ Error inesperado: {e}")
+            elif not comprobante:
+                st.caption("Adjunta tu captura JPEG para habilitar el envío.")
+            elif not str(celular or "").strip():
+                st.caption("Ingresa el celular de la operación para continuar.")
+
+
+def _render_registro_paso_password():
+    st.markdown("---")
+    st.markdown(
+        """
+        <div style="background-color: rgba(255, 255, 255, 0.85); padding: 10px 15px; border-radius: 6px; font-size: 1.15rem; font-weight: bold; color: #1A2332; display: inline-block; margin-bottom: 10px; border: 1px solid #E0E0E0;">
+            PASO 3 · CREAR CONTRASEÑA
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<p class="velox-section-caption">Define tu contraseña exclusiva para ingresar a veloX '
+        "con correo y clave en futuros accesos.</p>",
+        unsafe_allow_html=True,
+    )
+
+    email = st.session_state.get("usuario", "")
+    st.markdown(
+        f'<div class="velox-identity-badge">✅ Pago registrado · <strong>{email}</strong></div>',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown('<div class="velox-portal-form" style="margin-top:1rem;">', unsafe_allow_html=True)
+    st.text_input(
+        "Crea tu contraseña de acceso",
+        type="password",
+        key="registro_password",
+        label_visibility="collapsed",
+        placeholder="Crea tu contraseña de acceso",
+    )
+    st.text_input(
+        "Confirma tu contraseña",
+        type="password",
+        key="registro_password_confirm",
+        label_visibility="collapsed",
+        placeholder="Confirma tu contraseña",
+    )
+
+    st.markdown('<div class="velox-btn-primary">', unsafe_allow_html=True)
+    if st.button("Guardar Contraseña", key="btn_guardar_password_registro", use_container_width=True):
+        with st.spinner("Guardando contraseña de forma segura..."):
+            exito, msg = auth_manager.guardar_password_registro(
+                email,
+                st.session_state.get("registro_password", ""),
+                st.session_state.get("registro_password_confirm", ""),
+                email,
+            )
+        if exito:
+            st.session_state.registro_password_ok = True
+            st.session_state.registro_listo_confirmacion = True
+            st.rerun()
+        else:
+            st.error(msg)
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def _render_registro_confirmacion_final():
+    st.markdown(
+        f"""
+        <div class="velox-register-success">
+            <div class="velox-register-success__icon">✅</div>
+            <div class="velox-register-success__title">¡Registro completado!</div>
+            <p class="velox-register-success__text">{MSG_REGISTRO_COMPLETADO}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown('<div class="velox-btn-primary">', unsafe_allow_html=True)
+    if st.button("OK", key="btn_registro_ok_final", use_container_width=True):
+        _finalizar_registro_y_volver_login()
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def render_tab_adquirir_acceso(oauth_url: Optional[str] = None):
+    st.session_state["oauth_intent"] = "register"
+    if not st.session_state.get("registro_en_progreso"):
+        _iniciar_registro_flujo()
+
+    _open_portal_scroll()
+    st.markdown(
+        """
+        <div style="background-color: #1A2332; color: #FFFFFF; text-align: center; padding: 12px 24px; border-radius: 10px; font-weight: bold; font-size: 1.1rem; margin-top: 15px; margin-bottom: 20px; box-shadow: 0px 4px 6px rgba(0,0,0,0.05);">
+            Completa paso 1, paso 2 y paso 3 ¡Rapido y Seguro!
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if st.session_state.get("registro_listo_confirmacion"):
+        _render_registro_confirmacion_final()
+        _close_portal_scroll()
+        return
+
+    if st.session_state.get("registro_pago_ok"):
+        _render_registro_paso_password()
+        _close_portal_scroll()
+        return
+
+    logo_blanco_src = _velox_logo_data_uri(VELOX_LOGO_BLANCO_PATH)
+    logo_blanco_html = (
+        f'<img src="{logo_blanco_src}" width="65" alt="veloX" '
+        f'style="display: block; border-radius: 4px;">'
+        if logo_blanco_src
+        else ""
+    )
+    st.markdown(
+        f"""
+        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 15px; background-color: rgba(255, 255, 255, 0.85); padding: 12px 20px; border-radius: 8px; border: 1px solid #E0E0E0;">
+            <div style="font-size: 1.15rem; font-weight: bold; color: #1A2332;">
+                PASO 1 · CORREO ELECTRÓNICO
+            </div>
+            <div>
+                {logo_blanco_html}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown('<p class="velox-section-title">Verificación de identidad</p>', unsafe_allow_html=True)
+
+    authed = st.session_state.get("autenticado")
+
+    if not authed:
+        st.markdown(
+            '<p class="velox-section-caption">Verifica tu correo real con Google antes de continuar al pago.</p>',
+            unsafe_allow_html=True,
+        )
+        render_google_oauth_button("Verificar cuenta con Google", oauth_url=oauth_url)
+        _close_portal_scroll()
+        return
+
+    email = st.session_state.get("usuario", "")
+    st.markdown(
+        f'<div class="velox-identity-badge">✅ Identidad verificada: '
+        f"<strong>{email}</strong></div>",
+        unsafe_allow_html=True,
+    )
+
+    col_spacer, col_logout = st.columns([5, 1])
+    with col_logout:
+        st.markdown('<div class="velox-logout-link">', unsafe_allow_html=True)
+        if st.button("Salir", key="btn_logout_adquirir", use_container_width=True):
+            _reset_registro_flujo()
+            auth_manager.cerrar_sesion()
+            st.session_state.welcome_active_tab = WELCOME_TAB_LOGIN
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown(
+        """
+        <div style="background-color: rgba(255, 255, 255, 0.85); padding: 10px 15px; border-radius: 6px; font-size: 1.15rem; font-weight: bold; color: #1A2332; display: inline-block; margin-bottom: 10px; border: 1px solid #E0E0E0;">
+            PASO 2 · PAGO DEL SERVICIO
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<p class="velox-section-caption">Elige cómo deseas activar tu acceso veloX.</p>',
+        unsafe_allow_html=True,
+    )
+
+    if "gateway_metodo_pago" not in st.session_state:
+        st.session_state["gateway_metodo_pago"] = "yape"
+
+    metodo = st.radio(
+        "Método de pago",
+        options=["yape", "culqi"],
+        format_func=lambda x: "📱 Yape / Plim" if x == "yape" else "💳 Tarjeta (Culqi)",
+        horizontal=True,
+        key="gateway_metodo_pago",
+        label_visibility="collapsed",
+    )
+
+    if metodo == "yape":
+        _render_yape_plim_section()
+    else:
+        _render_culqi_checkout_section()
+    _close_portal_scroll()
+
+
+def render_pantalla_solo_recuperacion():
+    """Pantalla exclusiva de restablecimiento; nunca muestra login/registro."""
+    inject_welcome_layout()
+    inject_velox_text_input_styles()
+    inject_login_portal_brand_styles()
+    col1, col2, col3 = st.columns([1, 1.5, 1])
+    with col2:
+        render_velox_brand_header()
+        with st.container(border=True):
+            render_tab_recuperar_password()
+
+
+def render_welcome_gateway():
+    """Pantalla premium centrada: login y adquisición de acceso."""
+    inject_welcome_layout()
+    inject_velox_text_input_styles()
+    inject_login_portal_brand_styles()
+    oauth_url = auth_manager.ensure_google_oauth_url()
+
+    col1, col2, col3 = st.columns([1, 1.5, 1])
+    with col2:
+        render_velox_brand_header()
+        render_activation_banner()
+
+        with st.container(border=True):
+            render_portal_id_bar()
+
+            if st.session_state.welcome_active_tab == WELCOME_TAB_LOGIN:
+                render_tab_login_portal(oauth_url=oauth_url)
+            elif st.session_state.welcome_active_tab == WELCOME_TAB_SETUP_PASSWORD:
+                render_tab_setup_password_velox()
+            else:
+                render_tab_adquirir_acceso(oauth_url=oauth_url)
+
 
 def login_screen():
-    st.markdown("""
-    <style>
-        .login-subtitle { text-align: center; color: #4a627a; font-size: 0.95rem; line-height: 1.6; margin: 0.5rem 0 1.5rem 0; }
-        .price-badge {
-            text-align: center; background: linear-gradient(135deg, #4a6fa5, #2c5282);
-            color: white; padding: 1rem 1.5rem; border-radius: 16px; margin-bottom: 1.25rem;
-            font-size: 1.35rem; font-weight: 700;
-        }
-        .payment-card-title { font-size: 1.1rem; font-weight: 700; color: #1e2a3e; margin-bottom: 0.5rem; }
-        .yape-panel {
-            background: linear-gradient(160deg, #f8fbff 0%, #eef4fb 100%);
-            border-radius: 16px; padding: 0.25rem;
-        }
-        .yape-badge {
-            display: inline-block; background: #10b981; color: white;
-            padding: 4px 12px; border-radius: 999px; font-size: 0.78rem; font-weight: 600;
-            margin-bottom: 0.75rem;
-        }
-        [data-testid="stVerticalBlockBorderWrapper"] {
-            background-color: #ffffff; border-radius: 12px; padding: 24px;
-            box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.05); border: 1px solid #eef1f5 !important;
-        }
-    </style>
-    """, unsafe_allow_html=True)
+    render_welcome_gateway()
 
-    col1, col_center, col3 = st.columns([1, 2, 1])
-    with col_center:
-        _l, logo_col, _r = st.columns([1, 1, 1])
-        with logo_col:
-            if os.path.exists("assets/velox.png"):
-                st.image("assets/velox.png", width=180)
-            else:
-                st.markdown("<h1 style='text-align:center;'>velox</h1>", unsafe_allow_html=True)
 
-        st.markdown("""
-        <p class="login-subtitle">
-            Accede a cursos, plantillas y herramientas profesionales<br>
-            con un único pago de acceso
-        </p>
-        <div class="price-badge">Tarifa única · S/ 9.90</div>
-        """, unsafe_allow_html=True)
+# ==================== CHATBOT ASISTENTE IA (flotante) ====================
+CHATBOT_MENUS_PERMITIDOS = frozenset({"🏠 Inicio", "📁 Mis Documentos"})
 
-        tab_login, tab_culqi, tab_yape = st.tabs([
-            "🔐 Ya tengo cuenta",
-            "💳 Pago con tarjeta (Culqi)",
-            "📲 Yape / Plim",
-        ])
+MOCK_CATALOGO_CHATBOT = [
+    {"nombre": "Plantilla_Calculo_CTS_Mype.xlsx", "carpeta": "Contabilidad", "acceso": True},
+    {"nombre": "Dashboard_Finanzas_Master.pbix", "carpeta": "Power BI", "acceso": False},
+    {"nombre": "Matriz_Costos_Importacion.xlsx", "carpeta": "Comercio Exterior", "acceso": True},
+    {"nombre": "Guia_Control_Inventarios.xlsx", "carpeta": "Logístico", "acceso": True},
+    {"nombre": "Formatos_Analisis_Procesos.xlsx", "carpeta": "Excel", "acceso": False},
+]
 
-        with tab_login:
-            with st.form("login_form"):
-                email = st.text_input("Correo electrónico", placeholder="nombre@correo.com")
-                password = st.text_input("Contraseña", type="password")
-                if st.form_submit_button("Iniciar Sesión", use_container_width=True):
-                    valido, rol, nombre, secciones, error_msg = auth_manager.verificar_usuario(email, password)
-                    if valido:
-                        st.session_state['autenticado'] = True
-                        st.session_state['usuario'] = email.strip().lower()
-                        st.session_state['rol'] = rol
-                        st.session_state['nombre'] = nombre
-                        st.session_state['secciones'] = secciones
-                        st.session_state['login_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        st.session_state['menu_principal'] = "🏠 Inicio"
-                        st.rerun()
-                    else:
-                        st.error(f"❌ {error_msg or 'Credenciales incorrectas'}")
+CHATBOT_SYSTEM_PROMPT = """
+Eres el Asistente Inteligente veloX. Ante consultas sobre documentos del catálogo debes aplicar SIEMPRE estas reglas:
 
-        with tab_culqi:
-            st.markdown('<p class="payment-card-title">Registro + pago automático con Culqi</p>', unsafe_allow_html=True)
-            st.caption("Al confirmar el pago tu cuenta se activa de inmediato.")
-            public_key = payment_manager.obtener_public_key_culqi()
-            components.html(payment_manager.html_culqi_checkout(public_key), height=130, scrolling=True)
+1. UBICACIÓN: Indica de forma explícita en qué carpeta/categoría se encuentra el archivo recomendado
+   (ejemplo: "Este archivo se encuentra en la sección de Contabilidad").
 
-            with st.form("form_culqi"):
-                nombre = st.text_input("Nombre completo", key="culqi_nombre")
-                email = st.text_input("Correo electrónico certificado", placeholder="nombre@correo.com", key="culqi_email")
-                password = st.text_input("Contraseña", type="password", key="culqi_pass")
-                confirmar = st.text_input("Confirmar contraseña", type="password", key="culqi_pass2")
-                token_culqi = st.text_input(
-                    "Token Culqi (se genera al pagar con el botón de arriba)",
-                    placeholder="tok_test_...",
-                    help="Copia el token que aparece tras completar el pago con tarjeta.",
+2. CON ACCESO (acceso=True): Explica brevemente la utilidad del archivo y ofrece un enlace o botón simulado de descarga.
+
+3. SIN ACCESO (acceso=False): Está PROHIBIDO ofrecer descargas o alternativas. Responde únicamente con:
+   "Acceso Bloqueado. Este documento se encuentra en una sección que no tienes disponible en tu plan actual."
+
+Catálogo disponible:
+{catalogo}
+""".strip()
+
+CHATBOT_DOC_KEYWORDS = {
+    "Plantilla_Calculo_CTS_Mype.xlsx": ("cts", "mype", "calculo", "plantilla cts", "liquidacion"),
+    "Dashboard_Finanzas_Master.pbix": ("dashboard", "finanzas", "power bi", "pbix", "master"),
+    "Matriz_Costos_Importacion.xlsx": ("matriz", "importacion", "costos", "comercio exterior", "aduana"),
+    "Guia_Control_Inventarios.xlsx": ("inventario", "inventarios", "logistico", "logístico", "control stock"),
+    "Formatos_Analisis_Procesos.xlsx": ("formatos", "analisis", "análisis", "procesos", "excel"),
+}
+
+CHATBOT_MSG_BLOQUEADO = (
+    "Acceso Bloqueado. Este documento se encuentra en una sección que no tienes disponible en tu plan actual."
+)
+
+
+def _chatbot_visible_en_modulo_actual() -> bool:
+    menu = st.session_state.get("menu_principal", "🏠 Inicio")
+    return menu in CHATBOT_MENUS_PERMITIDOS
+
+
+CHATBOT_MAX_MENSAJES = 12
+
+
+def _build_chatbot_panel_css() -> str:
+    """CSS del pop-up: un solo st.container(key=velox_chat_panel) anclado al viewport."""
+    return """
+<style>
+    /* Anclar solo el panel (evita que :has() fije contenedores ancestros) */
+    .stApp div[data-testid="stElementContainer"]:has(> div.st-key-velox_chat_panel),
+    .stApp div[data-testid="stElementContainer"]:has(> [data-testid="stVerticalBlock"].st-key-velox_chat_panel) {
+        height: 0 !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        border: none !important;
+        background: transparent !important;
+    }
+
+    .stApp .st-key-velox_chat_panel {
+        position: fixed !important;
+        bottom: 100px !important;
+        right: 25px !important;
+        left: auto !important;
+        z-index: 999990 !important;
+        width: 380px !important;
+        max-width: 380px !important;
+        background: #ffffff !important;
+        border-radius: 16px !important;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15) !important;
+        border: 1px solid #e8ecf1 !important;
+        padding: 12px 14px 10px !important;
+        box-sizing: border-box !important;
+        gap: 8px !important;
+    }
+
+    .stApp .st-key-velox_chat_panel [data-testid="stHorizontalBlock"] {
+        align-items: center !important;
+        gap: 6px !important;
+        margin: 0 !important;
+    }
+
+    .stApp .st-key-velox_chat_panel p {
+        font-size: 18px !important;
+        font-weight: bold !important;
+        color: #31333F !important;
+        margin: 0 !important;
+        padding-top: 2px !important;
+    }
+
+    .stApp .st-key-velox_chat_panel
+    [data-testid="stHorizontalBlock"]:first-of-type
+    div[data-testid="column"]:last-child div.stButton > button {
+        background-color: #f0f2f6 !important;
+        color: #31333f !important;
+        border-radius: 50% !important;
+        width: 30px !important;
+        min-width: 30px !important;
+        height: 30px !important;
+        min-height: 30px !important;
+        padding: 0 !important;
+        border: none !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        float: right !important;
+        box-shadow: none !important;
+        font-size: 0.85rem !important;
+        font-weight: 700 !important;
+    }
+
+    .stApp .st-key-velox_chat_panel
+    [data-testid="stHorizontalBlock"]:first-of-type
+    div[data-testid="column"]:last-child div.stButton > button:hover {
+        background-color: #ff4b4b !important;
+        color: #ffffff !important;
+    }
+
+    .stApp .st-key-velox_chat_historial {
+        border: none !important;
+        background: transparent !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .stApp .st-key-velox_chat_historial [data-testid="stMarkdown"] {
+        padding: 0 !important;
+    }
+
+    .stApp .st-key-velox_chat_inputs div[data-testid="stTextInput"] label {
+        display: none !important;
+    }
+
+    .stApp .st-key-velox_chat_inputs div[data-testid="stTextInput"] input {
+        background-color: #ffffff !important;
+        color: #31333f !important;
+        border: 1px solid #e0e0e0 !important;
+        border-radius: 8px !important;
+        font-size: 0.86rem !important;
+        height: 42px !important;
+    }
+
+    .stApp .st-key-velox_chat_inputs div.stButton > button {
+        width: 100% !important;
+        height: 42px !important;
+        min-height: 42px !important;
+        background-color: #f0f2f6 !important;
+        border: 1px solid #e0e0e0 !important;
+        color: #31333f !important;
+        border-radius: 8px !important;
+        box-shadow: none !important;
+    }
+
+    .stApp .st-key-velox_chat_inputs div.stButton > button:hover {
+        background-color: #4F75A8 !important;
+        color: #ffffff !important;
+        border-color: #4F75A8 !important;
+    }
+
+    /* Ocultar FAB mientras el chat está abierto */
+    .stApp:has(.st-key-velox_chat_panel)
+    div[data-testid="stElementContainer"]:has(.velox-chat-fab-marker)
+    + div[data-testid="stElementContainer"] {
+        display: none !important;
+    }
+
+    .velox-chat-msg {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+
+    .velox-chat-msg--user { justify-content: flex-end; }
+
+    .velox-chat-msg-avatar {
+        width: 26px;
+        height: 26px;
+        object-fit: contain;
+        border-radius: 6px;
+        flex-shrink: 0;
+    }
+
+    .velox-chat-msg-avatar--fallback {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #1A2332;
+        color: #fff;
+        font-size: 0.75rem;
+    }
+
+    .velox-chat-msg-bubble {
+        max-width: 82%;
+        padding: 8px 11px;
+        border-radius: 12px;
+        font-size: 0.86rem;
+        line-height: 1.45;
+        color: #1A2332;
+    }
+
+    .velox-chat-msg--assistant .velox-chat-msg-bubble {
+        background: #f1f5f9;
+        border: 1px solid #e2e8f0;
+    }
+
+    .velox-chat-msg--user .velox-chat-msg-bubble {
+        background: #4F75A8;
+        color: #ffffff;
+    }
+</style>
+"""
+
+
+def _init_chatbot_state():
+    if "chat_abierto" not in st.session_state:
+        st.session_state.chat_abierto = False
+    if "chat_historial" not in st.session_state:
+        st.session_state.chat_historial = [
+            {
+                "role": "assistant",
+                "content": (
+                    "¡Hola! Soy tu **Asistente veloX**. Puedo orientarte sobre documentos en "
+                    "**Contabilidad**, **Power BI**, **Comercio Exterior**, **Logístico** y **Excel**. "
+                    "¿Qué plantilla o reporte necesitas?"
+                ),
+            }
+        ]
+
+
+def _es_mensaje_bienvenida_chat(mensaje: dict) -> bool:
+    return mensaje.get("role") == "assistant" and "Asistente veloX" in mensaje.get("content", "")
+
+
+def _podar_chat_historial():
+    """Ventana rotativa: conserva el saludo inicial y como máximo 12 mensajes en total."""
+    historial = st.session_state.chat_historial
+    if len(historial) <= CHATBOT_MAX_MENSAJES:
+        return
+    if historial and _es_mensaje_bienvenida_chat(historial[0]):
+        cola = historial[1:][-(CHATBOT_MAX_MENSAJES - 1):]
+        st.session_state.chat_historial = [historial[0]] + cola
+    else:
+        st.session_state.chat_historial = historial[-CHATBOT_MAX_MENSAJES:]
+
+
+def _agregar_mensaje_chat(role: str, content: str):
+    st.session_state.chat_historial.append({"role": role, "content": content})
+    _podar_chat_historial()
+
+
+def _obtener_catalogo_chatbot_documentos():
+    return st.session_state.get("velox_catalogo_documentos") or MOCK_CATALOGO_CHATBOT
+
+
+def _build_chatbot_system_prompt() -> str:
+    catalogo = _obtener_catalogo_chatbot_documentos()
+    lineas = [
+        f"- {d['nombre']} → {d['carpeta']} (acceso={'Sí' if d['acceso'] else 'No'})"
+        for d in catalogo
+    ]
+    return CHATBOT_SYSTEM_PROMPT.format(catalogo="\n".join(lineas))
+
+
+def _buscar_documentos_chatbot(consulta: str) -> list:
+    texto = (consulta or "").strip().lower()
+    if not texto:
+        return []
+
+    catalogo = _obtener_catalogo_chatbot_documentos()
+    resultados = []
+    for doc in catalogo:
+        nombre_norm = doc["nombre"].lower().replace("_", " ")
+        carpeta_norm = doc["carpeta"].lower()
+        desc_norm = doc.get("descripcion", "").lower()
+        sub_norm = doc.get("subcategoria", "").lower()
+        keywords = CHATBOT_DOC_KEYWORDS.get(doc["nombre"], ())
+
+        coincide = (
+            doc["nombre"].lower() in texto
+            or nombre_norm in texto
+            or carpeta_norm in texto
+            or sub_norm in texto
+            or desc_norm in texto
+            or any(kw in texto for kw in keywords)
+            or any(token in nombre_norm or token in desc_norm for token in texto.split() if len(token) > 2)
+        )
+        if coincide:
+            resultados.append(doc)
+    return resultados
+
+
+def _describir_utilidad_documento(doc: dict) -> str:
+    if doc.get("descripcion"):
+        return doc["descripcion"][:300]
+    utilidades = {
+        "Plantilla_Calculo_CTS_Mype.xlsx": (
+            "Calcula y estandariza la liquidación de CTS para MYPE con fórmulas listas para auditoría."
+        ),
+        "Dashboard_Finanzas_Master.pbix": (
+            "Consolida indicadores financieros clave en tableros ejecutivos de Power BI."
+        ),
+        "Matriz_Costos_Importacion.xlsx": (
+            "Desglosa costos de importación (FOB, fletes, aranceles) para cotizaciones precisas."
+        ),
+        "Guia_Control_Inventarios.xlsx": (
+            "Controla entradas, salidas y stock mínimo con formatos listos para operaciones logísticas."
+        ),
+        "Formatos_Analisis_Procesos.xlsx": (
+            "Plantillas Excel para mapear, medir y optimizar procesos administrativos."
+        ),
+    }
+    return utilidades.get(doc["nombre"], "Recurso profesional de apoyo para tu operación diaria.")
+
+
+def _generar_respuesta_chatbot(consulta: str) -> str:
+    _ = _build_chatbot_system_prompt()
+    coincidencias = _buscar_documentos_chatbot(consulta)
+
+    if coincidencias:
+        bloques = []
+        for doc in coincidencias:
+            ubicacion = (
+                f"📂 **Ubicación:** Este archivo se encuentra en la sección de **{doc['carpeta']}**.\n\n"
+                f"**{doc['nombre']}**"
+            )
+            if doc["acceso"]:
+                bloques.append(
+                    f"{ubicacion}\n\n"
+                    f"{_describir_utilidad_documento(doc)}\n\n"
+                    f"⬇️ **[Descargar {doc['nombre']} (simulado)](#velox-descarga-{doc['nombre']})**"
                 )
-                if st.form_submit_button("Confirmar registro y activar acceso", type="primary", use_container_width=True):
-                    with st.spinner("Procesando pago con Culqi..."):
-                        exito, msg = payment_manager.procesar_registro_culqi(
-                            email, nombre, password, confirmar, token_culqi
-                        )
-                    if exito:
-                        st.success(f"✅ {msg}")
-                        st.info("Ve a la pestaña «Ya tengo cuenta» para iniciar sesión.")
-                    else:
-                        st.error(f"❌ {msg}")
+            else:
+                bloques.append(f"{ubicacion}\n\n{CHATBOT_MSG_BLOQUEADO}")
+        return "\n\n---\n\n".join(bloques)
 
-        with tab_yape:
-            render_tab_yape_plim()
+    categorias = ", ".join(sorted({d["carpeta"] for d in _obtener_catalogo_chatbot_documentos()}))
+    return (
+        f"Puedo ayudarte a ubicar recursos en: **{categorias}**. "
+        "Menciona el nombre del archivo o la categoría (por ejemplo: «plantilla CTS», "
+        "«dashboard Power BI» o «control de inventarios»)."
+    )
+
+
+def _chat_content_to_html(text: str) -> str:
+    escaped = html_module.escape(text or "")
+    escaped = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
+    return escaped.replace("\n", "<br>")
+
+
+def _render_chat_historial_html(historial: list, logo_src: str) -> str:
+    bloques = []
+    for mensaje in historial:
+        role = mensaje.get("role", "assistant")
+        contenido = _chat_content_to_html(mensaje.get("content", ""))
+        if role == "assistant":
+            avatar = (
+                f'<img src="{logo_src}" alt="veloX" class="velox-chat-msg-avatar">'
+                if logo_src
+                else '<span class="velox-chat-msg-avatar velox-chat-msg-avatar--fallback">⚡</span>'
+            )
+            bloques.append(
+                f'<div class="velox-chat-msg velox-chat-msg--assistant">'
+                f'{avatar}<div class="velox-chat-msg-bubble">{contenido}</div></div>'
+            )
+        else:
+            bloques.append(
+                f'<div class="velox-chat-msg velox-chat-msg--user">'
+                f'<div class="velox-chat-msg-bubble">{contenido}</div></div>'
+            )
+    return "".join(bloques)
+
+
+def _inject_chatbot_floating_css(logo_data_uri: str = ""):
+    logo_bg = (
+        f"url('{logo_data_uri}') center/76% no-repeat, #1A2332"
+        if logo_data_uri
+        else "#1A2332"
+    )
+    fab_css = f"""
+        <style>
+            @keyframes veloxChatFloat {{
+                0%, 100% {{ transform: translateY(0); }}
+                50% {{ transform: translateY(-5px); }}
+            }}
+            @keyframes veloxChatPulse {{
+                0%, 100% {{ box-shadow: 0 6px 18px rgba(26, 35, 50, 0.35); }}
+                50% {{ box-shadow: 0 10px 26px rgba(79, 117, 168, 0.55); }}
+            }}
+
+            div[data-testid="stElementContainer"]:has(.velox-chat-fab-marker),
+            div[data-testid="stElementContainer"]:has(.velox-chat-fab-marker) + div[data-testid="stElementContainer"] {{
+                height: 0 !important;
+                min-height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: visible !important;
+                border: none !important;
+                background: transparent !important;
+            }}
+
+            div[data-testid="stElementContainer"]:has(.velox-chat-fab-marker) + div[data-testid="stElementContainer"] {{
+                position: fixed !important;
+                bottom: 20px !important;
+                right: 20px !important;
+                left: auto !important;
+                z-index: 100002 !important;
+                width: auto !important;
+                height: auto !important;
+            }}
+
+            div[data-testid="stElementContainer"]:has(.velox-chat-fab-marker) + div[data-testid="stElementContainer"] button {{
+                width: 64px !important;
+                min-width: 64px !important;
+                height: 64px !important;
+                min-height: 64px !important;
+                border-radius: 50% !important;
+                padding: 0 !important;
+                font-size: 0 !important;
+                color: transparent !important;
+                border: 2px solid rgba(255, 255, 255, 0.9) !important;
+                background: {logo_bg} !important;
+                animation: veloxChatFloat 2.4s ease-in-out infinite, veloxChatPulse 2.4s ease-in-out infinite !important;
+                cursor: pointer !important;
+                box-shadow: 0 8px 22px rgba(26, 35, 50, 0.28) !important;
+            }}
+        </style>
+    """
+    st.markdown(fab_css, unsafe_allow_html=True)
+
+
+def _render_chatbot_panel_abierto(logo_src: str):
+    """Pop-up flotante: widgets nativos dentro de st.container(key=velox_chat_panel)."""
+    # Control de limpieza diferida para evitar el StreamlitAPIException
+    if st.session_state.get("limpiar_input_chat", False):
+        st.session_state.chat_input_fijo = ""
+        st.session_state["limpiar_input_chat"] = False
+
+    historial_html = _render_chat_historial_html(st.session_state.chat_historial[-12:], logo_src)
+
+    st.markdown(_build_chatbot_panel_css(), unsafe_allow_html=True)
+
+    with st.container(key="velox_chat_panel", height=560, width=380):
+        col_tit, col_btn = st.columns([4, 1])
+        with col_tit:
+            st.markdown(
+                '<p style="font-size: 18px; font-weight: bold; color: #31333F; margin: 0; padding-top: 2px;">'
+                "🤖 Asistente veloX</p>",
+                unsafe_allow_html=True,
+            )
+        with col_btn:
+            if st.button("X", key="cerrar_chat_definitivo_fijo", help="Cerrar conversación"):
+                st.session_state.chat_abierto = False
+                st.rerun()
+
+        with st.container(key="velox_chat_historial", height=410):
+            st.markdown(historial_html, unsafe_allow_html=True)
+
+        with st.container(key="velox_chat_inputs"):
+            col_in, col_send = st.columns([4, 1])
+            with col_in:
+                st.text_input(
+                    "Escribe tu consulta aquí...",
+                    key="chat_input_fijo",
+                    label_visibility="collapsed",
+                    placeholder="Escribe tu consulta aquí...",
+                )
+            with col_send:
+                if st.button("➤", key="btn_enviar_chat_fijo", use_container_width=True):
+                    texto = (st.session_state.get("chat_input_fijo") or "").strip()
+                    if texto:
+                        _agregar_mensaje_chat("user", texto)
+                        respuesta = _generar_respuesta_chatbot(texto)
+                        _agregar_mensaje_chat("assistant", respuesta)
+                        st.session_state["limpiar_input_chat"] = True
+                        st.rerun()
+
+
+def render_chatbot_asistente():
+    """Chat flotante con IA simulada — solo en Inicio y Mis Documentos."""
+    if not _chatbot_visible_en_modulo_actual():
+        return
+
+    _init_chatbot_state()
+    logo_src = _velox_logo_data_uri(VELOX_LOGO_SINFONDO_PATH) or ""
+    chat_abierto = bool(st.session_state.chat_abierto)
+    _inject_chatbot_floating_css(logo_src)
+
+    st.markdown('<span class="velox-chat-fab-marker" aria-hidden="true"></span>', unsafe_allow_html=True)
+    if st.button(" ", key="velox_chat_fab_btn", help="Asistente Inteligente veloX"):
+        st.session_state.chat_abierto = not st.session_state.chat_abierto
+        st.rerun()
+
+    if chat_abierto:
+        _render_chatbot_panel_abierto(logo_src)
+
+
+def _etiqueta_rol_sidebar(rol: str) -> str:
+    etiquetas = {
+        "master": "👑 Master",
+        "administrador": "🛡️ Administrador",
+        "usuario": "👤 Miembro",
+    }
+    return etiquetas.get((rol or "usuario").lower(), "👤 Miembro")
+
+
+def _es_master() -> bool:
+    return AuthManager.es_rol_master(st.session_state.get("rol"))
+
+
+def _es_admin() -> bool:
+    return AuthManager.es_rol_administrador(st.session_state.get("rol"))
+
+
+def _es_staff() -> bool:
+    return AuthManager.es_staff(st.session_state.get("rol"))
+
+
+_PANORAMA_RECURSOS_EMAILS = frozenset(
+    {
+        AuthManager.MASTER_EMAIL.lower(),
+        "ggiraldoasesor@gmail.com",
+    }
+)
+
+
+def _puede_ver_panorama_recursos() -> bool:
+    """Dashboard «Tu panorama de recursos»: solo Master y Administrador."""
+    email = (st.session_state.get("usuario") or "").strip().lower()
+    rol = st.session_state.get("rol", "usuario")
+    if email in _PANORAMA_RECURSOS_EMAILS:
+        return True
+    return AuthManager.es_rol_master(rol) or AuthManager.es_rol_administrador(rol)
+
+
+def render_sidebar_brand():
+    """Logo veloX centrado en la parte superior del sidebar."""
+    logo_src = _velox_logo_data_uri()
+    st.markdown('<div class="sidebar-brand">', unsafe_allow_html=True)
+    if logo_src:
+        st.markdown(
+            f'<img src="{logo_src}" alt="veloX" class="sidebar-brand-logo" />',
+            unsafe_allow_html=True,
+        )
+    elif os.path.exists(VELOX_LOGO_PATH):
+        _col_esp, _col_logo, _col_esp2 = st.columns([1, 2, 1])
+        with _col_logo:
+            st.image(VELOX_LOGO_PATH, width=112)
+    else:
+        st.markdown('<div class="sidebar-brand-fallback">⚡ veloX</div>', unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def _puede_modulo(modulo: str) -> bool:
+    return auth_manager.puede_acceder_modulo(
+        modulo,
+        st.session_state.get("rol"),
+        st.session_state.get("modulos_permitidos"),
+    )
+
+
+def _secciones_efectivas() -> list:
+    rol = st.session_state.get("rol", "usuario")
+    if AuthManager.es_rol_master(rol):
+        return list(SECCIONES.keys())
+    if AuthManager.es_rol_administrador(rol):
+        secciones = st.session_state.get("secciones_staff") or []
+        return [s for s in secciones if s in SECCIONES]
+    return auth_manager.obtener_secciones_usuario(st.session_state["usuario"])
+
+
+def _puede_publicar_documentos() -> bool:
+    if _es_master():
+        return True
+    if _es_admin():
+        return bool(st.session_state.get("puede_publicar"))
+    return False
+
+
+def _contar_documentos_seccion(seccion_id: str) -> int:
+    try:
+        return len(storage_manager.obtener_publicaciones_por_seccion(seccion=seccion_id))
+    except Exception:
+        return 0
+
+
+def _texto_solicitud_whatsapp(seccion_nombre: str) -> str:
+    limpio = seccion_nombre or "veloX"
+    for prefijo in ("📊 ", "📈 ", "📉 ", "🌐 ", "🚚 ", "👥 ", "💰 "):
+        limpio = limpio.replace(prefijo, "")
+    return f"Hola Pier, deseo adquirir la siguiente sección de {limpio.strip()} en veloX."
+
+
+def _url_whatsapp_admin(seccion_nombre: str = "") -> str:
+    from urllib.parse import quote
+
+    try:
+        app_cfg = st.secrets.get("app", {})
+        url_directa = str(app_cfg.get("whatsapp_admin_url", "")).strip()
+        numero = str(app_cfg.get("whatsapp_admin", "")).strip()
+    except Exception:
+        url_directa = ""
+        numero = ""
+
+    mensaje = _texto_solicitud_whatsapp(seccion_nombre)
+
+    if url_directa:
+        if "wa.me/" in url_directa and "text=" not in url_directa:
+            separador = "&" if "?" in url_directa else "?"
+            return f"{url_directa}{separador}text={quote(mensaje)}"
+        return url_directa
+
+    if numero and numero.upper() != "TU_NUMERO":
+        numero_limpio = numero.replace("+", "").replace(" ", "").replace("-", "")
+        return f"https://wa.me/{numero_limpio}?text={quote(mensaje)}"
+
+    return WHATSAPP_ADMIN_LINK
+
+
+def _abrir_paywall_seccion(seccion_id: str):
+    st.session_state["seccion_paywall"] = seccion_id
+
+
+@st.dialog("🔒 Desbloquear sección")
+def _dialog_paywall_seccion():
+    seccion_id = st.session_state.get("seccion_paywall", "")
+    sec_info = SECCIONES.get(seccion_id, {})
+    nombre = sec_info.get("nombre", seccion_id)
+
+    st.markdown(
+        """
+        <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+                    border: 1px solid #bae6fd; border-left: 4px solid #0284c7;
+                    padding: 1.25rem 1.35rem; border-radius: 12px; margin-bottom: 1.25rem;
+                    color: #0f172a; line-height: 1.65; font-size: 0.95rem;">
+            👋 <b>¡Bienvenido a esta sección!</b> Para acceder a ella necesitas comunicarte
+            con el administrador al siguiente enlace vía WhatsApp.<br><br>
+            🔥 <b>¡Aprovecha esta oportunidad! ¡No la dejes pasar!</b><br>
+            Con gusto te atenderé 😀...
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.link_button(
+        "💬 Contactar al Administrador por WhatsApp",
+        _url_whatsapp_admin(nombre),
+        use_container_width=True,
+        type="primary",
+    )
+    st.caption(
+        f"Se abrirá tu chat con Pier Giraldo Asesor · "
+        f"[{WHATSAPP_ADMIN_LINK}]({WHATSAPP_ADMIN_LINK})"
+    )
+
+    if st.button("Cerrar", key="paywall_cerrar"):
+        st.session_state.pop("seccion_paywall", None)
+        st.rerun()
+
+
+VELOX_CATALOG_LAYOUT_CSS = """
+<style>
+    /* Encabezado listado (Master / Admin): título + descripción */
+    .velox-catalogo-header {
+        margin-top: 20px !important;
+        margin-bottom: 20px !important;
+    }
+    .velox-catalogo-header__titulo {
+        margin: 0 0 0.55rem 0 !important;
+        padding: 0 !important;
+        color: #1A2332 !important;
+        font-size: 1.25rem !important;
+        font-weight: 700 !important;
+        line-height: 1.3 !important;
+    }
+    .velox-catalogo-header__desc {
+        margin: 0 !important;
+        padding: 0 !important;
+        color: #475569 !important;
+        font-size: 0.9rem !important;
+        font-weight: 400 !important;
+        line-height: 1.5 !important;
+    }
+
+    /* Tarjetas del catálogo: separación lateral e inferior */
+    .velox-section-grid {
+        margin-bottom: 20px !important;
+        margin-left: 10px !important;
+        margin-right: 10px !important;
+    }
+    .velox-section-grid .velox-section-card {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        margin-bottom: 0.65rem !important;
+    }
+
+    /* Restaurar gap entre columnas del grid del catálogo */
+    [data-testid="stMain"] [data-testid="stHorizontalBlock"]:has(.velox-section-grid) {
+        gap: 1rem !important;
+        align-items: stretch !important;
+    }
+    [data-testid="stMain"] [data-testid="stHorizontalBlock"]:has(.velox-section-grid) > div[data-testid="column"],
+    [data-testid="stMain"] [data-testid="stHorizontalBlock"]:has(.velox-section-grid) > div[data-testid="stColumn"] {
+        padding-left: 0.25rem !important;
+        padding-right: 0.25rem !important;
+    }
+    [data-testid="stMain"] [data-testid="element-container"]:has(.velox-catalogo-header),
+    [data-testid="stMain"] [data-testid="element-container"]:has(.velox-section-grid) {
+        margin-bottom: 0.5rem !important;
+    }
+
+    /* Tarjetas oscuras activas: texto blanco puro y legible */
+    .velox-section-card--active,
+    .velox-section-card--active .velox-section-card__title,
+    .velox-section-card--active .velox-section-card__desc,
+    .velox-section-card--active .velox-section-card__meta,
+    [data-testid="stMain"] [data-testid="stMarkdownContainer"] .velox-section-card--active,
+    [data-testid="stMain"] [data-testid="stMarkdownContainer"] .velox-section-card--active div,
+    [data-testid="stMain"] [data-testid="stMarkdownContainer"] .velox-section-card--active span,
+    [data-testid="stMain"] [data-testid="stMarkdownContainer"] .velox-section-card--active p {
+        color: #FFFFFF !important;
+    }
+
+    /* ==========================================================================
+       REFINAMIENTO QUIRÚRGICO DE ESTILOS - PLATAFORMA VELOX
+       ========================================================================== */
+
+    /* 2. Botones secundarios en formularios (p. ej. Guardar cambios) */
+    [data-testid="stMain"] button[data-testid="baseButton-secondary"] span,
+    [data-testid="stMain"] button[data-testid="baseButton-secondary"] p,
+    [data-testid="stMain"] .stButton > button[data-testid="baseButton-secondary"] * {
+        color: #1E293B !important;
+        font-weight: 600 !important;
+        text-shadow: none !important;
+    }
+
+    /* 1. Catálogo: botones oscuros legibles (primary + secondary del grid) */
+    [data-testid="stMain"] [data-testid="stHorizontalBlock"]:has(.velox-section-grid) .stButton > button,
+    [data-testid="stMain"] [data-testid="stHorizontalBlock"]:has(.velox-section-grid) .stButton > button *,
+    [data-testid="stMain"] [data-testid="element-container"]:has(.velox-section-grid) ~ [data-testid="element-container"] .stButton > button,
+    [data-testid="stMain"] [data-testid="element-container"]:has(.velox-section-grid) ~ [data-testid="element-container"] .stButton > button * {
+        color: #FFFFFF !important;
+        font-weight: 700 !important;
+    }
+
+    /* Refuerzo: anula stMarkdownContainer p dentro de botones del catálogo */
+    [data-testid="stMain"] [data-testid="stHorizontalBlock"]:has(.velox-section-grid) button [data-testid="stMarkdownContainer"] p,
+    [data-testid="stMain"] [data-testid="stHorizontalBlock"]:has(.velox-section-grid) button [data-testid="stMarkdownContainer"] span,
+    [data-testid="stMain"] [data-testid="element-container"]:has(.velox-section-grid) ~ [data-testid="element-container"] button [data-testid="stMarkdownContainer"] p,
+    [data-testid="stMain"] [data-testid="element-container"]:has(.velox-section-grid) ~ [data-testid="element-container"] button [data-testid="stMarkdownContainer"] span {
+        color: #FFFFFF !important;
+        font-weight: 700 !important;
+    }
+
+    /* 3. Pestañas st.tabs (Gestión de Usuarios y similares) */
+    [data-testid="stMain"] [data-testid="stTabBar"] button,
+    [data-testid="stMain"] [data-testid="stTabBar"] button p,
+    [data-testid="stMain"] [data-testid="stTabBar"] button span,
+    [data-testid="stMain"] [data-testid="stTabBar"] p,
+    [data-testid="stMain"] [data-testid="stTabs"] button,
+    [data-testid="stMain"] [data-testid="stTabs"] button p,
+    [data-testid="stMain"] [data-testid="stTabs"] button span,
+    [data-testid="stMain"] [data-baseweb="tab-list"] button,
+    [data-testid="stMain"] [data-baseweb="tab-list"] button span {
+        color: #334155 !important;
+        font-weight: 600 !important;
+        text-shadow: none !important;
+    }
+
+    /* 4. Enlaces informativos de login y markdown */
+    .stApp [data-testid="stMarkdownContainer"] a,
+    .stApp [data-testid="stMarkdownContainer"] p a,
+    .stApp a[href*="olvidaste"] span {
+        color: #0284C7 !important;
+        text-decoration: underline !important;
+    }
+    .stApp:has(.velox-id-bar) .st-key-btn_olvido_password .stButton > button,
+    .stApp:has(.velox-id-bar) .st-key-btn_olvido_password .stButton > button * {
+        color: #C41E3A !important;
+        font-weight: 500 !important;
+        text-shadow: none !important;
+    }
+</style>
+"""
+
+
+def inject_catalog_layout_css():
+    st.markdown(VELOX_CATALOG_LAYOUT_CSS, unsafe_allow_html=True)
+
+
+def _titulo_catalogo_a_texto(titulo: str) -> str:
+    return re.sub(r"^#+\s*", "", titulo or "").strip()
+
+
+def render_catalogo_secciones_freemium(
+    secciones_autorizadas: list,
+    titulo: str = "### 📂 Catálogo de secciones",
+    key_prefix: str = "sec_cat",
+    catalogo_centrado: bool = False,
+):
+    """Muestra todo el catálogo: activo (navy) o bloqueado (marca de agua)."""
+    inject_section_catalog_css()
+    inject_catalog_layout_css()
+    autorizadas = set(secciones_autorizadas or [])
+    if catalogo_centrado:
+        st.markdown(
+            """
+            <div class="velox-catalogo-hero">
+                <h1 class="velox-catalogo-hero__titulo">SECCIONES</h1>
+                <p class="velox-catalogo-hero__desc" style="margin: 0 auto 1.5rem auto !important;">
+                    Explora el catálogo completo veloX. Las secciones con candado requieren activación de acceso.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        titulo_texto = html_module.escape(_titulo_catalogo_a_texto(titulo))
+        st.markdown(
+            f"""
+            <div class="velox-catalogo-header">
+                <h3 class="velox-catalogo-header__titulo">{titulo_texto}</h3>
+                <p class="velox-catalogo-header__desc">
+                    Explora el catálogo completo veloX. Las secciones con candado requieren activación de acceso.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    cols = st.columns(3)
+    for i, (seccion_id, sec_info) in enumerate(SECCIONES.items()):
+        tiene_acceso = seccion_id in autorizadas
+        num_docs = _contar_documentos_seccion(seccion_id)
+        nombre_limpio = sec_info["nombre"]
+        if nombre_limpio.startswith(sec_info["icono"]):
+            nombre_limpio = nombre_limpio[len(sec_info["icono"]):].strip()
+
+        with cols[i % 3]:
+            st.markdown('<div class="velox-section-grid">', unsafe_allow_html=True)
+
+            if tiene_acceso:
+                st.markdown(
+                    f"""
+                    <div class="velox-section-card velox-section-card--active">
+                        <div class="velox-section-card__title">{sec_info['icono']} {nombre_limpio}</div>
+                        <div class="velox-section-card__desc">{sec_info['descripcion']}</div>
+                        <div class="velox-section-card__meta">✅ {num_docs} documentos disponibles</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                st.button(
+                    "Ingresar",
+                    key=f"{key_prefix}_go_{seccion_id}",
+                    use_container_width=True,
+                    type="primary",
+                    on_click=activar_seccion_inicio,
+                    kwargs={"seccion_id": seccion_id},
+                )
+            else:
+                st.markdown(
+                    f"""
+                    <div class="velox-section-card velox-section-card--locked">
+                        <div class="velox-section-card__watermark">PREVIEW</div>
+                        <div class="velox-section-card__title">🔒 {sec_info['icono']} {nombre_limpio}</div>
+                        <div class="velox-section-card__desc">{sec_info['descripcion']}</div>
+                        <div class="velox-section-card__meta">Previsualización · {num_docs} recursos en catálogo</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                st.button(
+                    "Desbloquear acceso",
+                    key=f"{key_prefix}_lock_{seccion_id}",
+                    use_container_width=True,
+                    type="secondary",
+                    on_click=_abrir_paywall_seccion,
+                    kwargs={"seccion_id": seccion_id},
+                )
+
+            st.markdown("</div>", unsafe_allow_html=True)
+
+    if st.session_state.get("seccion_paywall"):
+        _dialog_paywall_seccion()
+
+
+def _menu_sidebar_items():
+    rol = st.session_state.get("rol", "usuario")
+    if _es_master():
+        return auth_manager.filtrar_menu_staff(
+            MENU_SIDEBAR_MASTER,
+            rol,
+            st.session_state.get("modulos_permitidos"),
+        )
+    if _es_admin():
+        items = auth_manager.filtrar_menu_staff(
+            MENU_SIDEBAR_MASTER,
+            rol,
+            st.session_state.get("modulos_permitidos"),
+        )
+        if not any(valor == "👤 Mi Perfil" for _, _, valor in items):
+            return list(items) + [MENU_SIDEBAR_PERFIL]
+        return items
+    return MENU_SIDEBAR_USER
+
+
+def render_lista_usuarios_solo_lectura():
+    """Vista de usuarios sin edición de roles (Administrador)."""
+    usuarios = auth_manager.listar_usuarios()
+    if not usuarios:
+        st.info("No hay usuarios registrados.")
+        return
+
+    data = []
+    for email, u in sorted(usuarios.items(), key=lambda item: (item[1].get("nombre") or item[0]).lower()):
+        secciones = auth_manager.obtener_secciones_usuario(email)
+        data.append(
+            {
+                "Email": email,
+                "Nombre": u.get("nombre", ""),
+                "Rol": AuthManager.etiqueta_rol(u.get("rol")),
+                "Pago": "✅" if u.get("pago_confirmado") else "⏳",
+                "Activo": "✅" if u.get("activo") else "❌",
+                "Acceso": f"{len(secciones)}/{len(SECCIONES)}",
+            }
+        )
+    st.dataframe(pd.DataFrame(data), hide_index=True, use_container_width=True)
+
+
+def render_permisos_administrador_tab():
+    """Master: define módulos y secciones permitidos para cada Administrador."""
+    if not _es_master():
+        st.error("Solo el Master puede configurar permisos de administradores.")
+        return
+
+    usuarios = auth_manager.listar_usuarios()
+    admins = [
+        email for email, u in usuarios.items() if AuthManager.es_rol_administrador(u.get("rol"))
+    ]
+    if not admins:
+        st.info("No hay usuarios con rol Administrador. Asigna el rol en la pestaña **Lista de Usuarios**.")
+        return
+
+    st.markdown("Configura qué **módulos del menú** y **secciones de contenido** puede usar cada administrador.")
+    st.caption("Cobranzas y Configuración están reservados exclusivamente para el Master.")
+
+    admin_sel = st.selectbox("Administrador", admins, key="perm_admin_select")
+    permisos = AuthManager.permisos_admin_desde_usuario(usuarios[admin_sel])
+
+    st.markdown("#### Módulos permitidos")
+    modulos_sel = []
+    cols_mod = st.columns(2)
+    for idx, modulo in enumerate(AuthManager.MODULOS_CONFIGURABLES_ADMIN):
+        with cols_mod[idx % 2]:
+            if st.checkbox(
+                modulo.replace("🏠 ", "").replace("📁 ", "").replace("👥 ", "").replace("📬 ", ""),
+                value=modulo in permisos["modulos"],
+                key=f"perm_mod_{admin_sel}_{modulo}",
+            ):
+                modulos_sel.append(modulo)
+
+    st.markdown("#### Secciones de contenido permitidas")
+    secciones_sel = []
+    cols_sec = st.columns(3)
+    for idx, (sec_id, sec_info) in enumerate(SECCIONES.items()):
+        with cols_sec[idx % 3]:
+            if st.checkbox(
+                f"{sec_info['nombre']}",
+                value=sec_id in permisos["secciones"],
+                key=f"perm_sec_{admin_sel}_{sec_id}",
+            ):
+                secciones_sel.append(sec_id)
+
+    st.markdown("#### Permisos de publicación")
+    puede_publicar = st.checkbox(
+        "Puede publicar documentos en Mis Documentos",
+        value=permisos.get("puede_publicar", False),
+        help="Habilita la subida y publicación en las secciones autorizadas arriba.",
+        key=f"perm_pub_{admin_sel}",
+    )
+
+    if st.button("💾 Guardar permisos del administrador", type="primary", key="btn_guardar_perm_admin"):
+        ok, msg = auth_manager.guardar_permisos_administrador(
+            admin_sel,
+            modulos_sel,
+            secciones_sel,
+            st.session_state["usuario"],
+            puede_publicar=puede_publicar,
+        )
+        if ok:
+            st.success(msg)
+            st.rerun()
+        else:
+            st.error(msg)
+
+
+def render_lista_usuarios_master():
+    """Tabla interactiva de usuarios con cambio de rol en tiempo real (solo Master)."""
+    actor = st.session_state.get("usuario", "")
+    if not AuthManager.es_rol_master(st.session_state.get("rol")):
+        st.error("Solo usuarios con rol Master pueden gestionar roles.")
+        return
+
+    usuarios = auth_manager.listar_usuarios()
+    if not usuarios:
+        st.info("No hay usuarios registrados.")
+        return
+
+    st.caption(
+        "Edita la columna **Rol** para actualizar permisos. "
+        "Los cambios se guardan automáticamente en Supabase."
+    )
+
+    rows = []
+    for email, u in sorted(usuarios.items(), key=lambda item: (item[1].get("nombre") or item[0]).lower()):
+        secciones = auth_manager.obtener_secciones_usuario(email)
+        rows.append(
+            {
+                "Email": email,
+                "Nombre": u.get("nombre", ""),
+                "Rol": AuthManager.etiqueta_rol(u.get("rol")),
+                "Pago": "✅" if u.get("pago_confirmado") else "⏳",
+                "Activo": "✅" if u.get("activo") else "❌",
+                "Acceso": f"{len(secciones)}/{len(SECCIONES)}",
+            }
+        )
+
+    df = pd.DataFrame(rows)
+    edited = st.data_editor(
+        df,
+        column_config={
+            "Email": st.column_config.TextColumn("Email", disabled=True),
+            "Nombre": st.column_config.TextColumn("Nombre", disabled=True),
+            "Rol": st.column_config.SelectboxColumn(
+                "Rol",
+                options=AuthManager.ROLES_ETIQUETAS,
+                required=True,
+            ),
+            "Pago": st.column_config.TextColumn("Pago", disabled=True),
+            "Activo": st.column_config.TextColumn("Activo", disabled=True),
+            "Acceso": st.column_config.TextColumn("Acceso", disabled=True),
+        },
+        hide_index=True,
+        use_container_width=True,
+        key="master_users_role_editor",
+    )
+
+    for idx in edited.index:
+        email = edited.at[idx, "Email"]
+        rol_nuevo = edited.at[idx, "Rol"]
+        rol_actual = df.at[idx, "Rol"]
+        if rol_nuevo == rol_actual:
+            continue
+        ok, msg = auth_manager.actualizar_rol_usuario(email, rol_nuevo, actor)
+        if ok:
+            st.toast(msg, icon="✅")
+            st.rerun()
+        else:
+            st.error(msg)
+            break
+
+    st.markdown("---")
+    usuarios_eliminar = [e for e in usuarios if e != actor]
+    if usuarios_eliminar:
+        sel = st.selectbox("Usuario a eliminar", usuarios_eliminar)
+        if st.button("Eliminar", type="secondary"):
+            auth_manager.eliminar_usuario(sel, actor)
+            st.rerun()
+
+
+def render_dashboard_analytics_master(publicaciones, usuarios):
+    st.markdown("### 📊 Panel analítico ejecutivo")
+    c1, c2 = st.columns(2)
+    with c1:
+        st.plotly_chart(chart_documentos_por_seccion(publicaciones, SECCIONES), use_container_width=True)
+    with c2:
+        st.plotly_chart(chart_acceso_usuarios(usuarios), use_container_width=True)
+    pagos = payment_manager.listar_pagos_pendientes()
+    st.plotly_chart(chart_cobranzas_pendientes(pagos), use_container_width=True)
+
+
+def render_dashboard_analytics_user(secciones_usuario, publicaciones):
+    st.markdown("### 📊 Tu panorama de recursos")
+    st.plotly_chart(
+        chart_actividad_secciones_usuario(secciones_usuario, SECCIONES, publicaciones),
+        use_container_width=True,
+    )
+
 
 # ==================== NAVEGACIÓN INTERNA - INICIO ====================
 def activar_seccion_inicio(seccion_id):
@@ -427,8 +2759,8 @@ def render_gestion_cobranzas_master():
         {
             "Email": p.get("email"),
             "Nombre": p.get("nombre", "—"),
-            "Celular": p.get("celular"),
-            "Código": p.get("codigo_operacion"),
+            "Celular": p.get("celular") or "—",
+            "Captura": "✅" if p.get("comprobante_url") else "—",
             "Monto": f"S/ {float(p.get('monto', MONTO_SOLES)):.2f}",
             "Método": (p.get("metodo_pago") or "yape_plim").replace("_", " ").upper(),
             "Fecha": _formatear_fecha_notif(p.get("fecha")),
@@ -441,11 +2773,18 @@ def render_gestion_cobranzas_master():
     for pago in pagos:
         pago_id = pago["id"]
         with st.container(border=True):
+            ref = "Captura adjunta" if pago.get("comprobante_url") else "—"
             st.markdown(
                 f"**{pago.get('nombre', 'Sin nombre')}** · `{pago.get('email')}`  \n"
-                f"Celular: **{pago.get('celular')}** · Código: **`{pago.get('codigo_operacion')}`** · "
+                f"Celular: **{pago.get('celular') or '—'}** · Comprobante: **{ref}** · "
                 f"Método: **{(pago.get('metodo_pago') or 'yape_plim').replace('_', ' ').upper()}**"
             )
+            if pago.get("comprobante_url"):
+                st.image(
+                    pago["comprobante_url"],
+                    caption="Comprobante Yape / Plim — validación visual",
+                    width=360,
+                )
             col_ok, col_no = st.columns(2)
             with col_ok:
                 if st.button(
@@ -514,12 +2853,433 @@ def _mostrar_alerta_publicacion(exito, resultado):
         detalle = err or "Verifica usuarios activos con rol 'usuario' y la sección en users.secciones."
         st.warning(f"⚠️ Documento publicado, pero no se notificó a ningún alumno. {detalle}")
 
+
+DOCS_ITEMS_POR_PAGINA = 12
+
+MIS_DOCS_COMPACT_CSS = """
+<style>
+/* ==========================================================================
+   ESTILO PROFESIONAL BLANCO PARA FILAS DE DOCUMENTOS DISPONIBLES
+   ========================================================================== */
+.velox-docs-toolbar { margin-bottom: 0.35rem !important; }
+
+[data-testid="stMain"] [class*="st-key-velox_publicaciones_tabla_"],
+[data-testid="stMain"] [class*="st-key-velox_publicaciones_tabla_"] > div,
+[data-testid="stMain"] [class*="st-key-velox_publicaciones_tabla_"] [data-testid="stVerticalBlock"],
+[data-testid="stMain"] [class*="st-key-velox_publicaciones_tabla_"] [data-testid="stVerticalBlockBorderWrapper"] {
+    background-color: #FFFFFF !important;
+    background: #FFFFFF !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+[data-testid="stMain"] [class*="st-key-velox_doc_row_"] [data-testid="stVerticalBlockBorderWrapper"] {
+    background-color: #FFFFFF !important;
+    background: #FFFFFF !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+}
+
+.velox-doc-table-head,
+.document-row-container .velox-doc-table-head {
+    color: #64748B !important;
+    font-size: 0.72rem !important;
+    font-weight: 600 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid #cbd5e1;
+    padding-bottom: 0.35rem;
+    margin-bottom: 0.25rem;
+    background-color: #FFFFFF !important;
+}
+
+/* 1. Fila individual de cada documento */
+.document-row-container,
+[data-testid="stMain"] [class*="st-key-velox_doc_row_"],
+[data-testid="stMain"] [data-testid="element-container"][class*="st-key-velox_doc_row_"] {
+    background-color: #FFFFFF !important;
+    border-bottom: 1px solid #E2E8F0 !important;
+    padding: 12px 16px !important;
+    margin-bottom: 0 !important;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+[data-testid="stMain"] [class*="st-key-velox_doc_row_"] [data-testid="stHorizontalBlock"],
+[data-testid="stMain"] [class*="st-key-velox_doc_row_"] [data-testid="column"],
+[data-testid="stMain"] [class*="st-key-velox_doc_row_"] [data-testid="stColumn"] {
+    background-color: transparent !important;
+    background: transparent !important;
+}
+
+[data-testid="stMain"] [class*="st-key-velox_doc_row_"] [data-testid="column"],
+[data-testid="stMain"] [class*="st-key-velox_doc_row_"] [data-testid="stColumn"] {
+    display: flex !important;
+    align-items: center !important;
+    min-height: 36px !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+/* 2. Hover por fila */
+.document-row-container:hover,
+[data-testid="stMain"] [class*="st-key-velox_doc_row_"]:hover {
+    background-color: #F8FAFC !important;
+    box-shadow: inset 3px 0 0 #0EA5E9 !important;
+    cursor: default;
+}
+
+.velox-doc-row__icon { font-size: 1.05rem; line-height: 1; flex-shrink: 0; }
+.velox-doc-row__info { min-width: 0; width: 100%; }
+
+/* 3. Contraste de textos */
+.velox-doc-row__name,
+.document-row-title {
+    color: #0F172A !important;
+    font-weight: 600 !important;
+    font-size: 0.86rem !important;
+    line-height: 1.15 !important;
+    margin: 0 !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.velox-doc-row__desc,
+.document-row-description {
+    color: #475569 !important;
+    font-size: 0.9rem !important;
+    line-height: 1.3 !important;
+    margin: 4px 0 0 0 !important;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-break: break-word;
+}
+
+.velox-doc-row__meta {
+    color: #64748B !important;
+    font-size: 0.78rem !important;
+}
+
+.velox-docs-pagination {
+    text-align: center;
+    color: #475569 !important;
+    font-size: 0.84rem !important;
+    margin: 0.65rem 0 0.25rem !important;
+    background-color: #FFFFFF !important;
+}
+</style>
+"""
+
+
+def _docs_pagina_session_key(seccion, subcategoria, prefijo="pub"):
+    return f"docs_pag_{prefijo}_{seccion}_{subcategoria}"
+
+
+def _docs_busqueda_session_key(seccion, subcategoria, prefijo="pub"):
+    return f"docs_busq_ctx_{prefijo}_{seccion}_{subcategoria}"
+
+
+def _sincronizar_pagina_documentos(seccion, subcategoria, busqueda, prefijo="pub"):
+    ctx_key = _docs_busqueda_session_key(seccion, subcategoria, prefijo)
+    pag_key = _docs_pagina_session_key(seccion, subcategoria, prefijo)
+    ctx = (busqueda or "").strip().lower()
+    if st.session_state.get(ctx_key) != ctx:
+        st.session_state[ctx_key] = ctx
+        st.session_state[pag_key] = 1
+    if pag_key not in st.session_state:
+        st.session_state[pag_key] = 1
+    return st.session_state[pag_key]
+
+
+def _filtrar_documentos_por_busqueda(documentos, busqueda):
+    termino = (busqueda or "").strip().lower()
+    if not termino:
+        return list(documentos)
+    tokens = [t for t in termino.split() if len(t) > 1]
+    filtrados = []
+    for doc in documentos:
+        nombre = (doc.get("nombre") or doc.get("nombre_original") or "").lower()
+        desc = (doc.get("descripcion") or doc.get("mensaje") or "").lower()
+        sub = (doc.get("subcategoria") or "").lower()
+        if (
+            termino in nombre
+            or termino in desc
+            or termino in sub
+            or all(t in nombre or t in desc for t in tokens)
+        ):
+            filtrados.append(doc)
+    return filtrados
+
+
+def _paginar_lista_documentos(documentos, pagina, por_pagina=DOCS_ITEMS_POR_PAGINA):
+    total = len(documentos)
+    if total == 0:
+        return [], 1, 1, 0
+    total_paginas = max(1, (total + por_pagina - 1) // por_pagina)
+    pagina = max(1, min(pagina, total_paginas))
+    inicio = (pagina - 1) * por_pagina
+    return documentos[inicio:inicio + por_pagina], pagina, total_paginas, total
+
+
+def _render_paginacion_documentos(seccion, subcategoria, pagina, total_paginas, total_items, prefijo="pub"):
+    pag_key = _docs_pagina_session_key(seccion, subcategoria, prefijo)
+    col_prev, col_mid, col_next = st.columns([1, 2, 1])
+    with col_prev:
+        if st.button(
+            "◀ Anterior",
+            key=f"docs_prev_{prefijo}_{seccion}_{subcategoria}",
+            disabled=pagina <= 1,
+            use_container_width=True,
+        ):
+            st.session_state[pag_key] = max(1, pagina - 1)
+            st.rerun()
+    with col_mid:
+        st.markdown(
+            f'<div class="velox-docs-pagination">Página <strong>{pagina}</strong> de '
+            f'<strong>{total_paginas}</strong> · {total_items} documento(s)</div>',
+            unsafe_allow_html=True,
+        )
+    with col_next:
+        if st.button(
+            "Siguiente ▶",
+            key=f"docs_next_{prefijo}_{seccion}_{subcategoria}",
+            disabled=pagina >= total_paginas,
+            use_container_width=True,
+        ):
+            st.session_state[pag_key] = min(total_paginas, pagina + 1)
+            st.rerun()
+
+
+def _render_encabezado_tabla_documentos(es_master=False, incluir_publicar=False):
+    if incluir_publicar:
+        cols = st.columns([0.35, 4.4, 1.2, 0.75, 0.65, 0.65])
+        labels = ["", "Documento", "Fecha", "Descargar", "Publicar", "Eliminar"]
+    elif es_master:
+        cols = st.columns([0.35, 4.5, 1.2, 0.75, 0.65, 0.65])
+        labels = ["", "Documento", "Fecha", "Descargar", "Editar", "Eliminar"]
+    else:
+        cols = st.columns([0.35, 5.2, 1.2, 0.85])
+        labels = ["", "Documento", "Fecha", "Descargar"]
+    for col, label in zip(cols, labels):
+        with col:
+            if label:
+                st.markdown(f'<div class="velox-doc-table-head">{label}</div>', unsafe_allow_html=True)
+
+
+def _html_celda_documento_compacto(meta):
+    """Nombre + descripción secundaria para la columna Documento de la tabla compacta."""
+    nombre = html_module.escape(meta["nombre"])
+    descripcion = (meta.get("descripcion") or "").strip()
+    if descripcion:
+        desc_html = html_module.escape(descripcion)
+        return (
+            f'<div class="velox-doc-row__info">'
+            f'<p class="velox-doc-row__name document-row-title">{nombre}</p>'
+            f'<p class="velox-doc-row__desc document-row-description">{desc_html}</p>'
+            f"</div>"
+        )
+    return f'<p class="velox-doc-row__name document-row-title">{nombre}</p>'
+
+
+def _render_fila_documento_publicacion(pub, meta, seccion_seleccionada, secciones_usuario, indice, es_master):
+    if es_master:
+        cols = st.columns([0.35, 4.5, 1.2, 0.75, 0.65, 0.65])
+    else:
+        cols = st.columns([0.35, 5.2, 1.2, 0.85])
+
+    with cols[0]:
+        st.markdown(f'<span class="velox-doc-row__icon">{meta["icono"]}</span>', unsafe_allow_html=True)
+    with cols[1]:
+        st.markdown(_html_celda_documento_compacto(meta), unsafe_allow_html=True)
+    with cols[2]:
+        st.markdown(f'<span class="velox-doc-row__meta">{meta["fecha"]}</span>', unsafe_allow_html=True)
+    with cols[3]:
+        if st.button("📥", key=f"down_pub_{pub['id']}_{indice}", help="Descargar / Ver"):
+            if seccion_seleccionada in secciones_usuario:
+                exito, resultado = storage_manager.descargar_archivo(
+                    pub["id"], st.session_state["usuario"], secciones_usuario
+                )
+                if exito:
+                    st.markdown(
+                        f'<a href="{resultado["url"]}" download="{resultado["nombre"]}">Descargar</a>',
+                        unsafe_allow_html=True,
+                    )
+                    st.success("✅ Descarga disponible")
+                else:
+                    st.error(f"❌ {resultado}")
+            else:
+                st.error("No tienes permiso para descargar este documento")
+
+    if es_master:
+        with cols[4]:
+            if st.button("✏️", key=f"edit_{pub['id']}_{indice}", help="Editar descripción"):
+                st.session_state[f"editando_{pub['id']}"] = True
+        with cols[5]:
+            if st.button("🗑️", key=f"del_{pub['id']}_{indice}", help="Eliminar"):
+                storage_manager.eliminar_publicacion(pub["id"])
+                st.rerun()
+
+    if es_master and st.session_state.get(f"editando_{pub['id']}", False):
+        nueva_desc = st.text_area(
+            "Nueva descripción",
+            value=pub.get("descripcion") or pub.get("mensaje", ""),
+            key=f"newdesc_{pub['id']}_{indice}",
+        )
+        if st.button("Guardar cambios", key=f"save_desc_{pub['id']}_{indice}"):
+            exito, msg = storage_manager.editar_publicacion(pub["id"], nueva_desc)
+            if exito:
+                st.success(msg)
+                st.session_state.pop(f"editando_{pub['id']}", None)
+                st.rerun()
+            else:
+                st.error(msg)
+
+
+def _render_fila_documento_personal(archivo, meta, indice):
+    cols = st.columns([0.35, 4.4, 1.2, 0.75, 0.65, 0.65])
+    with cols[0]:
+        st.markdown(f'<span class="velox-doc-row__icon">{meta["icono"]}</span>', unsafe_allow_html=True)
+    with cols[1]:
+        st.markdown(_html_celda_documento_compacto(meta), unsafe_allow_html=True)
+    with cols[2]:
+        st.markdown(f'<span class="velox-doc-row__meta">{meta["fecha"]}</span>', unsafe_allow_html=True)
+    with cols[3]:
+        if st.button("📥", key=f"download_{archivo['id']}_{indice}", help="Descargar"):
+            exito, resultado = storage_manager.descargar_archivo_personal(
+                archivo["id"], st.session_state["usuario"]
+            )
+            if exito:
+                st.markdown(
+                    f'<a href="{resultado["url"]}" download="{resultado["nombre"]}" '
+                    f'style="background: #667eea; color: white; padding: 4px 12px; '
+                    f'border-radius: 6px; text-decoration: none;">📥 Descargar</a>',
+                    unsafe_allow_html=True,
+                )
+                st.success("✅ Descarga disponible")
+            else:
+                st.error(f"❌ {resultado}")
+    with cols[4]:
+        if st.button("🌍", key=f"publish_{archivo['id']}_{indice}", help="Publicar"):
+            st.session_state["archivo_a_publicar"] = archivo["id"]
+            st.session_state["show_publish_form"] = True
+    with cols[5]:
+        if st.button("🗑️", key=f"delete_{archivo['id']}_{indice}", help="Eliminar"):
+            storage_manager.eliminar_archivo(archivo["id"], st.session_state["usuario"])
+            st.rerun()
+
+
+def _render_lista_documentos_compacta(
+    documentos,
+    seccion,
+    subcategoria,
+    busqueda,
+    prefijo,
+    render_fila_fn,
+    mensaje_vacio,
+    es_master=False,
+    incluir_publicar=False,
+):
+    filtrados = _filtrar_documentos_por_busqueda(documentos, busqueda)
+    pagina = _sincronizar_pagina_documentos(seccion, subcategoria, busqueda, prefijo)
+    lote, pagina, total_paginas, total_items = _paginar_lista_documentos(filtrados, pagina)
+
+    if not filtrados:
+        st.info(mensaje_vacio)
+        return
+
+    with st.container(key=f"velox_publicaciones_tabla_{prefijo}"):
+        _render_encabezado_tabla_documentos(es_master=es_master, incluir_publicar=incluir_publicar)
+        for i, doc in enumerate(lote):
+            doc_id = doc.get("id") or f"{i}_{pagina}"
+            with st.container(key=f"velox_doc_row_{prefijo}_{doc_id}"):
+                render_fila_fn(doc, i + (pagina - 1) * DOCS_ITEMS_POR_PAGINA)
+
+        if total_paginas > 1 or total_items > DOCS_ITEMS_POR_PAGINA:
+            _render_paginacion_documentos(seccion, subcategoria, pagina, total_paginas, total_items, prefijo)
+
+
+def _render_bloque_publicaciones_compacto(
+    seccion_id,
+    categoria_actual,
+    busqueda,
+    secciones_usuario,
+    *,
+    prefijo="pub",
+    titulo="### 📢 Publicaciones disponibles",
+    mensaje_vacio="No hay documentos en esta categoría.",
+    seccion_info=None,
+    sincronizar_chatbot=False,
+):
+    """Lista compacta unificada de publicaciones (Inicio y Mis Documentos)."""
+    st.markdown(titulo)
+    publicaciones = storage_manager.obtener_publicaciones_por_seccion(
+        seccion=seccion_id,
+        subcategoria=categoria_actual,
+    )
+    if sincronizar_chatbot and seccion_info:
+        _actualizar_catalogo_chatbot_seccion(
+            seccion_info, seccion_id, categoria_actual, secciones_usuario
+        )
+
+    def _render_fila_publicacion(pub, indice):
+        meta = storage_manager.normalizar_metadatos_documento(pub, es_publicacion=True)
+        _render_fila_documento_publicacion(
+            pub,
+            meta,
+            seccion_id,
+            secciones_usuario,
+            indice,
+            _es_master(),
+        )
+
+    _render_lista_documentos_compacta(
+        publicaciones,
+        seccion_id,
+        categoria_actual,
+        busqueda,
+        prefijo=prefijo,
+        render_fila_fn=_render_fila_publicacion,
+        mensaje_vacio=mensaje_vacio,
+        es_master=_es_master(),
+    )
+
+
+def _actualizar_catalogo_chatbot_seccion(seccion_info, seccion_id, subcategoria, secciones_usuario):
+    catalogo = storage_manager.listar_catalogo_seccion(seccion_id, subcategoria)
+    st.session_state["velox_catalogo_documentos"] = [
+        {
+            "nombre": item["nombre"],
+            "carpeta": seccion_info["nombre"],
+            "subcategoria": item.get("subcategoria") or subcategoria,
+            "acceso": seccion_id in secciones_usuario,
+            "id": item.get("id"),
+            "descripcion": item.get("descripcion", ""),
+        }
+        for item in catalogo
+    ]
+    return catalogo
+
+
+def _seccion_desde_notificacion(notif):
+    """Resuelve la sección desde la columna dedicada o metadata legacy."""
+    seccion = normalizar_seccion(notif.get("seccion"))
+    if seccion:
+        return seccion
+    metadata = _parsear_metadata_notif(notif.get("metadata"))
+    return normalizar_seccion(metadata.get("seccion"))
+
+
 def abrir_notificacion(notificacion_id, seccion, categoria=None):
     notification_manager.marcar_como_leida(notificacion_id, st.session_state["usuario"])
-    st.session_state["menu_principal"] = "🏠 Inicio"
+    st.session_state["menu_principal"] = "📁 Mis Documentos"
     st.session_state.seccion_activa = seccion or "inicio"
+    if seccion:
+        st.session_state["seccion_seleccionada_documentos"] = seccion
     if categoria and seccion:
-        st.session_state.categoria_inicio = categoria
+        st.session_state["categoria_redirigida"] = categoria
 
 def render_campana_notificaciones():
     usuario = st.session_state["usuario"]
@@ -533,7 +3293,7 @@ def render_campana_notificaciones():
             display: flex;
             justify-content: flex-end;
             align-items: center;
-            margin-bottom: -2.4rem;
+            margin-bottom: -0.85rem;
             padding-right: 0.35rem;
             pointer-events: none;
             z-index: 2;
@@ -607,20 +3367,20 @@ def render_campana_notificaciones():
     with st.popover("🔔", use_container_width=True, help="Notificaciones pendientes"):
         st.markdown('<p class="notif-panel-title">Notificaciones</p>', unsafe_allow_html=True)
         st.caption("Publicaciones pendientes de leer")
-        notificaciones = notification_manager.obtener_ultimas_no_leidas(usuario, limite=10)
+        notificaciones = notification_manager.obtener_ultimas_no_leidas(
+            usuario, limite=LIMITE_NOTIFICACIONES_CAMPANA
+        )
 
         if not notificaciones:
-            st.info("No tienes notificaciones pendientes.")
+            st.info("No tienes notificaciones pendientes")
             return
 
         for notif in notificaciones:
             metadata = _parsear_metadata_notif(notif.get("metadata"))
-            seccion = metadata.get("seccion", "")
+            seccion = _seccion_desde_notificacion(notif)
             categoria = metadata.get("subcategoria") or metadata.get("categoria") or "General"
             seccion_nombre = SECCIONES.get(seccion, {}).get("nombre", seccion.capitalize() if seccion else "General")
-            fecha_str = _formatear_fecha_notif(
-                notif.get("fecha_creacion") or (notif.get("metadata") or {}).get("fecha")
-            )
+            fecha_str = _formatear_fecha_notif(notif.get("fecha_creacion"))
             titulo = notif.get("titulo", "Nueva publicación")
             mensaje = notif.get("mensaje", "")
 
@@ -633,7 +3393,7 @@ def render_campana_notificaciones():
             """, unsafe_allow_html=True)
 
             st.button(
-                "Ver publicación →",
+                "Revisar",
                 key=f"notif_btn_{notif['id']}",
                 use_container_width=True,
                 on_click=abrir_notificacion,
@@ -643,6 +3403,12 @@ def render_campana_notificaciones():
                     "categoria": categoria,
                 },
             )
+
+def render_app_top_bar():
+    """Barra superior post-login: campana de notificaciones alineada a la derecha."""
+    _, col_bell = st.columns([11, 1])
+    with col_bell:
+        render_campana_notificaciones()
 
 def render_vista_seccion_inicio(seccion_id):
     if seccion_id not in SECCIONES:
@@ -655,14 +3421,16 @@ def render_vista_seccion_inicio(seccion_id):
     if "categoria_inicio" not in st.session_state:
         st.session_state.categoria_inicio = subcategorias[0]
 
-    if st.session_state["rol"] == "master":
-        secciones_usuario = list(SECCIONES.keys())
-    else:
-        secciones_usuario = st.session_state.get("secciones", [])
+    secciones_usuario = _secciones_efectivas()
 
     if seccion_id not in secciones_usuario:
-        st.warning("No tienes acceso a esta sección.")
+        st.warning("🔒 Esta sección requiere acceso activo.")
+        if st.button("💬 Contactar al administrador", key=f"paywall_from_view_{seccion_id}"):
+            _abrir_paywall_seccion(seccion_id)
+            st.rerun()
         st.button("⬅️ Volver al Inicio", key="btn_volver_inicio_denegado", on_click=volver_al_inicio)
+        if st.session_state.get("seccion_paywall"):
+            _dialog_paywall_seccion()
         return
 
     st.button("⬅️ Volver al Inicio", key="btn_volver_inicio", on_click=volver_al_inicio)
@@ -675,176 +3443,90 @@ def render_vista_seccion_inicio(seccion_id):
 
     st.markdown("### 📂 Categorías")
     categoria_actual = st.session_state.categoria_inicio
-    cols_cat = st.columns(len(subcategorias))
-    for idx, cat in enumerate(subcategorias):
-        with cols_cat[idx]:
-            st.button(
-                cat,
-                key=f"cat_inicio_{seccion_id}_{cat}",
-                use_container_width=True,
-                type="primary" if categoria_actual == cat else "secondary",
-                on_click=seleccionar_categoria_inicio,
-                kwargs={"categoria": cat},
-            )
+    with st.container(key="velox_categoria_botones"):
+        cols_cat = st.columns(len(subcategorias))
+        for idx, cat in enumerate(subcategorias):
+            with cols_cat[idx]:
+                st.button(
+                    cat,
+                    key=f"cat_inicio_{seccion_id}_{cat}",
+                    use_container_width=True,
+                    type="primary" if categoria_actual == cat else "secondary",
+                    on_click=seleccionar_categoria_inicio,
+                    kwargs={"categoria": cat},
+                )
 
-    st.markdown("---")
+    st.markdown(MIS_DOCS_COMPACT_CSS, unsafe_allow_html=True)
     busqueda = st.text_input("🔍 Buscar por nombre o descripción:", key=f"buscador_inicio_{seccion_id}")
 
-    st.markdown("### 📢 Documentos disponibles")
-    publicaciones = storage_manager.obtener_publicaciones_por_seccion(
-        seccion=seccion_id,
-        subcategoria=categoria_actual,
+    _render_bloque_publicaciones_compacto(
+        seccion_id,
+        categoria_actual,
+        busqueda,
+        secciones_usuario,
+        prefijo="inicio",
+        titulo="### 📢 Documentos disponibles",
+        mensaje_vacio="No hay documentos en esta categoría.",
     )
-    if busqueda:
-        publicaciones = [
-            p for p in publicaciones
-            if busqueda.lower() in p.get("nombre_original", "").lower()
-            or busqueda.lower() in p.get("descripcion", "").lower()
-        ]
 
-    if publicaciones:
-        for i, pub in enumerate(publicaciones):
-            col1, col2 = st.columns([4, 1])
-            with col1:
-                fecha = pub.get("fecha", pub.get("fecha_creacion", ""))[:10]
-                st.markdown(
-                    f"**📢 {pub.get('nombre_original', pub.get('titulo', 'Sin título'))}**  \n"
-                    f"<small>{fecha}</small>\n\n"
-                    f"{pub.get('descripcion', pub.get('mensaje', ''))}",
-                    unsafe_allow_html=True,
-                )
-            with col2:
-                if st.button("📥 Descargar", key=f"down_inicio_{seccion_id}_{pub['id']}_{i}"):
-                    exito, resultado = storage_manager.descargar_archivo(
-                        pub["id"], st.session_state["usuario"], secciones_usuario
-                    )
-                    if exito:
-                        st.markdown(
-                            f'<a href="{resultado["url"]}" download="{resultado["nombre"]}">Descargar</a>',
-                            unsafe_allow_html=True,
-                        )
-                        st.success("✅ Descarga disponible")
-                    else:
-                        st.error(f"❌ {resultado}")
-            st.divider()
-    else:
-        st.info("No hay documentos en esta categoría.")
-
-    if st.session_state["rol"] == "master":
-        st.markdown("### 📄 Mis documentos personales")
-        archivos_personales = storage_manager.listar_archivos_usuario(
-            st.session_state["usuario"],
-            seccion=seccion_id,
-            subcategoria=categoria_actual,
-            incluir_publicaciones=False,
-        )
-        if busqueda:
-            archivos_personales = [
-                a for a in archivos_personales
-                if busqueda.lower() in a["nombre_original"].lower()
-                or busqueda.lower() in a.get("descripcion", "").lower()
-            ]
-        if archivos_personales:
-            for archivo in archivos_personales:
-                col1, col2 = st.columns([4, 1])
-                with col1:
-                    st.write(f"📄 **{archivo['nombre_original']}** — {archivo['fecha'][:10]}")
-                with col2:
-                    if st.button("📥", key=f"down_personal_inicio_{archivo['id']}"):
-                        exito, resultado = storage_manager.descargar_archivo_personal(
-                            archivo["id"], st.session_state["usuario"]
-                        )
-                        if exito:
-                            st.markdown(
-                                f'<a href="{resultado["url"]}" download="{resultado["nombre"]}">Descargar</a>',
-                                unsafe_allow_html=True,
-                            )
-                            st.success("✅ Descarga disponible")
-                        else:
-                            st.error(f"❌ {resultado}")
-                st.divider()
-        else:
-            st.info("No tienes documentos personales en esta categoría.")
-
-# ==================== ESTADO DE AUTENTICACIÓN ====================
-if 'autenticado' not in st.session_state:
-    st.session_state['autenticado'] = False
-if 'seccion_seleccionada' not in st.session_state:
-    st.session_state['seccion_seleccionada'] = None
-if 'seccion_activa' not in st.session_state:
+# ==================== PUERTA DE ACCESO (post-definiciones) ====================
+auth_manager.inicializar_estado_auth()
+if "seccion_activa" not in st.session_state:
     st.session_state.seccion_activa = "inicio"
 
-if not st.session_state['autenticado']:
+_auth_err = st.session_state.pop("auth_callback_error", None)
+if _auth_err:
+    st.error(_auth_err)
+
+if not st.session_state.get("autenticado"):
+    auth_manager.bootstrap_session()
+
+auth_manager.sincronizar_vista_auth()
+
+_usuario_con_acceso = (
+    st.session_state.get("autenticado")
+    and (st.session_state.get("acceso_pagado") or _es_staff())
+    and not _registro_bloquea_acceso_app()
+)
+
+if _en_vista_recuperacion_password():
+    render_pantalla_solo_recuperacion()
+    st.stop()
+
+if not _usuario_con_acceso:
     login_screen()
+    st.stop()
+
 else:
     # ==================== HEADER (solo después del login) ====================
-    col_logo, col_user, col_logout = st.columns([1, 3, 1])
-    with col_logo:
-        st.markdown("<h1 style='font-size:1.5rem; margin:0;'>🌟 Asistente Inteligente</h1>", unsafe_allow_html=True)
-    with col_user:
-        nombre = st.session_state.get('nombre', 'Usuario')
-        rol = st.session_state.get('rol', 'usuario')
-        rol_texto = '👑 Master' if rol == 'master' else '👁️ Usuario'
-        subcol1, subcol2 = st.columns([4, 1])
-        with subcol1:
-            st.markdown(f"**🌟 {nombre}**  \n<small>{rol_texto}</small>", unsafe_allow_html=True)
-        with subcol2:
-            render_campana_notificaciones()
-    with col_logout:
-        if st.button("🚪 Cerrar Sesión"):
-            for key in ['autenticado', 'usuario', 'rol', 'nombre', 'secciones', 'login_time', 'seccion_seleccionada', 'seccion_activa', 'categoria_inicio']:
-                if key in st.session_state:
-                    del st.session_state[key]
-            st.rerun()
-    st.markdown("---")
+    render_velox_top_banner()
+    render_app_top_bar()
 
     # ==================== SIDEBAR ====================
     with st.sidebar:
-        st.markdown("""
-        <style>
-            [data-testid="stSidebar"],
-            [data-testid="stSidebar"] > div:first-child {
-                background-color: #1a2744 !important;
-                border-right: 1px solid #243656;
-            }
-            [data-testid="stSidebar"] h1,
-            [data-testid="stSidebar"] h2,
-            [data-testid="stSidebar"] h3,
-            [data-testid="stSidebar"] p,
-            [data-testid="stSidebar"] label,
-            [data-testid="stSidebar"] .stMarkdown,
-            [data-testid="stSidebar"] [data-testid="stCaptionContainer"] {
-                color: #f1f5f9 !important;
-            }
-            [data-testid="stSidebar"] hr {
-                border-color: #2d3f5f;
-            }
-            [data-testid="stSidebar"] .stButton > button {
-                background-color: #2d3f5f !important;
-                color: #f1f5f9 !important;
-                border: 1px solid #3d5278 !important;
-                border-radius: 8px !important;
-            }
-            [data-testid="stSidebar"] .stButton > button:hover {
-                background-color: #3d5278 !important;
-                border-color: #4a6fa5 !important;
-            }
-            [data-testid="stSidebar"] iframe {
-                width: 100% !important;
-            }
-            [data-testid="stSidebar"] .nav.flex-column {
-                width: 100%;
-            }
-        </style>
-        """, unsafe_allow_html=True)
+        inject_sidebar_theme()
+        render_sidebar_brand()
 
-        nombre_sidebar = st.session_state.get("nombre", "Usuario")
+        avatar = st.session_state.get("avatar_url")
+        email_sidebar = (st.session_state.get("usuario") or "").strip()
         rol_sidebar = st.session_state.get("rol", "usuario")
-        rol_badge = "Administrador" if rol_sidebar == "master" else "Usuario"
-        st.markdown(f"### Hola, {nombre_sidebar}")
-        st.caption(f"Panel de navegación · {rol_badge}")
+        rol_badge = _etiqueta_rol_sidebar(rol_sidebar)
 
-        menu_items = MENU_SIDEBAR_MASTER if rol_sidebar == "master" else MENU_SIDEBAR_USER
+        st.markdown('<div class="sidebar-profile sidebar-profile--compact">', unsafe_allow_html=True)
+        if avatar:
+            _av_esp, _av_mid, _av_esp2 = st.columns([1, 1, 1])
+            with _av_mid:
+                st.image(avatar, width=64)
+        if email_sidebar:
+            email_seguro = html_module.escape(email_sidebar)
+            st.markdown(
+                f'<p class="sidebar-profile-email sidebar-profile-email--hero">{email_seguro}</p>',
+                unsafe_allow_html=True,
+            )
+        st.caption(f"🔐 Gmail verificado · {rol_badge}")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        menu_items = _menu_sidebar_items()
         menu_labels = [item[0] for item in menu_items]
         menu_icons = [item[1] for item in menu_items]
         menu_values = [item[2] for item in menu_items]
@@ -857,16 +3539,17 @@ else:
         current_label = value_to_label.get(st.session_state["menu_principal"], menu_labels[0])
         default_index = menu_labels.index(current_label) if current_label in menu_labels else 0
 
-        seleccion_label = option_menu(
-            menu_title=None,
-            options=menu_labels,
-            icons=menu_icons,
-            menu_icon="list",
-            default_index=default_index,
-            orientation="vertical",
-            styles=SIDEBAR_MENU_STYLES,
-            key="sidebar_option_menu",
-        )
+        with st.container(key="sidebar_menu_panel"):
+            seleccion_label = option_menu(
+                menu_title=None,
+                options=menu_labels,
+                icons=menu_icons,
+                menu_icon="list",
+                default_index=default_index,
+                orientation="vertical",
+                styles=SIDEBAR_MENU_STYLES,
+                key="sidebar_option_menu",
+            )
 
         seleccion = label_to_value[seleccion_label]
         if seleccion != st.session_state["menu_principal"]:
@@ -877,12 +3560,7 @@ else:
 
         st.divider()
         if st.button("Cerrar Sesión", icon="🚪", use_container_width=True, key="sidebar_logout"):
-            for key in [
-                "autenticado", "usuario", "rol", "nombre", "secciones",
-                "login_time", "seccion_seleccionada", "seccion_activa", "categoria_inicio",
-            ]:
-                if key in st.session_state:
-                    del st.session_state[key]
+            auth_manager.cerrar_sesion()
             st.rerun()
 
     # ==================== CONTENIDO PRINCIPAL ====================
@@ -890,7 +3568,7 @@ else:
 
     if menu_actual == "🏠 Inicio":
         if st.session_state.seccion_activa == "inicio":
-            if st.session_state['rol'] == 'master':
+            if _es_master():
                 st.header("🏠 Inicio")
                 secciones_usuario = list(SECCIONES.keys())
                 archivos_personales = storage_manager.listar_archivos_usuario(st.session_state['usuario'], incluir_publicaciones=False)
@@ -907,47 +3585,42 @@ else:
                     usuarios_total = len(auth_manager.listar_usuarios())
                     st.markdown(f'<div class="metric-card"><h3>👥</h3><h3>{usuarios_total}</h3><p>Usuarios</p></div>', unsafe_allow_html=True)
 
+                todas_pubs = storage_manager.obtener_publicaciones_por_seccion()
+                render_dashboard_analytics_master(todas_pubs, auth_manager.listar_usuarios())
+
                 st.markdown("---")
-                st.markdown("### 📂 Todas las Secciones")
-                cols = st.columns(3)
-                for i, (seccion_id, seccion_info) in enumerate(SECCIONES.items()):
-                    with cols[i % 3]:
-                        docs_seccion = [d for d in publicaciones if d["seccion"] == seccion_id]
-                        st.button(
-                            f"{seccion_info['icono']} {seccion_info['nombre']}\n\n"
-                            f"{seccion_info['descripcion']}\n\n"
-                            f"✅ {len(docs_seccion)} documentos disponibles",
-                            key=f"dashboard_btn_{seccion_id}",
-                            use_container_width=True,
-                            on_click=activar_seccion_inicio,
-                            kwargs={"seccion_id": seccion_id},
-                        )
+                render_catalogo_secciones_freemium(
+                    list(SECCIONES.keys()),
+                    titulo="### 📂 Todas las Secciones",
+                    key_prefix="master",
+                )
+            elif _es_admin():
+                st.header("🏠 Inicio — Administrador")
+                secciones_usuario = _secciones_efectivas()
+                if not secciones_usuario:
+                    st.info(
+                        "Aún no tienes secciones asignadas. El Master puede habilitarlas en "
+                        "**Gestión Usuarios → Permisos Administrador**."
+                    )
+                elif _puede_ver_panorama_recursos():
+                    publicaciones_user = storage_manager.obtener_publicaciones_usuario(
+                        st.session_state["usuario"], secciones_usuario
+                    )
+                    render_dashboard_analytics_user(secciones_usuario, publicaciones_user)
+                    st.markdown("---")
+                render_catalogo_secciones_freemium(
+                    secciones_usuario,
+                    titulo="### 📂 Secciones autorizadas",
+                    key_prefix="admin",
+                )
             else:
                 st.header("🏠 Inicio")
-                secciones_usuario = st.session_state.get('secciones', [])
-                if not secciones_usuario:
-                    st.warning("No tienes secciones asignadas. Contacta al administrador.")
-                else:
-                    st.markdown("### 📂 Mis Secciones Asignadas")
-                    cols = st.columns(3)
-                    for i, sec_id in enumerate(secciones_usuario):
-                        if sec_id in SECCIONES:
-                            sec_info = SECCIONES[sec_id]
-                            try:
-                                docs_seccion = storage_manager.obtener_publicaciones_por_seccion(seccion=sec_id)
-                                num_docs = len(docs_seccion)
-                            except Exception:
-                                num_docs = 0
-                            with cols[i % 3]:
-                                st.button(
-                                    f"{sec_info['icono']} {sec_info['nombre']}\n\n"
-                                    f"{sec_info['descripcion']}\n\n"
-                                    f"📄 {num_docs} documentos disponibles",
-                                    key=f"user_dashboard_btn_{sec_id}",
-                                    use_container_width=True,
-                                    on_click=activar_seccion_inicio,
-                                    kwargs={"seccion_id": sec_id},
-                                )
+                secciones_usuario = _secciones_efectivas()
+                render_catalogo_secciones_freemium(
+                    secciones_usuario,
+                    key_prefix="user",
+                    catalogo_centrado=True,
+                )
         else:
             render_vista_seccion_inicio(st.session_state.seccion_activa)
 
@@ -958,10 +3631,10 @@ else:
 
         st.header("📁 Mis Documentos")
 
-        if st.session_state['rol'] == 'master':
+        if _es_master():
             secciones_usuario = list(SECCIONES.keys())
         else:
-            secciones_usuario = auth_manager.obtener_secciones_usuario(st.session_state['usuario'])
+            secciones_usuario = _secciones_efectivas()
 
         if not secciones_usuario:
             st.warning("⚠️ No tienes acceso a ninguna sección. Contacta al administrador.")
@@ -985,12 +3658,12 @@ else:
 
             st.markdown(f"""
             <div style="background: {seccion_info['color']}10; padding: 1rem; border-radius: 10px; margin-bottom: 1rem;">
-                <h3>{seccion_info['icono']} {seccion_info['nombre']}</h3>
+                <h3>{seccion_info['nombre']}</h3>
                 <p>{seccion_info['descripcion']}</p>
             </div>
             """, unsafe_allow_html=True)
 
-            if st.button("🔙 Volver al Dashboard"):
+            if st.button("🔙 Volver al Dashboard", key="btn_volver_dashboard"):
                 st.rerun()
 
             subcategorias_disponibles = seccion_info.get("subcategorias", ["General"])
@@ -1002,179 +3675,105 @@ else:
             if categoria_redirigida and categoria_redirigida in subcategorias_disponibles:
                 st.session_state['categoria_seleccionada'] = categoria_redirigida
 
-            cols_cat = st.columns(len(subcategorias_disponibles))
-            for idx, cat in enumerate(subcategorias_disponibles):
-                with cols_cat[idx]:
-                    if st.button(cat, key=f"cat_{seccion_seleccionada}_{cat}", use_container_width=True,
-                                 type="primary" if st.session_state['categoria_seleccionada'] == cat else "secondary"):
-                        st.session_state['categoria_seleccionada'] = cat
-                        st.rerun()
+            with st.container(key="velox_categoria_botones"):
+                cols_cat = st.columns(len(subcategorias_disponibles))
+                for idx, cat in enumerate(subcategorias_disponibles):
+                    with cols_cat[idx]:
+                        if st.button(cat, key=f"cat_{seccion_seleccionada}_{cat}", use_container_width=True,
+                                     type="primary" if st.session_state['categoria_seleccionada'] == cat else "secondary"):
+                            st.session_state['categoria_seleccionada'] = cat
+                            st.rerun()
 
             categoria_actual = st.session_state['categoria_seleccionada']
             st.markdown(f"**Categoría actual:** {categoria_actual}")
-            st.markdown("---")
 
-            busqueda = st.text_input("🔍 Buscar por nombre o descripción:", key="buscador_mis_docs")
-
-            # Documentos personales (solo master)
-            archivos_personales = []
-            if st.session_state['rol'] == 'master':
-                with st.expander("📤 Subir documento personal", expanded=False):
-                    archivo = st.file_uploader("Seleccionar archivo", type=['pdf', 'xlsx', 'xls', 'docx', 'doc'])
-                    descripcion = st.text_area("Descripción (opcional)")
-                    if archivo and st.button("Subir documento personal", type="primary"):
-                        exito, resultado = storage_manager.guardar_archivo(
-                            archivo, seccion_seleccionada, categoria_actual,
-                            st.session_state['usuario'], descripcion, es_publicacion=False
-                        )
-                        if exito:
-                            st.success(f"✅ Documento subido: {archivo.name}")
-                            st.rerun()
-                        else:
-                            st.error(f"❌ Error: {resultado}")
-
-                st.markdown("### 📄 Mis documentos personales")
-                archivos_personales = storage_manager.listar_archivos_usuario(
-                    st.session_state['usuario'],
-                    seccion=seccion_seleccionada,
-                    subcategoria=categoria_actual,
-                    incluir_publicaciones=False
-                )
-                if busqueda:
-                    archivos_personales = [a for a in archivos_personales if
-                                        busqueda.lower() in a['nombre_original'].lower() or
-                                        busqueda.lower() in a.get('descripcion', '').lower()]
-
-                if archivos_personales:
-                    for archivo in archivos_personales:
-                        cols = st.columns([3, 2, 2, 1, 1, 1])
-                        with cols[0]:
-                            st.write(f"📄 **{archivo['nombre_original']}**")
-                        with cols[1]:
-                            st.write(f"📅 {archivo['fecha'][:10]}")
-                        with cols[2]:
-                            tamaño_kb = archivo.get('tamaño_kb', archivo.get('tamaño_bytes', 0) / 1024)
-                            st.write(f"💾 {tamaño_kb:.1f} KB")
-                        with cols[3]:
-                            if st.button("📥", key=f"download_{archivo['id']}"):
-                                exito, resultado = storage_manager.descargar_archivo_personal(archivo['id'], st.session_state['usuario'])
-                                if exito:
-                                    st.markdown(f'<a href="{resultado["url"]}" download="{resultado["nombre"]}" style="background: #667eea; color: white; padding: 4px 12px; border-radius: 6px; text-decoration: none;">📥 Descargar</a>', unsafe_allow_html=True)
-                                    st.success("✅ Descarga disponible")
-                                else:
-                                    st.error(f"❌ {resultado}")
-                        with cols[4]:
-                            if st.button("🌍 Publicar", key=f"publish_{archivo['id']}"):
-                                st.session_state['archivo_a_publicar'] = archivo['id']
-                                st.session_state['show_publish_form'] = True
-                        with cols[5]:
-                            if st.button("🗑️", key=f"delete_{archivo['id']}"):
-                                storage_manager.eliminar_archivo(archivo['id'], st.session_state['usuario'])
-                                st.rerun()
-                        st.divider()
-                else:
-                    st.info("No tienes documentos personales en esta categoría")
-
-            # Publicaciones del master
-            st.markdown("### 📢 Publicaciones del Master")
-            publicaciones = storage_manager.obtener_publicaciones_por_seccion(
-                seccion=seccion_seleccionada,
-                subcategoria=categoria_actual
+            st.markdown(MIS_DOCS_COMPACT_CSS, unsafe_allow_html=True)
+            busqueda = st.text_input(
+                "🔍 Buscar documentos",
+                placeholder="Filtra por nombre, descripción o palabra clave…",
+                key="buscador_mis_docs",
+                label_visibility="collapsed",
             )
-            if busqueda:
-                publicaciones = [p for p in publicaciones if
-                                busqueda.lower() in p.get('nombre_original', '').lower() or
-                                busqueda.lower() in p.get('descripcion', '').lower()]
+            st.caption("Búsqueda instantánea sobre los documentos de la categoría seleccionada.")
 
-            if publicaciones:
-                for i, pub in enumerate(publicaciones):
-                    col1, col2 = st.columns([4, 1])
-                    with col1:
-                        st.markdown(f"**📢 {pub.get('nombre_original', pub.get('titulo', 'Sin título'))}**  \n"
-                                    f"<small>{pub.get('fecha', pub.get('fecha_creacion', ''))[:10]}</small>\n\n"
-                                    f"{pub.get('descripcion', pub.get('mensaje', ''))}", unsafe_allow_html=True)
-                    with col2:
-                        if st.button("📥 Descargar", key=f"down_pub_{pub['id']}_{i}"):
-                            if seccion_seleccionada in secciones_usuario:
-                                exito, resultado = storage_manager.descargar_archivo(pub["id"], st.session_state['usuario'], [seccion_seleccionada])
-                                if exito:
-                                    st.markdown(f'<a href="{resultado["url"]}" download="{resultado["nombre"]}">Descargar</a>', unsafe_allow_html=True)
-                                    st.success("✅ Descarga disponible")
-                                else:
-                                    st.error(f"❌ {resultado}")
-                            else:
-                                st.error("No tienes permiso para descargar este documento")
-                    if st.session_state['rol'] == 'master':
-                        col_edit, col_del = st.columns(2)
-                        with col_edit:
-                            if st.button("✏️ Editar", key=f"edit_{pub['id']}_{i}"):
-                                st.session_state[f'editando_{pub["id"]}'] = True
-                            if st.session_state.get(f'editando_{pub["id"]}', False):
-                                nueva_desc = st.text_area("Nueva descripción", value=pub.get('descripcion', ''), key=f"newdesc_{pub['id']}")
-                                if st.button("Guardar"):
-                                    exito, msg = storage_manager.editar_publicacion(pub['id'], nueva_desc)
-                                    if exito:
-                                        st.success(msg)
-                                        st.session_state.pop(f'editando_{pub["id"]}', None)
-                                        st.rerun()
-                                    else:
-                                        st.error(msg)
-                        with col_del:
-                            if st.button("🗑️ Eliminar", key=f"del_{pub['id']}_{i}"):
-                                storage_manager.eliminar_publicacion(pub['id'])
-                                st.rerun()
-                    st.divider()
-            else:
-                st.info("No hay publicaciones del master en esta categoría")
+            if (
+                _puede_publicar_documentos()
+                and seccion_seleccionada in secciones_usuario
+                and _puede_modulo(AuthManager.MODULO_DOCUMENTOS)
+            ):
+                with st.expander("📤 Publicar documento", expanded=_es_admin()):
+                    st.caption(
+                        f"Publicación en **{seccion_info['nombre']}** · categoría **{categoria_actual}**"
+                    )
+                    with st.form(
+                        key=f"form_pub_{seccion_seleccionada}_{categoria_actual}",
+                        clear_on_submit=True,
+                    ):
+                        archivo_pub = st.file_uploader(
+                            "Seleccionar archivo",
+                            type=["pdf", "xlsx", "xls", "docx", "doc"],
+                        )
+                        descripcion_texto = st.text_area(
+                            "Descripción",
+                            height=120,
+                            placeholder="Enlaces, comentarios o instrucciones para los alumnos…",
+                        )
+                        submitted = st.form_submit_button(
+                            "Publicar documento",
+                            type="primary",
+                        )
 
-            if st.session_state.get('show_publish_form', False) and st.session_state['rol'] == 'master':
-                with st.form("form_publish"):
-                    st.markdown("### Publicar documento personal")
-                    archivo_id = st.session_state['archivo_a_publicar']
-                    seccion_dest = st.selectbox("Sección destino", list(SECCIONES.keys()), format_func=lambda x: SECCIONES[x]['nombre'])
-                    subcat_dest = st.selectbox("Subcategoría", SECCIONES[seccion_dest]["subcategorias"])
-                    comentario = st.text_area("Comentario")
-                    if st.form_submit_button("Confirmar publicación"):
-                        with st.spinner("Publicando y generando alertas..."):
-                            exito, resultado = storage_manager.publicar_desde_personal(
-                                archivo_id, st.session_state['usuario'], seccion_dest, subcat_dest, comentario
-                            )
-                        if exito:
-                            _mostrar_alerta_publicacion(exito, resultado)
-                            del st.session_state['show_publish_form']
-                            del st.session_state['archivo_a_publicar']
-                            st.rerun()
+                    if submitted:
+                        descripcion_guardar = (descripcion_texto or "").strip()
+                        if not archivo_pub:
+                            st.error("❌ Selecciona un archivo antes de publicar.")
                         else:
-                            st.error(resultado)
+                            with st.spinner("Publicando y notificando a los alumnos..."):
+                                exito, resultado = storage_manager.publicar_documento(
+                                    archivo_pub,
+                                    seccion_seleccionada,
+                                    categoria_actual,
+                                    descripcion_guardar,
+                                    publicador_email=st.session_state["usuario"],
+                                )
+                            if exito:
+                                _mostrar_alerta_publicacion(exito, resultado)
+                                st.rerun()
+                            else:
+                                st.error(f"❌ Error en la publicación: {resultado}")
+                st.markdown("---")
+
+            # Publicaciones disponibles
+            titulo_publicaciones = (
+                "### 📢 Publicaciones del Master" if _es_master() else "### 📢 Publicaciones disponibles"
+            )
+            _render_bloque_publicaciones_compacto(
+                seccion_seleccionada,
+                categoria_actual,
+                busqueda,
+                secciones_usuario,
+                prefijo="pub",
+                titulo=titulo_publicaciones,
+                mensaje_vacio="No hay publicaciones del master en esta categoría",
+                seccion_info=seccion_info,
+                sincronizar_chatbot=True,
+            )
 
     # ==================== RESTO DE SECCIONES (sin cambios) ====================
-    elif menu_actual == "👥 Gestión Usuarios" and st.session_state['rol'] == 'master':
+    elif menu_actual == AuthManager.MODULO_GESTION_USUARIOS and _puede_modulo(AuthManager.MODULO_GESTION_USUARIOS):
         st.header("👥 Gestión de Usuarios y Permisos")
-        tab1, tab2, tab3 = st.tabs(["📋 Lista de Usuarios", "🔐 Asignar Secciones", "📢 Publicar Documentos"])
+        tab_labels = ["📋 Lista de Usuarios", "🔐 Asignar Secciones"]
+        if _es_master():
+            tab_labels.append("🛡️ Permisos Administrador")
+        tabs = st.tabs(tab_labels)
+        tab1, tab2 = tabs[0], tabs[1]
+        tab_perm_admin = tabs[2] if _es_master() else None
+
         with tab1:
-            usuarios = auth_manager.listar_usuarios()
-            if usuarios:
-                data = []
-                for email, u in usuarios.items():
-                    secciones = auth_manager.obtener_secciones_usuario(email)
-                    data.append({
-                        "Email": email,
-                        "Nombre": u["nombre"],
-                        "Rol": "👑 Master" if u["rol"] == "master" else "👤 Usuario",
-                        "Pago": "✅" if u.get("pago_confirmado") else "⏳",
-                        "Activo": "✅" if u.get("activo") else "❌",
-                        "Acceso": f"{len(secciones)}/{len(SECCIONES)}",
-                    })
-                st.dataframe(pd.DataFrame(data), hide_index=True, use_container_width=True)
-                st.markdown("---")
-                usuarios_eliminar = [e for e in usuarios if e != st.session_state['usuario']]
-                if usuarios_eliminar:
-                    sel = st.selectbox("Usuario a eliminar", usuarios_eliminar)
-                    if st.button("Eliminar", type="secondary"):
-                        auth_manager.eliminar_usuario(sel, st.session_state['usuario'])
-                        st.rerun()
+            if _es_master():
+                render_lista_usuarios_master()
             else:
-                st.info("No hay usuarios")
+                render_lista_usuarios_solo_lectura()
         with tab2:
             st.markdown("Asignar secciones a usuario")
             usuarios_lista = [e for e in auth_manager.listar_usuarios() if e != st.session_state['usuario']]
@@ -1185,36 +3784,22 @@ else:
                 cols = st.columns(3)
                 for i, (k, v) in enumerate(SECCIONES.items()):
                     with cols[i%3]:
-                        if st.checkbox(f"{v['icono']} {v['nombre']}", value=(k in actuales), key=f"perm_{usuario}_{k}"):
+                        if st.checkbox(f"{v['nombre']}", value=(k in actuales), key=f"perm_{usuario}_{k}"):
                             nuevas.append(k)
                 if st.button("Guardar permisos"):
                     auth_manager.asignar_secciones_usuario(usuario, nuevas, st.session_state['usuario'])
                     st.rerun()
             else:
                 st.info("No hay otros usuarios")
-        with tab3:
-            st.markdown("Publicar documento para todos")
-            seccion = st.selectbox("Sección", list(SECCIONES.keys()), format_func=lambda x: SECCIONES[x]['nombre'])
-            subcat = st.selectbox("Subcategoría", SECCIONES[seccion]["subcategorias"])
-            archivo = st.file_uploader("Archivo", type=['pdf','xlsx','xls','docx','doc'])
-            desc = st.text_area("Descripción")
-            if archivo and st.button("Publicar", key="btn_publicar_gestion_usuarios"):
-                with st.spinner("Subiendo archivo y notificando a los alumnos..."):
-                    exito, resultado = storage_manager.publicar_documento(
-                        archivo, seccion, subcat, desc,
-                        publicador_email=st.session_state["usuario"],
-                    )
 
-                if exito:
-                    _mostrar_alerta_publicacion(exito, resultado)
-                    st.rerun()
-                else:
-                    st.error(f"❌ Error en la publicación: {resultado}")
+        if tab_perm_admin is not None:
+            with tab_perm_admin:
+                render_permisos_administrador_tab()
 
-    elif menu_actual == "💳 Cobranzas" and st.session_state['rol'] == 'master':
+    elif menu_actual == AuthManager.MODULO_COBRANZAS and _puede_modulo(AuthManager.MODULO_COBRANZAS):
         render_gestion_cobranzas_master()
 
-    elif menu_actual == "⚙️ Configuración" and st.session_state['rol'] == 'master':
+    elif menu_actual == AuthManager.MODULO_CONFIGURACION and _puede_modulo(AuthManager.MODULO_CONFIGURACION):
         st.header("Configuración")
         col1, col2 = st.columns(2)
         with col1:
@@ -1223,8 +3808,8 @@ else:
         with col2:
             st.info("Versión 1.0")
 
-    elif menu_actual == "📬 Consultas":
-        if st.session_state['rol'] == 'master':
+    elif menu_actual == AuthManager.MODULO_CONSULTAS:
+        if _es_staff() and _puede_modulo(AuthManager.MODULO_CONSULTAS):
             st.header("📬 Gestión de Consultas")
             st.caption("Revisa y responde las consultas enviadas por los usuarios de la plataforma.")
 
@@ -1345,29 +3930,77 @@ else:
                             st.info("**Respuesta:** Pendiente de respuesta por el administrador.")
 
     elif menu_actual == "👤 Mi Perfil":
-        st.header("Mi Perfil")
-        perfil = auth_manager.obtener_perfil(st.session_state['usuario'])
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown(f"**Nombre:** {perfil['nombre']}")
-            st.markdown(f"**Email:** {perfil['email']}")
-            st.markdown(f"**Rol:** {perfil['rol'].upper()}")
-        with col2:
-            st.markdown("**Secciones asignadas:**")
-            secciones_usuario = auth_manager.obtener_secciones_usuario(st.session_state['usuario'])
-            for s in secciones_usuario:
-                st.markdown(f"- {SECCIONES[s]['nombre']}")
-        st.markdown("---")
-        with st.form("edit_perfil"):
-            nombre = st.text_input("Nombre completo", value=perfil['nombre'])
-            telefono = st.text_input("Teléfono", value=perfil.get('telefono',''))
-            celular = st.text_input("Celular", value=perfil.get('celular',''))
-            empresa = st.text_input("Empresa", value=perfil.get('empresa',''))
-            cargo = st.text_input("Cargo", value=perfil.get('cargo',''))
-            if st.form_submit_button("Guardar cambios"):
-                auth_manager.actualizar_perfil(st.session_state['usuario'], {"nombre":nombre, "telefono":telefono, "celular":celular, "empresa":empresa, "cargo":cargo})
-                st.session_state['nombre'] = nombre
-                st.rerun()
+        if _es_master():
+            st.warning("Este módulo no está disponible para tu rol.")
+        else:
+            st.header("Mi Perfil")
+            usuario_email = st.session_state["usuario"]
+            perfil = auth_manager.obtener_perfil(usuario_email)
+            if not perfil:
+                st.warning("No se pudo cargar tu perfil.")
+            else:
+                col_a, col_b = st.columns([1, 3])
+                with col_a:
+                    if perfil.get("avatar_url"):
+                        st.image(perfil["avatar_url"], width=100)
+                with col_b:
+                    st.markdown(f"**Nombre:** {perfil['nombre']}")
+                    st.markdown(f"**Email Google verificado:** {perfil['email']}")
+                    st.markdown(f"**Rol:** {perfil['rol'].upper()}")
+                    st.markdown(f"**ID veloX:** {perfil.get('codigo_usuario', '—')}")
+                    st.markdown("**Secciones asignadas:**")
+                    secciones_usuario = auth_manager.obtener_secciones_usuario(usuario_email)
+                    for s in secciones_usuario:
+                        if s in SECCIONES:
+                            st.markdown(f"- {SECCIONES[s]['nombre']}")
+
+                st.markdown("---")
+                st.subheader("Datos de contacto")
+                with st.form("edit_perfil"):
+                    st.text_input("Nombre completo", value=perfil["nombre"], disabled=True)
+
+                    col_correo_1, col_correo_2 = st.columns([1, 1])
+                    with col_correo_1:
+                        correo_personal = st.text_input(
+                            "Correo Personal Principal",
+                            value=perfil.get("correo_personal", ""),
+                        )
+                    with col_correo_2:
+                        correo_secundario = st.text_input(
+                            "Correo Secundario (Opcional)",
+                            value=perfil.get("correo_secundario", ""),
+                        )
+
+                    col_cel_1, col_cel_2 = st.columns([1, 1])
+                    with col_cel_1:
+                        celular = st.text_input(
+                            "Celular Principal",
+                            value=perfil.get("celular", ""),
+                        )
+                    with col_cel_2:
+                        celular_secundario = st.text_input(
+                            "Celular Secundario (Opcional)",
+                            value=perfil.get("celular_secundario", ""),
+                        )
+
+                    if st.form_submit_button("Guardar cambios"):
+                        ok, msg = auth_manager.actualizar_perfil(
+                            usuario_email,
+                            {
+                                "correo_personal": correo_personal,
+                                "correo_secundario": correo_secundario,
+                                "celular": celular,
+                                "celular_secundario": celular_secundario,
+                            },
+                        )
+                        if ok:
+                            st.success(msg)
+                            st.rerun()
+                        else:
+                            st.error(msg)
+
+    if _chatbot_visible_en_modulo_actual():
+        render_chatbot_asistente()
 
     st.markdown("---")
-    st.markdown("<div style='text-align:center'>Tu Gestor Documental Inteligente | © 2026</div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:center'>Asistente Inteligente veloX · Business Hub © 2026</div>", unsafe_allow_html=True)

@@ -4,6 +4,9 @@ import uuid
 
 from supabase_client import get_supabase
 
+MENSAJE_NOTIF_NUEVO_DOCUMENTO = "Se ha publicado un nuevo documento en el curso."
+LIMITE_NOTIFICACIONES_CAMPANA = 8
+
 
 def normalizar_seccion(seccion):
     """Normaliza sección: strip, lower y sin tildes (ej. 'Contabilidad' -> 'contabilidad')."""
@@ -35,42 +38,85 @@ class NotificationManager:
     def _normalizar_email(email):
         return (email or "").strip().lower()
 
+    @staticmethod
+    def _listas_acceso_usuario(usuario):
+        secciones = usuario.get("secciones")
+        asignadas = usuario.get("secciones_asignadas")
+        if secciones is None:
+            secciones = []
+        if asignadas is None:
+            asignadas = []
+        if not isinstance(secciones, list):
+            secciones = []
+        if not isinstance(asignadas, list):
+            asignadas = []
+        return secciones, asignadas
+
+    def _usuario_tiene_seccion(self, usuario, seccion_normalizada):
+        if not seccion_normalizada:
+            return False
+        secciones, asignadas = self._listas_acceso_usuario(usuario)
+        for valor in secciones + asignadas:
+            if not valor:
+                continue
+            if normalizar_seccion(valor) == seccion_normalizada:
+                return True
+            if str(valor).strip().lower() == seccion_normalizada:
+                return True
+        return False
+
     def _obtener_alumnos_por_seccion(self, seccion_normalizada, publicador_email=None):
         """
-        Consulta users con activo=true, rol=usuario y secciones JSONB que contengan la sección.
-        Retorna lista de emails tal como están en BD (respeta FK).
+        Usuarios activos (rol=usuario) con la sección en secciones o secciones_asignadas.
+        Valida arrays NULL antes de segmentar.
         """
         excluir = self._normalizar_email(publicador_email)
-        query = (
-            self.supabase.table("users")
-            .select("email")
-            .eq("activo", True)
-            .eq("rol", "usuario")
-            .contains("secciones", [seccion_normalizada])
-        )
-        result = query.execute()
-        emails = []
-        for usuario in result.data or []:
-            email_bd = (usuario.get("email") or "").strip()
-            if not email_bd:
-                continue
-            if excluir and self._normalizar_email(email_bd) == excluir:
-                continue
-            emails.append(email_bd)
-        return list(dict.fromkeys(emails))
+        try:
+            result = (
+                self.supabase.table("users")
+                .select("email, secciones, secciones_asignadas")
+                .eq("activo", True)
+                .eq("rol", "usuario")
+                .execute()
+            )
+            emails = []
+            for usuario in result.data or []:
+                if not self._usuario_tiene_seccion(usuario, seccion_normalizada):
+                    continue
+                email_bd = (usuario.get("email") or "").strip()
+                if not email_bd:
+                    continue
+                if excluir and self._normalizar_email(email_bd) == excluir:
+                    continue
+                emails.append(email_bd)
+            return list(dict.fromkeys(emails))
+        except Exception as e:
+            print(f"Error obteniendo alumnos por sección: {_format_supabase_error(e)}")
+            return []
 
-    def crear_notificacion(self, usuario_email, titulo, mensaje, tipo="info", metadata=None):
+    def crear_notificacion(
+        self,
+        usuario_email,
+        titulo,
+        mensaje,
+        seccion=None,
+        tipo="info",
+        metadata=None,
+    ):
         """Inserta una notificación para un usuario específico."""
         email = (usuario_email or "").strip()
         meta_limpia = metadata if isinstance(metadata, dict) else {}
         if not meta_limpia:
             meta_limpia = {"origen": "sistema"}
+        seccion_norm = normalizar_seccion(seccion or meta_limpia.get("seccion"))
 
         data = {
             "id": str(uuid.uuid4()),
             "usuario_email": email,
+            "seccion": seccion_norm or None,
             "titulo": titulo,
-            "mensaje": mensaje,
+            "mensaje": mensaje or MENSAJE_NOTIF_NUEVO_DOCUMENTO,
+            "tipo": tipo,
             "leido": False,
             "metadata": meta_limpia,
         }
@@ -108,7 +154,7 @@ class NotificationManager:
     ):
         """
         Inserta notificaciones en lote: una fila por usuario_email en la tabla notificaciones.
-        Filtra alumnos vía query Supabase (.contains sobre JSONB secciones).
+        Filtra alumnos por secciones y secciones_asignadas (arrays NULL-safe).
         """
         try:
             meta = metadata if isinstance(metadata, dict) else {}
@@ -120,17 +166,18 @@ class NotificationManager:
                 return False, 0, msg
 
             meta["seccion"] = seccion_documento
+            mensaje_final = (mensaje or "").strip() or MENSAJE_NOTIF_NUEVO_DOCUMENTO
 
             print(
                 f"🔍 Buscando alumnos: activo=true, rol=usuario, "
-                f"secciones contiene ['{seccion_documento}']"
+                f"sección '{seccion_documento}' en secciones/secciones_asignadas"
             )
             alumnos = self._obtener_alumnos_por_seccion(seccion_documento, publicador_email)
 
             if not alumnos:
                 msg = (
                     f"No hay alumnos activos (rol=usuario) con la sección "
-                    f"'{seccion_documento}' en users.secciones"
+                    f"'{seccion_documento}' en users.secciones o users.secciones_asignadas"
                 )
                 print(f"⚠️ {msg}")
                 return False, 0, msg
@@ -139,8 +186,10 @@ class NotificationManager:
                 {
                     "id": str(uuid.uuid4()),
                     "usuario_email": email,
+                    "seccion": seccion_documento,
                     "titulo": titulo,
-                    "mensaje": mensaje,
+                    "mensaje": mensaje_final,
+                    "tipo": tipo,
                     "leido": False,
                     "metadata": meta,
                 }
@@ -179,7 +228,7 @@ class NotificationManager:
                 .select("*")
                 .eq("usuario_email", email)
                 .eq("leido", False)
-                .order("id", desc=True)
+                .order("fecha_creacion", desc=True)
                 .execute()
             )
             return result.data or []
@@ -187,16 +236,17 @@ class NotificationManager:
             print(f"Error obteniendo notificaciones no leídas: {_format_supabase_error(e)}")
             return []
 
-    def obtener_ultimas_no_leidas(self, usuario_email, limite=10):
+    def obtener_ultimas_no_leidas(self, usuario_email, limite=LIMITE_NOTIFICACIONES_CAMPANA):
         email = (usuario_email or "").strip()
+        limite_seguro = max(1, min(int(limite or LIMITE_NOTIFICACIONES_CAMPANA), 8))
         try:
             result = (
                 self.supabase.table("notificaciones")
                 .select("*")
                 .eq("usuario_email", email)
                 .eq("leido", False)
-                .order("id", desc=True)
-                .limit(limite)
+                .order("fecha_creacion", desc=True)
+                .limit(limite_seguro)
                 .execute()
             )
             return result.data or []

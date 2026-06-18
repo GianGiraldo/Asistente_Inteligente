@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 import mimetypes
 import unicodedata
-from notification_manager import NotificationManager, normalizar_seccion
+from notification_manager import NotificationManager, MENSAJE_NOTIF_NUEVO_DOCUMENTO, normalizar_seccion
 
 def limpiar_ruta(texto):
     """Limpia una ruta eliminando tildes y convirtiendo a minúsculas."""
@@ -57,6 +57,8 @@ class StorageManager:
         if not archivo:
             return False, "No se ha seleccionado ningún archivo"
 
+        descripcion_texto = (descripcion or "").strip()
+
         try:
             if es_publicacion:
                 seccion_limpia = normalizar_seccion(seccion)
@@ -67,9 +69,9 @@ class StorageManager:
                     "nombre_original": archivo.name,
                     "seccion": seccion_limpia, # <-- Esto garantiza consistencia con la tabla users
                     "subcategoria": subcategoria,
-                    "descripcion": descripcion,
+                    "descripcion": descripcion_texto,
                     "titulo": archivo.name,
-                    "mensaje": descripcion or "",
+                    "mensaje": descripcion_texto,
                     "categoria": subcategoria,          
                     "creado_por": "master"
                 }
@@ -110,15 +112,17 @@ class StorageManager:
 
     def publicar_documento(self, archivo, seccion, subcategoria, descripcion="", publicador_email=None):
         """Publica un documento directamente desde el panel de administración."""
-        exito, resultado = self.guardar_archivo(archivo, seccion, subcategoria, "master", descripcion, es_publicacion=True)
+        descripcion_texto = (descripcion or "").strip()
+        exito, resultado = self.guardar_archivo(
+            archivo, seccion, subcategoria, "master", descripcion_texto, es_publicacion=True
+        )
         if exito and isinstance(resultado, dict):
             seccion_guardada = normalizar_seccion(resultado.get("seccion") or seccion)
             resultado["seccion"] = seccion_guardada
-            titulo_notif = resultado.get("titulo") or archivo.name
-            mensaje_notif = resultado.get("mensaje") or descripcion or f"Nueva publicación en {seccion_guardada}"
+            titulo_notif = resultado.get("nombre_original") or archivo.name
             ok, count, err = self._notificar_publicacion_alumnos(
                 titulo=titulo_notif,
-                mensaje=mensaje_notif,
+                mensaje=MENSAJE_NOTIF_NUEVO_DOCUMENTO,
                 metadata={
                     "seccion": seccion_guardada,
                     "subcategoria": subcategoria,
@@ -167,6 +171,68 @@ class StorageManager:
             print(f"Error en obtener_publicaciones_por_seccion: {e}")
             return []
 
+    @staticmethod
+    def _icono_tipo_archivo(nombre_archivo: str) -> str:
+        ext = nombre_archivo.rsplit(".", 1)[-1].lower() if "." in nombre_archivo else ""
+        iconos = {
+            "pdf": "📕",
+            "xlsx": "📊",
+            "xls": "📊",
+            "docx": "📘",
+            "doc": "📘",
+            "pptx": "📙",
+            "ppt": "📙",
+        }
+        return iconos.get(ext, "📄")
+
+    def normalizar_metadatos_documento(self, registro, es_publicacion=True):
+        """Metadatos uniformes para UI compacta y catálogo del chatbot."""
+        nombre = (registro.get("nombre_original") or registro.get("titulo") or "Sin título").strip()
+        fecha_raw = registro.get("fecha") or registro.get("fecha_creacion") or ""
+        ext = nombre.rsplit(".", 1)[-1].lower() if "." in nombre else ""
+        return {
+            "id": registro.get("id"),
+            "nombre": nombre,
+            "nombre_original": nombre,
+            "descripcion": (registro.get("descripcion") or registro.get("mensaje") or "").strip(),
+            "fecha": str(fecha_raw)[:10],
+            "fecha_raw": fecha_raw,
+            "seccion": registro.get("seccion", ""),
+            "subcategoria": registro.get("subcategoria", ""),
+            "extension": ext,
+            "icono": self._icono_tipo_archivo(nombre),
+            "es_publicacion": es_publicacion,
+            "tamaño_kb": registro.get("tamaño_kb"),
+        }
+
+    def listar_catalogo_seccion(self, seccion, subcategoria=None):
+        """Lista de diccionarios normalizados para UI y chatbot."""
+        publicaciones = self.obtener_publicaciones_por_seccion(seccion, subcategoria)
+        return [self.normalizar_metadatos_documento(p, es_publicacion=True) for p in publicaciones]
+
+    def listar_metadatos_personales(self, usuario, seccion=None, subcategoria=None):
+        """Metadatos normalizados de archivos personales del usuario."""
+        archivos = self.listar_archivos_usuario(
+            usuario,
+            seccion=seccion,
+            subcategoria=subcategoria,
+            incluir_publicaciones=False,
+        )
+        return [self.normalizar_metadatos_documento(a, es_publicacion=False) for a in archivos]
+
+    def listar_catalogo_seccion_dataframe(self, seccion, subcategoria=None):
+        """DataFrame limpio para consultas del chatbot o exportación."""
+        import pandas as pd
+
+        catalogo = self.listar_catalogo_seccion(seccion, subcategoria)
+        columnas = [
+            "id", "nombre", "descripcion", "fecha", "seccion",
+            "subcategoria", "extension", "icono", "es_publicacion",
+        ]
+        if not catalogo:
+            return pd.DataFrame(columns=columnas)
+        return pd.DataFrame(catalogo)[columnas]
+
     def obtener_publicaciones_usuario(self, usuario, secciones_usuario):
         """Filtra publicaciones según las secciones a las que el usuario tiene acceso."""
         todas = self.obtener_publicaciones_por_seccion()
@@ -177,6 +243,15 @@ class StorageManager:
                 pub_copy["es_publicacion"] = True
                 visibles.append(pub_copy)
         return visibles
+
+    def _usuario_es_master(self, usuario_email: str) -> bool:
+        try:
+            result = self.supabase.table("users").select("rol").eq("email", usuario_email).execute()
+            if not result.data:
+                return False
+            return (result.data[0].get("rol") or "").lower() == "master"
+        except Exception:
+            return False
 
     def descargar_archivo(self, archivo_id, usuario_email, secciones_usuario):
         """Descarga un archivo (público o personal) verificando permisos."""
@@ -190,7 +265,7 @@ class StorageManager:
 
             archivo = result.data[0]
             # Verificar permiso si no es master
-            if usuario_email != "master@optimizo.com" and archivo.get("seccion") not in secciones_usuario:
+            if not self._usuario_es_master(usuario_email) and archivo.get("seccion") not in secciones_usuario:
                 return False, "No tienes permiso para descargar este documento"
 
             url = archivo["ruta_completa"]
@@ -313,7 +388,7 @@ class StorageManager:
 
         ok, count, err = self._notificar_publicacion_alumnos(
             titulo=registro_pub["titulo"],
-            mensaje=registro_pub["mensaje"] or "Nueva publicación disponible",
+            mensaje=MENSAJE_NOTIF_NUEVO_DOCUMENTO,
             metadata={
                 "seccion": seccion_limpia,
                 "subcategoria": subcategoria,

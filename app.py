@@ -49,8 +49,8 @@ VELOX_BANNER_PATH = "assets/nuevo_banner_2026.png"
 VELOX_SIDEBAR_COLLAPSE_CONTROL_CSS = """
 <style>
     /*
-     * Post-login: capas de sidebar y header mínimo.
-     * Botón flotante: VELOX_TOP_AREA_COMPACT_CSS (inyectado después).
+     * Post-login: sidebar y cabecera mínima.
+     * Única directiva del botón colapsado: VELOX_TOP_AREA_COMPACT_CSS (inyectado después).
      */
     .stApp:not(:has(.velox-id-bar)) section[data-testid="stSidebar"] {
         min-width: 250px !important;
@@ -66,33 +66,11 @@ VELOX_SIDEBAR_COLLAPSE_CONTROL_CSS = """
         overflow: visible !important;
     }
 
-    /* Header mínimo sin ocultar el contenedor de colapso nativo */
-    .stApp:not(:has(.velox-id-bar)) [data-testid="stHeader"],
-    .stApp:not(:has(.velox-id-bar)) header {
-        display: block !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        height: 0 !important;
-        min-height: 0 !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        overflow: visible !important;
-        clip: unset !important;
-        clip-path: none !important;
+    /* Cabecera neutra: sin franja vertical; no ocultar collapsedControl */
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stHeader"] {
         background: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
-    }
-
-    .stApp:not(:has(.velox-id-bar)) [data-testid="stHeader"] [data-testid="collapsedControl"],
-    .stApp:not(:has(.velox-id-bar)) header [data-testid="collapsedControl"] {
-        display: flex !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        pointer-events: auto !important;
+        height: 0px !important;
         overflow: visible !important;
-        height: auto !important;
-        min-height: auto !important;
     }
 
     @media (max-width: 768px) {
@@ -200,17 +178,18 @@ VELOX_TOP_AREA_COMPACT_CSS = """
         padding-top: 0px !important;
     }
 
-    /* 1. Forzar que el contenedor nativo de colapso de Streamlit vuelva a ser visible */
+    /* ── Botón colapsado: única directiva activa (contenedor + estilo corporativo) ── */
     .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] {
         display: flex !important;
         visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
         position: fixed !important;
         top: 12px !important;
         left: 12px !important;
         z-index: 999999 !important;
     }
 
-    /* 2. Estilizar el botón interno para que tenga el diseño corporativo de veloX */
     .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] button,
     .stApp:not(:has(.velox-id-bar)) button[data-testid="stSidebarCollapse"] {
         display: flex !important;
@@ -226,7 +205,6 @@ VELOX_TOP_AREA_COMPACT_CSS = """
         justify-content: center !important;
     }
 
-    /* 3. Asegurar que el icono interno (la flecha >) no se blanquee ni se oculte */
     .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] button svg,
     .stApp:not(:has(.velox-id-bar)) button[data-testid="stSidebarCollapse"] svg {
         fill: #00E5FF !important;

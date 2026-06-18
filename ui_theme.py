@@ -205,16 +205,6 @@ VELOX_ULTRA_COMPACT_LAYOUT_CSS = """
         padding: 0 !important;
         margin: 0 !important;
     }
-    [data-testid="stHeader"] {
-        background: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
-        height: 0px !important;
-        min-height: 0 !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        overflow: visible !important;
-    }
     [data-testid="stAppViewContainer"] > section[data-testid="stMain"] {
         padding-top: 0 !important;
     }
@@ -255,37 +245,62 @@ VELOX_ULTRA_COMPACT_LAYOUT_CSS = """
         padding-top: 0 !important;
     }
 
-    /* —— FIJAR Y REVELAR BOTÓN DE APERTURA SIDEBAR COMPACTO —— */
-    [data-testid="collapsedControl"] {
-        display: flex !important;
-        visibility: visible !important;
+    /* --- BLINDAJE ESTRUCTURAL DEL CONTROL DE APERTURA --- */
+    /* Forzar que el contenedor nativo de la barra colapsada se quede fijo arriba a la izquierda */
+    [data-testid="stSidebarCollapse"] {
         position: fixed !important;
         top: 12px !important;
         left: 12px !important;
         z-index: 999999 !important;
-        width: 40px !important;
-        height: 40px !important;
-    }
-
-    [data-testid="collapsedControl"] button,
-    button[data-testid="stSidebarCollapse"] {
         display: flex !important;
         visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        width: auto !important;
+        height: auto !important;
+    }
+
+    /* Forzar la visualización absoluta del botón interno */
+    [data-testid="collapsedControl"] {
         background-color: #0F3D3C !important;
-        color: #00E5FF !important;
+        border: 2px solid #00E5FF !important;
         border-radius: 6px !important;
-        border: 1px solid rgba(0, 229, 255, 0.4) !important;
-        box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.5) !important;
+        display: flex !important;
         align-items: center !important;
         justify-content: center !important;
         width: 40px !important;
         height: 40px !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        cursor: pointer !important;
     }
 
-    [data-testid="collapsedControl"] button svg,
-    button[data-testid="stSidebarCollapse"] svg {
+    /* Forzar el color cyan corporativo en la flecha SVG */
+    [data-testid="collapsedControl"] svg {
         fill: #00E5FF !important;
         color: #00E5FF !important;
+        width: 22px !important;
+        height: 22px !important;
+    }
+
+    /* Efecto Hover interactivo */
+    [data-testid="collapsedControl"]:hover {
+        background-color: #00E5FF !important;
+        border-color: #ffffff !important;
+    }
+    [data-testid="collapsedControl"]:hover svg {
+        fill: #0F3D3C !important;
+        color: #0F3D3C !important;
+    }
+
+    /* Evitar que la cabecera vacía bloquee los clics en el botón fijo */
+    [data-testid="stHeader"] {
+        background-color: transparent !important;
+        height: 0px !important;
+        min-height: 0px !important;
+        overflow: visible !important;
+        pointer-events: none !important;
     }
 </style>
 """

@@ -49,28 +49,23 @@ VELOX_BANNER_PATH = "assets/nuevo_banner_2026.png"
 VELOX_SIDEBAR_COLLAPSE_CONTROL_CSS = """
 <style>
     /*
-     * Post-login: botón flotante solo cuando la sidebar está colapsada.
-     * Dentro de la sidebar expandida el toggle conserva su posición nativa.
+     * Post-login: capas de sidebar y header mínimo.
+     * El botón flotante vive en VELOX_TOP_AREA_COMPACT_CSS (inyectado después).
      */
     .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] {
         display: block !important;
         visibility: visible !important;
         opacity: 1 !important;
         pointer-events: auto !important;
-        position: fixed !important;
-        top: 15px !important;
-        left: 15px !important;
-        z-index: 999999 !important;
-        background-color: #0F3D3C !important;
-        color: #FFFFFF !important;
-        border: 1px solid #00E5FF !important;
-        border-radius: 5px !important;
-        padding: 5px !important;
-        width: auto !important;
-        height: auto !important;
-        min-width: 2rem !important;
-        min-height: 2rem !important;
         overflow: visible !important;
+        z-index: 999998 !important;
+    }
+
+    /* Sidebar: capa nativa sobre el fondo, sin desplazar el contenido central */
+    .stApp:not(:has(.velox-id-bar)) section[data-testid="stSidebar"] {
+        min-width: 250px !important;
+        z-index: 100 !important;
+        position: relative !important;
     }
 
     .stApp:not(:has(.velox-id-bar)) section[data-testid="stSidebar"] div[data-testid="stSidebarCollapse"] {
@@ -78,13 +73,6 @@ VELOX_SIDEBAR_COLLAPSE_CONTROL_CSS = """
         visibility: visible !important;
         opacity: 1 !important;
         pointer-events: auto !important;
-        position: relative !important;
-        top: auto !important;
-        left: auto !important;
-        z-index: 1000060 !important;
-        background-color: transparent !important;
-        border: none !important;
-        padding: 0 !important;
         overflow: visible !important;
     }
 
@@ -96,66 +84,27 @@ VELOX_SIDEBAR_COLLAPSE_CONTROL_CSS = """
         fill: #FFFFFF !important;
     }
 
-    /* Sidebar accesible: ancho mínimo cuando está visible */
-    .stApp:not(:has(.velox-id-bar)) section[data-testid="stSidebar"] {
-        min-width: 250px !important;
-        margin-left: 0px !important;
-        flex-shrink: 0 !important;
-        z-index: 1000050 !important;
-        position: relative !important;
-    }
-
-    @media (min-width: 769px) {
-        .stApp:not(:has(.velox-id-bar)) [data-testid="stHeader"] {
-            display: block !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            height: auto !important;
-            min-height: 0 !important;
-            overflow: visible !important;
-            background: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-            margin: 0 !important;
-        }
+    /* Header mínimo: no reserva franja vertical en desktop */
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stHeader"],
+    .stApp:not(:has(.velox-id-bar)) header {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        overflow: visible !important;
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
     }
 
     @media (max-width: 768px) {
-        .stApp:not(:has(.velox-id-bar)) [data-testid="stHeader"],
-        .stApp:not(:has(.velox-id-bar)) header {
-            display: block !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            height: auto !important;
-            min-height: 2.75rem !important;
-            padding: 0.5rem 0.5rem 0.25rem !important;
-            margin: 0 !important;
-            overflow: visible !important;
-            z-index: 999998 !important;
-            position: relative !important;
-            background: transparent !important;
-        }
-
-        /* Reservar espacio para el botón; sin márgenes negativos que lo tapen */
+        /* Reservar espacio solo para el botón flotante en móvil */
         .stApp:not(:has(.velox-id-bar)) .main .block-container {
             margin-top: 0 !important;
-            padding-top: 3.5rem !important;
-        }
-
-        .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner,
-        .stApp:not(:has(.velox-id-bar)) [data-testid="stMain"] [data-testid="element-container"]:has(.st-key-velox_top_banner),
-        .stApp:not(:has(.velox-id-bar)) .main .block-container > div > [data-testid="stVerticalBlock"] > div:first-child,
-        .stApp:not(:has(.velox-id-bar)) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="element-container"]:first-child {
-            margin-top: 0 !important;
-            margin-bottom: 0 !important;
-            padding-top: 0 !important;
-        }
-
-        .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner [data-testid="stImage"],
-        .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner [data-testid="stImage"] img {
-            margin-top: 0 !important;
-            padding-top: 0 !important;
+            padding-top: 2.75rem !important;
         }
     }
 </style>
@@ -170,36 +119,26 @@ def inject_sidebar_collapse_control():
 VELOX_POST_LOGIN_SHELL_CSS = """
 <style>
     /*
-     * Shell post-login: sidebar por encima del contenido; main contenido sin desbordar.
+     * Shell post-login: respetar layout nativo de Streamlit.
+     * Sin flex/margin-left/position:fixed en stAppViewContainer.
      */
-    .stApp:not(:has(.velox-id-bar)) [data-testid="stAppViewContainer"] {
-        display: flex !important;
-        flex-direction: row !important;
-        width: 100% !important;
-        position: relative !important;
-        z-index: auto !important;
-        overflow: visible !important;
-    }
-
-    .stApp:not(:has(.velox-id-bar)) [data-testid="stAppViewContainer"] > section[data-testid="stMain"] {
-        flex: 1 1 auto !important;
-        min-width: 0 !important;
-        z-index: 1 !important;
-        position: relative !important;
-        overflow-x: hidden !important;
-        overflow-y: visible !important;
-    }
-
-    .stApp:not(:has(.velox-id-bar)) [data-testid="stMain"] .block-container,
-    .stApp:not(:has(.velox-id-bar)) [data-testid="stMainBlockContainer"] {
-        z-index: 1 !important;
-        position: relative !important;
+    .stApp:not(:has(.velox-id-bar)) .main .block-container,
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stMain"] .block-container {
+        padding-top: 0 !important;
+        margin-top: 0 !important;
         max-width: 100% !important;
         box-sizing: border-box !important;
-        margin-left: 0 !important;
     }
 
-    /* Banner decorativo: capa inferior, sin invadir la columna del menú */
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stMain"],
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stMainBlockContainer"],
+    .stApp:not(:has(.velox-id-bar)) section.main,
+    .stApp:not(:has(.velox-id-bar)) section.main > div {
+        padding-top: 0 !important;
+        margin-top: 0 !important;
+    }
+
+    /* Banner elevado: compactación solo sobre el bloque del banner, no todo el main */
     .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner,
     .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner [data-testid="stElementContainer"],
     .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner [data-testid="stImage"] {
@@ -207,14 +146,28 @@ VELOX_POST_LOGIN_SHELL_CSS = """
         z-index: 1 !important;
         max-width: 100% !important;
         margin-left: 0 !important;
-        left: auto !important;
-        right: auto !important;
+        padding-top: 0 !important;
         transform: none !important;
+    }
+
+    @media (min-width: 769px) {
+        .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner {
+            margin-top: -20px !important;
+            margin-bottom: 0 !important;
+        }
+
+        .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner [data-testid="stImage"],
+        .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner [data-testid="stImage"] img {
+            margin-top: 0 !important;
+            padding-top: 0 !important;
+            display: block !important;
+            width: 100% !important;
+            max-width: 100% !important;
+        }
     }
 
     .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner [data-testid="stImage"] img {
         max-width: 100% !important;
-        width: 100% !important;
         object-fit: contain !important;
         display: block !important;
     }
@@ -229,7 +182,7 @@ def inject_post_login_shell_layout():
 
 VELOX_TOP_AREA_COMPACT_CSS = """
 <style>
-    /* Post-login: compactación del banner sin invadir la sidebar */
+    /* Post-login: ocultar decoración/toolbar sin alterar layout nativo */
     .stApp:not(:has(.velox-id-bar)) [data-testid="stDecoration"],
     .stApp:not(:has(.velox-id-bar)) .stDecoration {
         display: none !important;
@@ -246,51 +199,35 @@ VELOX_TOP_AREA_COMPACT_CSS = """
         margin-top: 0px !important;
         padding-top: 0px !important;
     }
-    .stApp:not(:has(.velox-id-bar)) [data-testid="stAppViewContainer"] > section[data-testid="stMain"],
-    .stApp:not(:has(.velox-id-bar)) [data-testid="stMain"],
-    .stApp:not(:has(.velox-id-bar)) [data-testid="stMainBlockContainer"],
-    .stApp:not(:has(.velox-id-bar)) section.main,
-    .stApp:not(:has(.velox-id-bar)) section.main > div {
-        padding-top: 0px !important;
-        margin-top: 0px !important;
-    }
-
-    /* Compactación moderada del banner — solo escritorio, sin márgenes que crucen columnas */
-    @media (min-width: 769px) {
-        .stApp:not(:has(.velox-id-bar)) .main .block-container {
-            padding-top: 0.25rem !important;
-            margin-top: 0 !important;
-            max-width: 100% !important;
-        }
-
-        .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner {
-            margin-top: 0 !important;
-            margin-bottom: 0.25rem !important;
-            padding-top: 0 !important;
-        }
-
-        .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner [data-testid="stImage"],
-        .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner [data-testid="stImage"] img {
-            margin-top: 0 !important;
-            padding-top: 0 !important;
-            display: block !important;
-            width: 100% !important;
-            max-width: 100% !important;
-        }
-    }
-
-    @media (max-width: 768px) {
-        .stApp:not(:has(.velox-id-bar)) .main .block-container {
-            margin-top: 0 !important;
-            padding-top: 3.5rem !important;
-            max-width: 100% !important;
-        }
-    }
 
     .stApp:not(:has(.velox-id-bar)) [data-testid="stMain"] .element-container,
     .stApp:not(:has(.velox-id-bar)) [data-testid="stMain"] [data-testid="element-container"],
     .stApp:not(:has(.velox-id-bar)) [data-testid="stMain"] .stMarkdown {
         padding-top: 0px !important;
+    }
+
+    /* Asegurar que el botón de apertura reaparezca fijo e indestructible al colapsar */
+    .stApp:not(:has(.velox-id-bar)) button[data-testid="stSidebarCollapse"],
+    .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] button {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        position: fixed !important;
+        top: 12px !important;
+        left: 12px !important;
+        z-index: 999999 !important;
+        background-color: #0F3D3C !important;
+        color: #00E5FF !important;
+        border-radius: 4px !important;
+        border: 1px solid rgba(0, 229, 255, 0.3) !important;
+        box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.5) !important;
+    }
+
+    .stApp:not(:has(.velox-id-bar)) button[data-testid="stSidebarCollapse"] svg,
+    .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] button svg {
+        color: #00E5FF !important;
+        fill: #00E5FF !important;
     }
 </style>
 """
@@ -3682,8 +3619,8 @@ if not _usuario_con_acceso:
 else:
     # ==================== HEADER (solo después del login) ====================
     inject_post_login_shell_layout()
-    render_velox_top_banner()
     inject_sidebar_collapse_control()
+    render_velox_top_banner()
     render_app_top_bar()
 
     # ==================== SIDEBAR ====================

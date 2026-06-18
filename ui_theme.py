@@ -192,14 +192,28 @@ VELOX_ULTRA_COMPACT_LAYOUT_CSS = """
         padding-top: 0rem !important;
         margin-top: 0rem !important;
     }
-    [data-testid="stHeader"] {
+    /* Ocultar decoración y toolbar de deploy; conservar header para toggle de sidebar */
+    [data-testid="stDecoration"],
+    .stDecoration {
         display: none !important;
+        height: 0 !important;
     }
     [data-testid="stToolbar"] {
+        display: none !important;
         height: 0 !important;
         min-height: 0 !important;
         padding: 0 !important;
         margin: 0 !important;
+    }
+    [data-testid="stHeader"] {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        height: auto !important;
+        min-height: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        overflow: visible !important;
     }
     [data-testid="stAppViewContainer"] > section[data-testid="stMain"] {
         padding-top: 0 !important;

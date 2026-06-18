@@ -38,10 +38,10 @@ from ui_theme import (
 )
 
 st.set_page_config(
-    page_title="Asistente Inteligente veloX",
+    page_title="veloX",
     page_icon="⚡",
     layout="wide",
-    initial_sidebar_state="expanded",  # Sidebar abierta al cargar (también en móvil)
+    initial_sidebar_state="expanded",  # Obliga sidebar abierta al cargar (también en móvil)
 )
 
 VELOX_BANNER_PATH = "assets/nuevo_banner_2026.png"
@@ -49,9 +49,45 @@ VELOX_BANNER_PATH = "assets/nuevo_banner_2026.png"
 VELOX_SIDEBAR_COLLAPSE_CONTROL_CSS = """
 <style>
     /*
-     * Post-login: el control nativo de sidebar debe permanecer visible.
-     * Escritorio (≥769px) y móvil (<769px).
+     * Post-login: botón de sidebar siempre visible (escritorio y móvil).
+     * Acotado a .stApp:not(:has(.velox-id-bar)) para no afectar la pantalla de login.
      */
+    .stApp:not(:has(.velox-id-bar)) div[data-testid="stSidebarCollapse"],
+    .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        position: fixed !important;
+        top: 15px !important;
+        left: 15px !important;
+        z-index: 999999 !important;
+        background-color: #0F3D3C !important;
+        color: #FFFFFF !important;
+        border: 1px solid #00E5FF !important;
+        border-radius: 5px !important;
+        padding: 5px !important;
+        width: auto !important;
+        height: auto !important;
+        min-width: 2rem !important;
+        min-height: 2rem !important;
+        overflow: visible !important;
+    }
+
+    .stApp:not(:has(.velox-id-bar)) div[data-testid="stSidebarCollapse"] button,
+    .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] button,
+    .stApp:not(:has(.velox-id-bar)) div[data-testid="stSidebarCollapse"] svg,
+    .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] svg {
+        color: #FFFFFF !important;
+        fill: #FFFFFF !important;
+    }
+
+    /* Sidebar accesible: ancho mínimo cuando está visible */
+    .stApp:not(:has(.velox-id-bar)) section[data-testid="stSidebar"] {
+        min-width: 250px !important;
+        margin-left: 0px !important;
+    }
+
     @media (min-width: 769px) {
         .stApp:not(:has(.velox-id-bar)) [data-testid="stHeader"] {
             display: block !important;
@@ -65,36 +101,6 @@ VELOX_SIDEBAR_COLLAPSE_CONTROL_CSS = """
             box-shadow: none !important;
             padding: 0 !important;
             margin: 0 !important;
-        }
-
-        .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"],
-        .stApp:not(:has(.velox-id-bar)) [data-testid="stSidebarCollapse"] {
-            display: block !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            pointer-events: auto !important;
-            height: auto !important;
-            min-height: unset !important;
-            overflow: visible !important;
-        }
-
-        /* Flecha expandir (sidebar colapsada): esquina superior izquierda */
-        .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] {
-            position: fixed !important;
-            top: 1rem !important;
-            left: 1rem !important;
-            z-index: 999999 !important;
-            color: #FFFFFF !important;
-            background-color: #0F3D3C !important;
-            border-radius: 50% !important;
-            padding: 0.25rem !important;
-            box-shadow: 0 2px 8px rgba(15, 61, 60, 0.35) !important;
-        }
-
-        .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] button,
-        .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] svg {
-            color: #FFFFFF !important;
-            fill: #FFFFFF !important;
         }
     }
 
@@ -114,40 +120,10 @@ VELOX_SIDEBAR_COLLAPSE_CONTROL_CSS = """
             background: transparent !important;
         }
 
-        /* Hamburguesa / flecha — siempre accesible en móvil */
-        .stApp:not(:has(.velox-id-bar)) [data-testid="stSidebarCollapse"],
-        .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] {
-            display: block !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            pointer-events: auto !important;
-            position: fixed !important;
-            top: 0.65rem !important;
-            left: 0.65rem !important;
-            z-index: 999999 !important;
-            color: #FFFFFF !important;
-            background-color: #0F3D3C !important;
-            border-radius: 50% !important;
-            padding: 0.35rem !important;
-            box-shadow: 0 2px 10px rgba(15, 61, 60, 0.4) !important;
-            width: auto !important;
-            height: auto !important;
-            min-width: 2.25rem !important;
-            min-height: 2.25rem !important;
-        }
-
-        .stApp:not(:has(.velox-id-bar)) [data-testid="stSidebarCollapse"] button,
-        .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] button,
-        .stApp:not(:has(.velox-id-bar)) [data-testid="stSidebarCollapse"] svg,
-        .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] svg {
-            color: #FFFFFF !important;
-            fill: #FFFFFF !important;
-        }
-
         /* Reservar espacio para el botón; sin márgenes negativos que lo tapen */
         .stApp:not(:has(.velox-id-bar)) .main .block-container {
             margin-top: 0 !important;
-            padding-top: 3.25rem !important;
+            padding-top: 3.5rem !important;
         }
 
         .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner,
@@ -237,7 +213,7 @@ VELOX_TOP_AREA_COMPACT_CSS = """
     @media (max-width: 768px) {
         .stApp:not(:has(.velox-id-bar)) .main .block-container {
             margin-top: 0 !important;
-            padding-top: 3.25rem !important;
+            padding-top: 3.5rem !important;
             max-width: 100% !important;
         }
     }

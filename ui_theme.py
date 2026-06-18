@@ -192,13 +192,13 @@ VELOX_ULTRA_COMPACT_LAYOUT_CSS = """
         padding-top: 0rem !important;
         margin-top: 0rem !important;
     }
-    /* Ocultar decoración y toolbar de deploy; conservar header para toggle de sidebar */
+    /* Ocultar decoración; toolbar solo cuando el sidebar está expandido (ver bloque toggle) */
     [data-testid="stDecoration"],
     .stDecoration {
         display: none !important;
         height: 0 !important;
     }
-    [data-testid="stToolbar"] {
+    .stApp:not(:has(.velox-id-bar)):has(section[data-testid="stSidebar"][aria-expanded="true"]) [data-testid="stToolbar"] {
         display: none !important;
         height: 0 !important;
         min-height: 0 !important;
@@ -245,11 +245,54 @@ VELOX_ULTRA_COMPACT_LAYOUT_CSS = """
         padding-top: 0 !important;
     }
 
-    /* --- BLINDAJE ABSOLUTO DEL CONTROL DE APERTURA POST-LOGIN --- */
-    /* Forzar que el contenedor nativo macro sea un bloque fijo, visible y cliqueable */
-    [data-testid="stSidebarCollapse"],
-    div:has(> [data-testid="collapsedControl"]),
-    .stApp:not(:has(.velox-id-bar)) [data-testid="stSidebarCollapse"] {
+    /* --- TOGGLE SIDEBAR POST-LOGIN (Streamlit 1.54+: stExpandSidebarButton en stToolbar) --- */
+
+    /* Sidebar colapsada: mostrar header/toolbar nativos (contienen el botón reabrir) */
+    .stApp:not(:has(.velox-id-bar)):has(section[data-testid="stSidebar"][aria-expanded="false"]) [data-testid="stHeader"],
+    .stApp:not(:has(.velox-id-bar)):has(section[data-testid="stSidebar"][aria-expanded="false"]) [data-testid="stToolbar"],
+    .stApp:not(:has(.velox-id-bar)):has(section[data-testid="stSidebar"][aria-expanded="false"]) [data-testid="stHeader"] > div {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        overflow: visible !important;
+        pointer-events: auto !important;
+    }
+
+    /* Contenedores del botón (legacy + Streamlit 1.54) */
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stSidebarCollapse"],
+    .stApp:not(:has(.velox-id-bar)) div:has(> [data-testid="collapsedControl"]),
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stHeader"] [data-testid="stSidebarCollapse"],
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stToolbar"],
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stHeader"] > div:has([data-testid="stExpandSidebarButton"]) {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+    }
+
+    /* Botón flotante reabrir — Streamlit 1.54 (stExpandSidebarButton) + legacy (collapsedControl) */
+    .stApp:not(:has(.velox-id-bar)):has(section[data-testid="stSidebar"][aria-expanded="false"]) [data-testid="stExpandSidebarButton"],
+    .stApp:not(:has(.velox-id-bar)):has(section[data-testid="stSidebar"][aria-expanded="false"]) [data-testid="stHeader"] > div:has([data-testid="stExpandSidebarButton"]),
+    .stApp:not(:has(.velox-id-bar)):has(section[data-testid="stSidebar"][aria-expanded="false"]) [data-testid="stToolbar"],
+    .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"],
+    .stApp:not(:has(.velox-id-bar)) div:has(> [data-testid="collapsedControl"]),
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stHeader"] [data-testid="stSidebarCollapse"] {
+        position: fixed !important;
+        top: 12px !important;
+        left: 12px !important;
+        z-index: 9999999 !important;
+        width: 42px !important;
+        height: 42px !important;
+        min-width: 42px !important;
+        min-height: 42px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+
+    /* Estilo cyan corporativo — botón reabrir (Streamlit 1.54) */
+    .stApp:not(:has(.velox-id-bar)):has(section[data-testid="stSidebar"][aria-expanded="false"]) [data-testid="stExpandSidebarButton"] {
         display: flex !important;
         visibility: visible !important;
         opacity: 1 !important;
@@ -260,50 +303,147 @@ VELOX_ULTRA_COMPACT_LAYOUT_CSS = """
         pointer-events: auto !important;
         width: 42px !important;
         height: 42px !important;
-    }
-
-    /* Estilo estético del botón cyan corporativo de veloX */
-    [data-testid="collapsedControl"] {
+        min-width: 42px !important;
+        min-height: 42px !important;
         background-color: #0F3D3C !important;
         border: 2px solid #00E5FF !important;
         border-radius: 6px !important;
-        display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        width: 100% !important;
-        height: 100% !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        pointer-events: auto !important;
         cursor: pointer !important;
+        padding: 0 !important;
+        margin: 0 !important;
     }
 
-    /* Forzar color cyan en el icono de flecha SVG interno */
-    [data-testid="collapsedControl"] svg {
+    .stApp:not(:has(.velox-id-bar)):has(section[data-testid="stSidebar"][aria-expanded="false"]) [data-testid="stExpandSidebarButton"] svg,
+    .stApp:not(:has(.velox-id-bar)):has(section[data-testid="stSidebar"][aria-expanded="false"]) [data-testid="stExpandSidebarButton"] [data-testid="stIconMaterial"] {
         fill: #00E5FF !important;
         color: #00E5FF !important;
         width: 22px !important;
         height: 22px !important;
     }
 
-    /* Feedback interactivo Hover */
-    [data-testid="collapsedControl"]:hover {
+    .stApp:not(:has(.velox-id-bar)):has(section[data-testid="stSidebar"][aria-expanded="false"]) [data-testid="stExpandSidebarButton"]:hover {
         background-color: #00E5FF !important;
         border-color: #ffffff !important;
     }
-    [data-testid="collapsedControl"]:hover svg {
+
+    .stApp:not(:has(.velox-id-bar)):has(section[data-testid="stSidebar"][aria-expanded="false"]) [data-testid="stExpandSidebarButton"]:hover svg,
+    .stApp:not(:has(.velox-id-bar)):has(section[data-testid="stSidebar"][aria-expanded="false"]) [data-testid="stExpandSidebarButton"]:hover [data-testid="stIconMaterial"] {
         fill: #0F3D3C !important;
         color: #0F3D3C !important;
     }
 
-    /* Neutralizar por completo la cabecera nativa para que no bloquee los clics en la esquina */
-    [data-testid="stHeader"] {
+    /* Legacy collapsedControl (Streamlit < 1.54) */
+    .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] {
+        background-color: #0F3D3C !important;
+        border: 2px solid #00E5FF !important;
+        border-radius: 6px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 42px !important;
+        height: 42px !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        cursor: pointer !important;
+    }
+
+    .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] button,
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stExpandSidebarButton"],
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stSidebarCollapse"] button,
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stSidebarCollapseButton"] {
+        display: block !important;
+        width: 100% !important;
+        height: 100% !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        background: transparent !important;
+        border: none !important;
+        cursor: pointer !important;
+        pointer-events: auto !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+    }
+
+    .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] svg {
+        fill: #00E5FF !important;
+        color: #00E5FF !important;
+        width: 22px !important;
+        height: 22px !important;
+        pointer-events: none !important;
+    }
+
+    .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"]:hover {
+        background-color: #00E5FF !important;
+        border-color: #ffffff !important;
+    }
+
+    .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"]:hover svg {
+        fill: #0F3D3C !important;
+        color: #0F3D3C !important;
+    }
+
+    /* Chevron « colapsar » dentro del sidebar expandido */
+    .stApp:not(:has(.velox-id-bar)) section[data-testid="stSidebar"] [data-testid="stSidebarCollapse"],
+    .stApp:not(:has(.velox-id-bar)) section[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        position: relative !important;
+        top: auto !important;
+        left: auto !important;
+        z-index: 101 !important;
+        width: auto !important;
+        height: auto !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+    }
+
+    /* Header: altura cero cuando sidebar abierto; visible al colapsar */
+    .stApp:not(:has(.velox-id-bar)):has(section[data-testid="stSidebar"][aria-expanded="true"]) [data-testid="stHeader"] {
         background-color: transparent !important;
-        height: 0px !important;
-        min-height: 0px !important;
+        height: 0 !important;
+        min-height: 0 !important;
         overflow: visible !important;
         pointer-events: none !important;
-        z-index: -1 !important;
+        z-index: 9999998 !important;
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+    }
+
+    .stApp:not(:has(.velox-id-bar)):has(section[data-testid="stSidebar"][aria-expanded="false"]) [data-testid="stHeader"] {
+        background-color: transparent !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        overflow: visible !important;
+        pointer-events: none !important;
+        position: relative !important;
+        z-index: 9999998 !important;
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+    }
+
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stHeader"] [data-testid="stSidebarCollapse"],
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stHeader"] [data-testid="collapsedControl"],
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stHeader"] div:has(> [data-testid="collapsedControl"]),
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stHeader"] [data-testid="stExpandSidebarButton"],
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stHeader"] > div:has([data-testid="stExpandSidebarButton"]) {
+        pointer-events: auto !important;
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
     }
 </style>
 """

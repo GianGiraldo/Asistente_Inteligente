@@ -49,10 +49,9 @@ VELOX_BANNER_PATH = "assets/nuevo_banner_2026.png"
 VELOX_SIDEBAR_COLLAPSE_CONTROL_CSS = """
 <style>
     /*
-     * Post-login: botón de sidebar siempre visible (escritorio y móvil).
-     * Acotado a .stApp:not(:has(.velox-id-bar)) para no afectar la pantalla de login.
+     * Post-login: botón flotante solo cuando la sidebar está colapsada.
+     * Dentro de la sidebar expandida el toggle conserva su posición nativa.
      */
-    .stApp:not(:has(.velox-id-bar)) div[data-testid="stSidebarCollapse"],
     .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] {
         display: block !important;
         visibility: visible !important;
@@ -74,10 +73,25 @@ VELOX_SIDEBAR_COLLAPSE_CONTROL_CSS = """
         overflow: visible !important;
     }
 
-    .stApp:not(:has(.velox-id-bar)) div[data-testid="stSidebarCollapse"] button,
+    .stApp:not(:has(.velox-id-bar)) section[data-testid="stSidebar"] div[data-testid="stSidebarCollapse"] {
+        display: inline-block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        position: relative !important;
+        top: auto !important;
+        left: auto !important;
+        z-index: 1000060 !important;
+        background-color: transparent !important;
+        border: none !important;
+        padding: 0 !important;
+        overflow: visible !important;
+    }
+
     .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] button,
-    .stApp:not(:has(.velox-id-bar)) div[data-testid="stSidebarCollapse"] svg,
-    .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] svg {
+    .stApp:not(:has(.velox-id-bar)) section[data-testid="stSidebar"] div[data-testid="stSidebarCollapse"] button,
+    .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] svg,
+    .stApp:not(:has(.velox-id-bar)) section[data-testid="stSidebar"] div[data-testid="stSidebarCollapse"] svg {
         color: #FFFFFF !important;
         fill: #FFFFFF !important;
     }
@@ -86,6 +100,9 @@ VELOX_SIDEBAR_COLLAPSE_CONTROL_CSS = """
     .stApp:not(:has(.velox-id-bar)) section[data-testid="stSidebar"] {
         min-width: 250px !important;
         margin-left: 0px !important;
+        flex-shrink: 0 !important;
+        z-index: 1000050 !important;
+        position: relative !important;
     }
 
     @media (min-width: 769px) {
@@ -150,12 +167,71 @@ def inject_sidebar_collapse_control():
     st.markdown(VELOX_SIDEBAR_COLLAPSE_CONTROL_CSS, unsafe_allow_html=True)
 
 
+VELOX_POST_LOGIN_SHELL_CSS = """
+<style>
+    /*
+     * Shell post-login: sidebar por encima del contenido; main contenido sin desbordar.
+     */
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stAppViewContainer"] {
+        display: flex !important;
+        flex-direction: row !important;
+        width: 100% !important;
+        position: relative !important;
+        z-index: auto !important;
+        overflow: visible !important;
+    }
+
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stAppViewContainer"] > section[data-testid="stMain"] {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+        z-index: 1 !important;
+        position: relative !important;
+        overflow-x: hidden !important;
+        overflow-y: visible !important;
+    }
+
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stMain"] .block-container,
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stMainBlockContainer"] {
+        z-index: 1 !important;
+        position: relative !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+        margin-left: 0 !important;
+    }
+
+    /* Banner decorativo: capa inferior, sin invadir la columna del menú */
+    .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner,
+    .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner [data-testid="stElementContainer"],
+    .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner [data-testid="stImage"] {
+        position: relative !important;
+        z-index: 1 !important;
+        max-width: 100% !important;
+        margin-left: 0 !important;
+        left: auto !important;
+        right: auto !important;
+        transform: none !important;
+    }
+
+    .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner [data-testid="stImage"] img {
+        max-width: 100% !important;
+        width: 100% !important;
+        object-fit: contain !important;
+        display: block !important;
+    }
+</style>
+"""
+
+
+def inject_post_login_shell_layout():
+    """Ordena capas y columnas del shell autenticado (sidebar vs. contenido central)."""
+    st.markdown(VELOX_POST_LOGIN_SHELL_CSS, unsafe_allow_html=True)
+
+
 VELOX_TOP_AREA_COMPACT_CSS = """
 <style>
-    /* 1. Forzar cero absoluto en contenedores principales (sin ocultar toggle sidebar) */
+    /* Post-login: compactación del banner sin invadir la sidebar */
     .stApp:not(:has(.velox-id-bar)) [data-testid="stDecoration"],
-    .stDecoration,
-    [data-testid="stDecoration"] {
+    .stApp:not(:has(.velox-id-bar)) .stDecoration {
         display: none !important;
         height: 0px !important;
     }
@@ -166,47 +242,40 @@ VELOX_TOP_AREA_COMPACT_CSS = """
         padding: 0px !important;
         margin: 0px !important;
     }
-    .stApp {
+    .stApp:not(:has(.velox-id-bar)) {
         margin-top: 0px !important;
         padding-top: 0px !important;
     }
-    [data-testid="stAppViewContainer"],
-    [data-testid="stMain"],
-    [data-testid="stMainBlockContainer"],
-    section.main,
-    section.main > div {
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stAppViewContainer"] > section[data-testid="stMain"],
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stMain"],
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stMainBlockContainer"],
+    .stApp:not(:has(.velox-id-bar)) section.main,
+    .stApp:not(:has(.velox-id-bar)) section.main > div {
         padding-top: 0px !important;
         margin-top: 0px !important;
     }
 
-    /* 2. Compactación agresiva del banner — solo escritorio (en móvil tapa el menú) */
+    /* Compactación moderada del banner — solo escritorio, sin márgenes que crucen columnas */
     @media (min-width: 769px) {
-        .main .block-container {
-            padding-top: 0rem !important;
-            margin-top: -60px !important;
+        .stApp:not(:has(.velox-id-bar)) .main .block-container {
+            padding-top: 0.25rem !important;
+            margin-top: 0 !important;
             max-width: 100% !important;
         }
 
-        .main .block-container > div > [data-testid="stVerticalBlock"] > div:first-child [data-testid="stImage"],
-        .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="element-container"]:first-child [data-testid="stImage"],
-        .st-key-velox_top_banner [data-testid="stImage"] {
-            margin-top: -20px !important;
-            padding-top: 0px !important;
+        .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner {
+            margin-top: 0 !important;
+            margin-bottom: 0.25rem !important;
+            padding-top: 0 !important;
         }
-        .main .block-container > div > [data-testid="stVerticalBlock"] > div:first-child,
-        .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="element-container"]:first-child,
-        [data-testid="stMain"] [data-testid="element-container"]:has(.st-key-velox_top_banner),
-        .st-key-velox_top_banner {
-            margin-top: -50px !important;
-            padding-top: 0px !important;
-            margin-bottom: -40px !important;
-        }
-        .st-key-velox_top_banner [data-testid="stImage"] img,
-        [data-testid="stMain"] [data-testid="stImage"] img {
-            margin-top: -20px !important;
-            padding-top: 0px !important;
+
+        .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner [data-testid="stImage"],
+        .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner [data-testid="stImage"] img {
+            margin-top: 0 !important;
+            padding-top: 0 !important;
             display: block !important;
             width: 100% !important;
+            max-width: 100% !important;
         }
     }
 
@@ -218,10 +287,9 @@ VELOX_TOP_AREA_COMPACT_CSS = """
         }
     }
 
-    /* Reset contenedores Streamlit en el área central (sin padding fantasma) */
-    [data-testid="stMain"] .element-container,
-    [data-testid="stMain"] [data-testid="element-container"],
-    [data-testid="stMain"] .stMarkdown {
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stMain"] .element-container,
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stMain"] [data-testid="element-container"],
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stMain"] .stMarkdown {
         padding-top: 0px !important;
     }
 </style>
@@ -622,7 +690,6 @@ st.markdown("""
 st.markdown(MAIN_CONTENT_AREA_CSS, unsafe_allow_html=True)
 st.markdown(VELOX_ULTRA_COMPACT_LAYOUT_CSS, unsafe_allow_html=True)
 st.markdown(SIDEBAR_NAV_CAPSULE_CSS, unsafe_allow_html=True)
-st.markdown(VELOX_TOP_AREA_COMPACT_CSS, unsafe_allow_html=True)
 
 VELOX_TEXT_INPUT_CSS = """
 <style>
@@ -3614,6 +3681,7 @@ if not _usuario_con_acceso:
 
 else:
     # ==================== HEADER (solo después del login) ====================
+    inject_post_login_shell_layout()
     render_velox_top_banner()
     inject_sidebar_collapse_control()
     render_app_top_bar()

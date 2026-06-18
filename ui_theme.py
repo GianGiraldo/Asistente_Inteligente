@@ -218,6 +218,16 @@ VELOX_ULTRA_COMPACT_LAYOUT_CSS = """
     [data-testid="stAppViewContainer"] > section[data-testid="stMain"] {
         padding-top: 0 !important;
     }
+    /* Post-login: contenido central contenido en su columna (no invade sidebar) */
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stAppViewContainer"] > section[data-testid="stMain"] {
+        z-index: 1 !important;
+        min-width: 0 !important;
+        overflow-x: hidden !important;
+    }
+    .stApp:not(:has(.velox-id-bar)) section[data-testid="stSidebar"] {
+        z-index: 1000050 !important;
+        position: relative !important;
+    }
     [data-testid="stMain"] [data-testid="stImage"] {
         margin-bottom: 0 !important;
     }
@@ -813,6 +823,9 @@ SIDEBAR_CSS = """
     [data-testid="stSidebar"], [data-testid="stSidebar"] > div:first-child {
         background: linear-gradient(180deg, #4a70a8 0%, #456ba0 100%) !important;
         border-right: 1px solid #3d5f8f;
+        z-index: 1000050 !important;
+        position: relative !important;
+        flex-shrink: 0 !important;
     }
 
     [data-testid="stSidebar"] h1,

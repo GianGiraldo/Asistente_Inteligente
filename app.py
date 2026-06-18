@@ -50,7 +50,7 @@ VELOX_SIDEBAR_COLLAPSE_CONTROL_CSS = """
 <style>
     /*
      * Post-login: sidebar y cabecera mínima.
-     * Única directiva del botón colapsado: VELOX_TOP_AREA_COMPACT_CSS (inyectado después).
+     * Botón colapsado: VELOX_ULTRA_COMPACT_LAYOUT_CSS en ui_theme.py (inject_global_theme).
      */
     .stApp:not(:has(.velox-id-bar)) section[data-testid="stSidebar"] {
         min-width: 250px !important;
@@ -176,39 +176,6 @@ VELOX_TOP_AREA_COMPACT_CSS = """
     .stApp:not(:has(.velox-id-bar)) [data-testid="stMain"] [data-testid="element-container"],
     .stApp:not(:has(.velox-id-bar)) [data-testid="stMain"] .stMarkdown {
         padding-top: 0px !important;
-    }
-
-    /* ── Botón colapsado: única directiva activa (contenedor + estilo corporativo) ── */
-    .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] {
-        display: flex !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        pointer-events: auto !important;
-        position: fixed !important;
-        top: 12px !important;
-        left: 12px !important;
-        z-index: 999999 !important;
-    }
-
-    .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] button,
-    .stApp:not(:has(.velox-id-bar)) button[data-testid="stSidebarCollapse"] {
-        display: flex !important;
-        visibility: visible !important;
-        background-color: #0F3D3C !important;
-        color: #00E5FF !important;
-        border-radius: 6px !important;
-        border: 1px solid rgba(0, 229, 255, 0.4) !important;
-        box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.5) !important;
-        width: 40px !important;
-        height: 40px !important;
-        align-items: center !important;
-        justify-content: center !important;
-    }
-
-    .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] button svg,
-    .stApp:not(:has(.velox-id-bar)) button[data-testid="stSidebarCollapse"] svg {
-        fill: #00E5FF !important;
-        color: #00E5FF !important;
     }
 </style>
 """

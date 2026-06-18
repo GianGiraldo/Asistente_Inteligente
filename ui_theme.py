@@ -209,7 +209,7 @@ VELOX_ULTRA_COMPACT_LAYOUT_CSS = """
         background: transparent !important;
         border: none !important;
         box-shadow: none !important;
-        height: auto !important;
+        height: 0px !important;
         min-height: 0 !important;
         padding: 0 !important;
         margin: 0 !important;
@@ -218,14 +218,12 @@ VELOX_ULTRA_COMPACT_LAYOUT_CSS = """
     [data-testid="stAppViewContainer"] > section[data-testid="stMain"] {
         padding-top: 0 !important;
     }
-    /* Post-login: contenido central contenido en su columna (no invade sidebar) */
+    /* Post-login: sidebar sobre fondo; main sin desbordar horizontalmente */
     .stApp:not(:has(.velox-id-bar)) [data-testid="stAppViewContainer"] > section[data-testid="stMain"] {
         z-index: 1 !important;
-        min-width: 0 !important;
-        overflow-x: hidden !important;
     }
     .stApp:not(:has(.velox-id-bar)) section[data-testid="stSidebar"] {
-        z-index: 1000050 !important;
+        z-index: 100 !important;
         position: relative !important;
     }
     [data-testid="stMain"] [data-testid="stImage"] {
@@ -255,6 +253,39 @@ VELOX_ULTRA_COMPACT_LAYOUT_CSS = """
     [data-testid="stSidebar"] .sidebar-brand {
         margin-top: 0 !important;
         padding-top: 0 !important;
+    }
+
+    /* —— FIJAR Y REVELAR BOTÓN DE APERTURA SIDEBAR COMPACTO —— */
+    [data-testid="collapsedControl"] {
+        display: flex !important;
+        visibility: visible !important;
+        position: fixed !important;
+        top: 12px !important;
+        left: 12px !important;
+        z-index: 999999 !important;
+        width: 40px !important;
+        height: 40px !important;
+    }
+
+    [data-testid="collapsedControl"] button,
+    button[data-testid="stSidebarCollapse"] {
+        display: flex !important;
+        visibility: visible !important;
+        background-color: #0F3D3C !important;
+        color: #00E5FF !important;
+        border-radius: 6px !important;
+        border: 1px solid rgba(0, 229, 255, 0.4) !important;
+        box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.5) !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 40px !important;
+        height: 40px !important;
+    }
+
+    [data-testid="collapsedControl"] button svg,
+    button[data-testid="stSidebarCollapse"] svg {
+        fill: #00E5FF !important;
+        color: #00E5FF !important;
     }
 </style>
 """
@@ -823,9 +854,8 @@ SIDEBAR_CSS = """
     [data-testid="stSidebar"], [data-testid="stSidebar"] > div:first-child {
         background: linear-gradient(180deg, #4a70a8 0%, #456ba0 100%) !important;
         border-right: 1px solid #3d5f8f;
-        z-index: 1000050 !important;
+        z-index: 100 !important;
         position: relative !important;
-        flex-shrink: 0 !important;
     }
 
     [data-testid="stSidebar"] h1,
@@ -1121,8 +1151,8 @@ def inject_main_content_area_styles():
 
 WELCOME_LAYOUT_CSS = """
 <style>
-    [data-testid="stSidebar"] { display: none !important; }
-    [data-testid="collapsedControl"] { display: none !important; }
+    .stApp:has(.velox-id-bar) [data-testid="stSidebar"] { display: none !important; }
+    .stApp:has(.velox-id-bar) [data-testid="collapsedControl"] { display: none !important; }
 
     /* Portada: ancho completo del canvas para que st.columns reparta márgenes */
     .main .block-container {

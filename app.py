@@ -41,7 +41,7 @@ st.set_page_config(
     page_title="Asistente Inteligente veloX",
     page_icon="⚡",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="expanded",  # Sidebar abierta al cargar (también en móvil)
 )
 
 VELOX_BANNER_PATH = "assets/nuevo_banner_2026.png"
@@ -49,8 +49,8 @@ VELOX_BANNER_PATH = "assets/nuevo_banner_2026.png"
 VELOX_SIDEBAR_COLLAPSE_CONTROL_CSS = """
 <style>
     /*
-     * Escritorio post-login: el control nativo de sidebar debe permanecer visible.
-     * No ocultar [data-testid="collapsedControl"] ni [data-testid="stSidebarCollapse"].
+     * Post-login: el control nativo de sidebar debe permanecer visible.
+     * Escritorio (≥769px) y móvil (<769px).
      */
     @media (min-width: 769px) {
         .stApp:not(:has(.velox-id-bar)) [data-testid="stHeader"] {
@@ -97,12 +97,80 @@ VELOX_SIDEBAR_COLLAPSE_CONTROL_CSS = """
             fill: #FFFFFF !important;
         }
     }
+
+    @media (max-width: 768px) {
+        .stApp:not(:has(.velox-id-bar)) [data-testid="stHeader"],
+        .stApp:not(:has(.velox-id-bar)) header {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            height: auto !important;
+            min-height: 2.75rem !important;
+            padding: 0.5rem 0.5rem 0.25rem !important;
+            margin: 0 !important;
+            overflow: visible !important;
+            z-index: 999998 !important;
+            position: relative !important;
+            background: transparent !important;
+        }
+
+        /* Hamburguesa / flecha — siempre accesible en móvil */
+        .stApp:not(:has(.velox-id-bar)) [data-testid="stSidebarCollapse"],
+        .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            position: fixed !important;
+            top: 0.65rem !important;
+            left: 0.65rem !important;
+            z-index: 999999 !important;
+            color: #FFFFFF !important;
+            background-color: #0F3D3C !important;
+            border-radius: 50% !important;
+            padding: 0.35rem !important;
+            box-shadow: 0 2px 10px rgba(15, 61, 60, 0.4) !important;
+            width: auto !important;
+            height: auto !important;
+            min-width: 2.25rem !important;
+            min-height: 2.25rem !important;
+        }
+
+        .stApp:not(:has(.velox-id-bar)) [data-testid="stSidebarCollapse"] button,
+        .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] button,
+        .stApp:not(:has(.velox-id-bar)) [data-testid="stSidebarCollapse"] svg,
+        .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] svg {
+            color: #FFFFFF !important;
+            fill: #FFFFFF !important;
+        }
+
+        /* Reservar espacio para el botón; sin márgenes negativos que lo tapen */
+        .stApp:not(:has(.velox-id-bar)) .main .block-container {
+            margin-top: 0 !important;
+            padding-top: 3.25rem !important;
+        }
+
+        .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner,
+        .stApp:not(:has(.velox-id-bar)) [data-testid="stMain"] [data-testid="element-container"]:has(.st-key-velox_top_banner),
+        .stApp:not(:has(.velox-id-bar)) .main .block-container > div > [data-testid="stVerticalBlock"] > div:first-child,
+        .stApp:not(:has(.velox-id-bar)) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="element-container"]:first-child {
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+            padding-top: 0 !important;
+        }
+
+        .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner [data-testid="stImage"],
+        .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner [data-testid="stImage"] img {
+            margin-top: 0 !important;
+            padding-top: 0 !important;
+        }
+    }
 </style>
 """
 
 
 def inject_sidebar_collapse_control():
-    """Garantiza que el toggle nativo de sidebar sea accesible en escritorio."""
+    """Garantiza que el toggle nativo de sidebar sea accesible en escritorio y móvil."""
     st.markdown(VELOX_SIDEBAR_COLLAPSE_CONTROL_CSS, unsafe_allow_html=True)
 
 
@@ -135,11 +203,43 @@ VELOX_TOP_AREA_COMPACT_CSS = """
         margin-top: 0px !important;
     }
 
-    /* 2. Margen negativo agresivo al bloque de contenido */
-    .main .block-container {
-        padding-top: 0rem !important;
-        margin-top: -60px !important;
-        max-width: 100% !important;
+    /* 2. Compactación agresiva del banner — solo escritorio (en móvil tapa el menú) */
+    @media (min-width: 769px) {
+        .main .block-container {
+            padding-top: 0rem !important;
+            margin-top: -60px !important;
+            max-width: 100% !important;
+        }
+
+        .main .block-container > div > [data-testid="stVerticalBlock"] > div:first-child [data-testid="stImage"],
+        .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="element-container"]:first-child [data-testid="stImage"],
+        .st-key-velox_top_banner [data-testid="stImage"] {
+            margin-top: -20px !important;
+            padding-top: 0px !important;
+        }
+        .main .block-container > div > [data-testid="stVerticalBlock"] > div:first-child,
+        .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="element-container"]:first-child,
+        [data-testid="stMain"] [data-testid="element-container"]:has(.st-key-velox_top_banner),
+        .st-key-velox_top_banner {
+            margin-top: -50px !important;
+            padding-top: 0px !important;
+            margin-bottom: -40px !important;
+        }
+        .st-key-velox_top_banner [data-testid="stImage"] img,
+        [data-testid="stMain"] [data-testid="stImage"] img {
+            margin-top: -20px !important;
+            padding-top: 0px !important;
+            display: block !important;
+            width: 100% !important;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .stApp:not(:has(.velox-id-bar)) .main .block-container {
+            margin-top: 0 !important;
+            padding-top: 3.25rem !important;
+            max-width: 100% !important;
+        }
     }
 
     /* Reset contenedores Streamlit en el área central (sin padding fantasma) */
@@ -147,29 +247,6 @@ VELOX_TOP_AREA_COMPACT_CSS = """
     [data-testid="stMain"] [data-testid="element-container"],
     [data-testid="stMain"] .stMarkdown {
         padding-top: 0px !important;
-    }
-
-    /* 3. Banner en la cúspide: primer hijo del bloque vertical raíz */
-    .main .block-container > div > [data-testid="stVerticalBlock"] > div:first-child [data-testid="stImage"],
-    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="element-container"]:first-child [data-testid="stImage"],
-    .st-key-velox_top_banner [data-testid="stImage"] {
-        margin-top: -20px !important;
-        padding-top: 0px !important;
-    }
-    .main .block-container > div > [data-testid="stVerticalBlock"] > div:first-child,
-    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="element-container"]:first-child,
-    [data-testid="stMain"] [data-testid="element-container"]:has(.st-key-velox_top_banner),
-    .st-key-velox_top_banner {
-        margin-top: -50px !important;
-        padding-top: 0px !important;
-        margin-bottom: -40px !important;
-    }
-    .st-key-velox_top_banner [data-testid="stImage"] img,
-    [data-testid="stMain"] [data-testid="stImage"] img {
-        margin-top: -20px !important;
-        padding-top: 0px !important;
-        display: block !important;
-        width: 100% !important;
     }
 </style>
 """
@@ -3561,8 +3638,8 @@ if not _usuario_con_acceso:
 
 else:
     # ==================== HEADER (solo después del login) ====================
-    inject_sidebar_collapse_control()
     render_velox_top_banner()
+    inject_sidebar_collapse_control()
     render_app_top_bar()
 
     # ==================== SIDEBAR ====================

@@ -46,19 +46,81 @@ st.set_page_config(
 
 VELOX_BANNER_PATH = "assets/nuevo_banner_2026.png"
 
+VELOX_SIDEBAR_COLLAPSE_CONTROL_CSS = """
+<style>
+    /*
+     * Escritorio post-login: el control nativo de sidebar debe permanecer visible.
+     * No ocultar [data-testid="collapsedControl"] ni [data-testid="stSidebarCollapse"].
+     */
+    @media (min-width: 769px) {
+        .stApp:not(:has(.velox-id-bar)) [data-testid="stHeader"] {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            height: auto !important;
+            min-height: 0 !important;
+            overflow: visible !important;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"],
+        .stApp:not(:has(.velox-id-bar)) [data-testid="stSidebarCollapse"] {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            height: auto !important;
+            min-height: unset !important;
+            overflow: visible !important;
+        }
+
+        /* Flecha expandir (sidebar colapsada): esquina superior izquierda */
+        .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] {
+            position: fixed !important;
+            top: 1rem !important;
+            left: 1rem !important;
+            z-index: 999999 !important;
+            color: #FFFFFF !important;
+            background-color: #0F3D3C !important;
+            border-radius: 50% !important;
+            padding: 0.25rem !important;
+            box-shadow: 0 2px 8px rgba(15, 61, 60, 0.35) !important;
+        }
+
+        .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] button,
+        .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"] svg {
+            color: #FFFFFF !important;
+            fill: #FFFFFF !important;
+        }
+    }
+</style>
+"""
+
+
+def inject_sidebar_collapse_control():
+    """Garantiza que el toggle nativo de sidebar sea accesible en escritorio."""
+    st.markdown(VELOX_SIDEBAR_COLLAPSE_CONTROL_CSS, unsafe_allow_html=True)
+
+
 VELOX_TOP_AREA_COMPACT_CSS = """
 <style>
-    /* 1. Forzar cero absoluto en contenedores principales */
-    [data-testid="stHeader"] {
-        display: none !important;
-        height: 0px !important;
-        margin: 0px !important;
-        padding: 0px !important;
-    }
+    /* 1. Forzar cero absoluto en contenedores principales (sin ocultar toggle sidebar) */
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stDecoration"],
     .stDecoration,
     [data-testid="stDecoration"] {
         display: none !important;
         height: 0px !important;
+    }
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stToolbar"] {
+        display: none !important;
+        height: 0px !important;
+        min-height: 0px !important;
+        padding: 0px !important;
+        margin: 0px !important;
     }
     .stApp {
         margin-top: 0px !important;
@@ -3499,6 +3561,7 @@ if not _usuario_con_acceso:
 
 else:
     # ==================== HEADER (solo después del login) ====================
+    inject_sidebar_collapse_control()
     render_velox_top_banner()
     render_app_top_bar()
 

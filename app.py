@@ -48,43 +48,13 @@ VELOX_BANNER_PATH = "assets/nuevo_banner_2026.png"
 
 VELOX_SIDEBAR_COLLAPSE_CONTROL_CSS = """
 <style>
-    /*
-     * Post-login: sidebar y cabecera mínima.
-     * Botón colapsado: VELOX_ULTRA_COMPACT_LAYOUT_CSS en ui_theme.py (inject_global_theme).
-     */
-    .stApp:not(:has(.velox-id-bar)) section[data-testid="stSidebar"] {
-        min-width: 250px !important;
-        z-index: 100 !important;
-        position: relative !important;
-    }
-
-    .stApp:not(:has(.velox-id-bar)) section[data-testid="stSidebar"] div[data-testid="stSidebarCollapse"] {
-        display: inline-block !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        pointer-events: auto !important;
-        overflow: visible !important;
-    }
-
-    /* Cabecera neutra: sin franja vertical; no ocultar collapsedControl */
-    .stApp:not(:has(.velox-id-bar)) [data-testid="stHeader"] {
-        background: transparent !important;
-        height: 0px !important;
-        overflow: visible !important;
-    }
-
-    @media (max-width: 768px) {
-        .stApp:not(:has(.velox-id-bar)) .main .block-container {
-            margin-top: 0 !important;
-            padding-top: 2.75rem !important;
-        }
-    }
+    /* Control de colapso gestionado centralizadamente por ui_theme.py */
 </style>
 """
 
 
 def inject_sidebar_collapse_control():
-    """Garantiza que el toggle nativo de sidebar sea accesible en escritorio y móvil."""
+    """Placeholder: estilos de collapsedControl en VELOX_ULTRA_COMPACT_LAYOUT_CSS (ui_theme)."""
     st.markdown(VELOX_SIDEBAR_COLLAPSE_CONTROL_CSS, unsafe_allow_html=True)
 
 

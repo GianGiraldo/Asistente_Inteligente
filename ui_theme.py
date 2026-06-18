@@ -245,22 +245,24 @@ VELOX_ULTRA_COMPACT_LAYOUT_CSS = """
         padding-top: 0 !important;
     }
 
-    /* --- BLINDAJE ESTRUCTURAL DEL CONTROL DE APERTURA --- */
-    /* Forzar que el contenedor nativo de la barra colapsada se quede fijo arriba a la izquierda */
-    [data-testid="stSidebarCollapse"] {
-        position: fixed !important;
-        top: 12px !important;
-        left: 12px !important;
-        z-index: 999999 !important;
+    /* --- BLINDAJE ABSOLUTO DEL CONTROL DE APERTURA POST-LOGIN --- */
+    /* Forzar que el contenedor nativo macro sea un bloque fijo, visible y cliqueable */
+    [data-testid="stSidebarCollapse"],
+    div:has(> [data-testid="collapsedControl"]),
+    .stApp:not(:has(.velox-id-bar)) [data-testid="stSidebarCollapse"] {
         display: flex !important;
         visibility: visible !important;
         opacity: 1 !important;
+        position: fixed !important;
+        top: 12px !important;
+        left: 12px !important;
+        z-index: 9999999 !important;
         pointer-events: auto !important;
-        width: auto !important;
-        height: auto !important;
+        width: 42px !important;
+        height: 42px !important;
     }
 
-    /* Forzar la visualización absoluta del botón interno */
+    /* Estilo estético del botón cyan corporativo de veloX */
     [data-testid="collapsedControl"] {
         background-color: #0F3D3C !important;
         border: 2px solid #00E5FF !important;
@@ -268,15 +270,15 @@ VELOX_ULTRA_COMPACT_LAYOUT_CSS = """
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        width: 40px !important;
-        height: 40px !important;
+        width: 100% !important;
+        height: 100% !important;
         visibility: visible !important;
         opacity: 1 !important;
         pointer-events: auto !important;
         cursor: pointer !important;
     }
 
-    /* Forzar el color cyan corporativo en la flecha SVG */
+    /* Forzar color cyan en el icono de flecha SVG interno */
     [data-testid="collapsedControl"] svg {
         fill: #00E5FF !important;
         color: #00E5FF !important;
@@ -284,7 +286,7 @@ VELOX_ULTRA_COMPACT_LAYOUT_CSS = """
         height: 22px !important;
     }
 
-    /* Efecto Hover interactivo */
+    /* Feedback interactivo Hover */
     [data-testid="collapsedControl"]:hover {
         background-color: #00E5FF !important;
         border-color: #ffffff !important;
@@ -294,13 +296,14 @@ VELOX_ULTRA_COMPACT_LAYOUT_CSS = """
         color: #0F3D3C !important;
     }
 
-    /* Evitar que la cabecera vacía bloquee los clics en el botón fijo */
+    /* Neutralizar por completo la cabecera nativa para que no bloquee los clics en la esquina */
     [data-testid="stHeader"] {
         background-color: transparent !important;
         height: 0px !important;
         min-height: 0px !important;
         overflow: visible !important;
         pointer-events: none !important;
+        z-index: -1 !important;
     }
 </style>
 """

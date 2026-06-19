@@ -301,13 +301,22 @@ def _velox_data_cache_version() -> int:
 def _invalidar_cache_datos():
     """Fuerza recarga de lecturas cacheadas (documentos, usuarios, pagos)."""
     st.session_state[VELOX_DATA_CACHE_VERSION_KEY] = _velox_data_cache_version() + 1
+    try:
+        cached_obtener_publicaciones_por_seccion.clear()
+        cached_listar_catalogo_seccion.clear()
+        cached_listar_archivos_usuario.clear()
+        cached_obtener_publicaciones_usuario.clear()
+        cached_listar_usuarios.clear()
+        cached_listar_pagos_pendientes.clear()
+    except Exception:
+        pass
 
 
 @st.cache_data(show_spinner=False, ttl=300)
 def cached_obtener_publicaciones_por_seccion(
     seccion: Optional[str] = None,
     subcategoria: Optional[str] = None,
-    _data_cache_version: int = 0,
+    data_cache_version: int = 0,
 ):
     _, storage, _, _, _ = init_managers()
     return storage.obtener_publicaciones_por_seccion(seccion=seccion, subcategoria=subcategoria)
@@ -317,7 +326,7 @@ def cached_obtener_publicaciones_por_seccion(
 def cached_listar_catalogo_seccion(
     seccion: str,
     subcategoria: Optional[str] = None,
-    _data_cache_version: int = 0,
+    data_cache_version: int = 0,
 ):
     _, storage, _, _, _ = init_managers()
     return storage.listar_catalogo_seccion(seccion, subcategoria)
@@ -329,7 +338,7 @@ def cached_listar_archivos_usuario(
     seccion: Optional[str] = None,
     subcategoria: Optional[str] = None,
     incluir_publicaciones: bool = False,
-    _data_cache_version: int = 0,
+    data_cache_version: int = 0,
 ):
     _, storage, _, _, _ = init_managers()
     return storage.listar_archivos_usuario(
@@ -344,20 +353,20 @@ def cached_listar_archivos_usuario(
 def cached_obtener_publicaciones_usuario(
     usuario: str,
     secciones_usuario: tuple,
-    _data_cache_version: int = 0,
+    data_cache_version: int = 0,
 ):
     _, storage, _, _, _ = init_managers()
     return storage.obtener_publicaciones_usuario(usuario, list(secciones_usuario))
 
 
 @st.cache_data(show_spinner=False, ttl=300)
-def cached_listar_usuarios(_data_cache_version: int = 0):
+def cached_listar_usuarios(data_cache_version: int = 0):
     auth, _, _, _, _ = init_managers()
     return auth.listar_usuarios()
 
 
 @st.cache_data(show_spinner=False, ttl=120)
-def cached_listar_pagos_pendientes(_data_cache_version: int = 0):
+def cached_listar_pagos_pendientes(data_cache_version: int = 0):
     _, _, _, _, payments = init_managers()
     return payments.listar_pagos_pendientes()
 
@@ -2466,7 +2475,7 @@ def _contar_documentos_seccion(seccion_id: str) -> int:
         return len(
             cached_obtener_publicaciones_por_seccion(
                 seccion=seccion_id,
-                _data_cache_version=_velox_data_cache_version(),
+                data_cache_version=_velox_data_cache_version(),
             )
         )
     except Exception:
@@ -2796,7 +2805,7 @@ def _menu_sidebar_items():
 
 def render_lista_usuarios_solo_lectura():
     """Vista de usuarios sin edición de roles (Administrador)."""
-    usuarios = cached_listar_usuarios(_data_cache_version=_velox_data_cache_version())
+    usuarios = cached_listar_usuarios(data_cache_version=_velox_data_cache_version())
     if not usuarios:
         st.info("No hay usuarios registrados.")
         return
@@ -2823,7 +2832,7 @@ def render_permisos_administrador_tab():
         st.error("Solo el Master puede configurar permisos de administradores.")
         return
 
-    usuarios = cached_listar_usuarios(_data_cache_version=_velox_data_cache_version())
+    usuarios = cached_listar_usuarios(data_cache_version=_velox_data_cache_version())
     admins = [
         email for email, u in usuarios.items() if AuthManager.es_rol_administrador(u.get("rol"))
     ]
@@ -2892,7 +2901,7 @@ def render_lista_usuarios_master():
         st.error("Solo usuarios con rol Master pueden gestionar roles.")
         return
 
-    usuarios = cached_listar_usuarios(_data_cache_version=_velox_data_cache_version())
+    usuarios = cached_listar_usuarios(data_cache_version=_velox_data_cache_version())
     if not usuarios:
         st.info("No hay usuarios registrados.")
         return
@@ -2968,7 +2977,7 @@ def render_dashboard_analytics_master(publicaciones, usuarios):
         st.plotly_chart(chart_documentos_por_seccion(publicaciones, SECCIONES), use_container_width=True)
     with c2:
         st.plotly_chart(chart_acceso_usuarios(usuarios), use_container_width=True)
-    pagos = cached_listar_pagos_pendientes(_data_cache_version=_velox_data_cache_version())
+    pagos = cached_listar_pagos_pendientes(data_cache_version=_velox_data_cache_version())
     st.plotly_chart(chart_cobranzas_pendientes(pagos), use_container_width=True)
 
 
@@ -3034,7 +3043,7 @@ def render_gestion_cobranzas_master():
         elif tipo == "error":
             st.error(texto)
 
-    pagos = cached_listar_pagos_pendientes(_data_cache_version=_velox_data_cache_version())
+    pagos = cached_listar_pagos_pendientes(data_cache_version=_velox_data_cache_version())
     st.markdown(f"### ⏳ Pagos pendientes ({len(pagos)})")
 
     if not pagos:
@@ -3523,7 +3532,7 @@ def _render_bloque_publicaciones_compacto(
     publicaciones = cached_obtener_publicaciones_por_seccion(
         seccion=seccion_id,
         subcategoria=categoria_actual,
-        _data_cache_version=_cache_v,
+        data_cache_version=_cache_v,
     )
     if sincronizar_chatbot and seccion_info:
         _actualizar_catalogo_chatbot_seccion(
@@ -3557,7 +3566,7 @@ def _actualizar_catalogo_chatbot_seccion(seccion_info, seccion_id, subcategoria,
     catalogo = cached_listar_catalogo_seccion(
         seccion_id,
         subcategoria,
-        _data_cache_version=_velox_data_cache_version(),
+        data_cache_version=_velox_data_cache_version(),
     )
     st.session_state["velox_catalogo_documentos"] = [
         {
@@ -4149,12 +4158,12 @@ else:
                 archivos_personales = cached_listar_archivos_usuario(
                     st.session_state["usuario"],
                     incluir_publicaciones=False,
-                    _data_cache_version=_cache_v,
+                    data_cache_version=_cache_v,
                 )
                 publicaciones = cached_obtener_publicaciones_usuario(
                     st.session_state["usuario"],
                     tuple(secciones_usuario),
-                    _data_cache_version=_cache_v,
+                    data_cache_version=_cache_v,
                 )
 
                 col1, col2, col3, col4 = st.columns(4)
@@ -4165,11 +4174,11 @@ else:
                 with col3:
                     st.markdown(f'<div class="metric-card"><h3>📂</h3><h3>{len(secciones_usuario)}</h3><p>Secciones</p></div>', unsafe_allow_html=True)
                 with col4:
-                    usuarios_map = cached_listar_usuarios(_data_cache_version=_cache_v)
+                    usuarios_map = cached_listar_usuarios(data_cache_version=_cache_v)
                     usuarios_total = len(usuarios_map)
                     st.markdown(f'<div class="metric-card"><h3>👥</h3><h3>{usuarios_total}</h3><p>Usuarios</p></div>', unsafe_allow_html=True)
 
-                todas_pubs = cached_obtener_publicaciones_por_seccion(_data_cache_version=_cache_v)
+                todas_pubs = cached_obtener_publicaciones_por_seccion(data_cache_version=_cache_v)
                 render_dashboard_analytics_master(todas_pubs, usuarios_map)
 
                 st.markdown("---")
@@ -4190,7 +4199,7 @@ else:
                     publicaciones_user = cached_obtener_publicaciones_usuario(
                         st.session_state["usuario"],
                         tuple(secciones_usuario),
-                        _data_cache_version=_velox_data_cache_version(),
+                        data_cache_version=_velox_data_cache_version(),
                     )
                     render_dashboard_analytics_user(secciones_usuario, publicaciones_user)
                     st.markdown("---")
@@ -4400,7 +4409,7 @@ else:
             st.markdown("Asignar secciones a usuario")
             usuarios_lista = [
                 e
-                for e in cached_listar_usuarios(_data_cache_version=_velox_data_cache_version())
+                for e in cached_listar_usuarios(data_cache_version=_velox_data_cache_version())
                 if e != st.session_state["usuario"]
             ]
             if usuarios_lista:

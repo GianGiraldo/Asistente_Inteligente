@@ -64,6 +64,7 @@ class StorageManager:
                 seccion_limpia = normalizar_seccion(seccion)
                 carpeta = f"publicaciones/{seccion_limpia}/{subcategoria}"
                 tabla = "publicaciones"
+                ahora = datetime.now().isoformat()
                 data_insert = {
                     "id": str(uuid.uuid4()),
                     "nombre_original": archivo.name,
@@ -72,8 +73,9 @@ class StorageManager:
                     "descripcion": descripcion_texto,
                     "titulo": archivo.name,
                     "mensaje": descripcion_texto,
-                    "categoria": subcategoria,          
-                    "creado_por": "master"
+                    "categoria": subcategoria,
+                    "creado_por": "master",
+                    "fecha_creacion": ahora,
                 }
             else:
                 carpeta = f"personales/{usuario}/{seccion}/{subcategoria}"
@@ -93,20 +95,22 @@ class StorageManager:
             tamaño_kb = round(tamaño_bytes / 1024, 2)
             extension = archivo.name.split('.')[-1].lower()
 
+            fecha_iso = datetime.now().isoformat()
             data_insert.update({
                 "nombre_guardado": nombre_guardado,
-                "fecha": datetime.now().isoformat(),
+                "fecha": fecha_iso,
                 "tamaño_bytes": tamaño_bytes,
                 "tamaño_kb": tamaño_kb,
                 "extension": extension,
-                "ruta_completa": url
+                "ruta_completa": url,
             })
+            if es_publicacion and "fecha_creacion" not in data_insert:
+                data_insert["fecha_creacion"] = fecha_iso
 
             result = self.supabase.table(tabla).insert(data_insert).execute()
             if result.data:
                 return True, data_insert
-            else:
-                return False, "Error al insertar en la base de datos"
+            return False, "Error al insertar en la base de datos (sin filas devueltas; revisa RLS o columnas requeridas)"
         except Exception as e:
             return False, f"Error al guardar archivo: {str(e)}"
 
@@ -319,11 +323,17 @@ class StorageManager:
     def editar_publicacion(self, publicacion_id, nueva_descripcion):
         """Edita la descripción de una publicación."""
         try:
-            result = self.supabase.table("publicaciones").update({"descripcion": nueva_descripcion}).eq("id", publicacion_id).execute()
+            descripcion_texto = (nueva_descripcion or "").strip()
+            payload = {"descripcion": descripcion_texto, "mensaje": descripcion_texto}
+            result = (
+                self.supabase.table("publicaciones")
+                .update(payload)
+                .eq("id", publicacion_id)
+                .execute()
+            )
             if result.data:
                 return True, "Descripción actualizada exitosamente."
-            else:
-                return False, "No se encontró la publicación para editar."
+            return False, "No se encontró la publicación para editar (o Supabase rechazó la actualización)."
         except Exception as e:
             return False, f"Error al editar: {str(e)}"
 

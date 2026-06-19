@@ -2361,7 +2361,35 @@ def _etiqueta_rol_sidebar(rol: str) -> str:
 
 
 def _es_master() -> bool:
-    return AuthManager.es_rol_master(st.session_state.get("rol"))
+    rol = AuthManager.normalizar_rol(st.session_state.get("rol"))
+    if AuthManager.es_rol_master(rol):
+        return True
+    email = (st.session_state.get("usuario") or "").strip().lower()
+    return bool(email) and email == AuthManager.MASTER_EMAIL.lower()
+
+
+def _sincronizar_rol_master_en_sesion() -> None:
+    """Alinea session_state.rol con la BD para que Master tenga permisos de publicación."""
+    if not st.session_state.get("autenticado"):
+        return
+    email = (st.session_state.get("usuario") or "").strip().lower()
+    if not email:
+        return
+    if email == AuthManager.MASTER_EMAIL.lower():
+        st.session_state["rol"] = "master"
+        return
+    try:
+        res = (
+            auth_manager.supabase.table("users")
+            .select("rol")
+            .eq("email", email)
+            .limit(1)
+            .execute()
+        )
+        if res.data:
+            st.session_state["rol"] = AuthManager.normalizar_rol(res.data[0].get("rol"))
+    except Exception:
+        pass
 
 
 def _es_admin() -> bool:
@@ -3359,11 +3387,19 @@ def _render_fila_documento_publicacion(pub, meta, seccion_seleccionada, seccione
         with cols[4]:
             if st.button("✏️", key=f"edit_{pub['id']}_{indice}", help="Editar descripción"):
                 st.session_state[f"editando_{pub['id']}"] = True
+                st.rerun()
         with cols[5]:
             if st.button("🗑️", key=f"del_{pub['id']}_{indice}", help="Eliminar"):
-                storage_manager.eliminar_publicacion(pub["id"])
-                _invalidar_cache_datos()
-                st.rerun()
+                try:
+                    exito, msg = storage_manager.eliminar_publicacion(pub["id"])
+                    if exito:
+                        st.session_state.pop(f"editando_{pub['id']}", None)
+                        _invalidar_cache_datos()
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {msg}")
+                except Exception as err:
+                    st.error(f"❌ Error al eliminar: {err}")
 
     if es_master and st.session_state.get(f"editando_{pub['id']}", False):
         nueva_desc = st.text_area(
@@ -3372,14 +3408,17 @@ def _render_fila_documento_publicacion(pub, meta, seccion_seleccionada, seccione
             key=f"newdesc_{pub['id']}_{indice}",
         )
         if st.button("Guardar cambios", key=f"save_desc_{pub['id']}_{indice}"):
-            exito, msg = storage_manager.editar_publicacion(pub["id"], nueva_desc)
-            if exito:
-                st.success(msg)
-                st.session_state.pop(f"editando_{pub['id']}", None)
-                _invalidar_cache_datos()
-                st.rerun()
-            else:
-                st.error(msg)
+            try:
+                exito, msg = storage_manager.editar_publicacion(pub["id"], nueva_desc)
+                if exito:
+                    st.success(msg)
+                    st.session_state.pop(f"editando_{pub['id']}", None)
+                    _invalidar_cache_datos()
+                    st.rerun()
+                else:
+                    st.error(f"❌ {msg}")
+            except Exception as err:
+                st.error(f"❌ Error al editar: {err}")
 
 
 def _render_fila_documento_personal(archivo, meta, indice):
@@ -4157,6 +4196,13 @@ else:
         st.query_params.clear()
 
         st.header("📁 Mis Documentos")
+        _sincronizar_rol_master_en_sesion()
+
+        if _es_staff():
+            with st.expander("🔧 Diagnóstico de permisos", expanded=False):
+                st.write("Rol en session_state:", st.session_state.get("rol"))
+                st.write("¿Es master?", _es_master())
+                st.write("¿Puede publicar?", _puede_publicar_documentos())
 
         if _es_master():
             secciones_usuario = list(SECCIONES.keys())
@@ -4234,7 +4280,7 @@ else:
                     )
                     with st.form(
                         key=f"form_pub_{seccion_seleccionada}_{categoria_actual}",
-                        clear_on_submit=True,
+                        clear_on_submit=False,
                     ):
                         archivo_pub = st.file_uploader(
                             "Seleccionar archivo",
@@ -4249,26 +4295,28 @@ else:
                             "Publicar documento",
                             type="primary",
                         )
-
-                    if submitted:
-                        descripcion_guardar = (descripcion_texto or "").strip()
-                        if not archivo_pub:
-                            st.error("❌ Selecciona un archivo antes de publicar.")
-                        else:
-                            with _velox_spinner("Publicando y notificando a los alumnos..."):
-                                exito, resultado = storage_manager.publicar_documento(
-                                    archivo_pub,
-                                    seccion_seleccionada,
-                                    categoria_actual,
-                                    descripcion_guardar,
-                                    publicador_email=st.session_state["usuario"],
-                                )
-                            if exito:
-                                _mostrar_alerta_publicacion(exito, resultado)
-                                _invalidar_cache_datos()
-                                st.rerun()
+                        if submitted:
+                            descripcion_guardar = (descripcion_texto or "").strip()
+                            if not archivo_pub:
+                                st.error("❌ Selecciona un archivo antes de publicar.")
                             else:
-                                st.error(f"❌ Error en la publicación: {resultado}")
+                                try:
+                                    with _velox_spinner("Publicando y notificando a los alumnos..."):
+                                        exito, resultado = storage_manager.publicar_documento(
+                                            archivo_pub,
+                                            seccion_seleccionada,
+                                            categoria_actual,
+                                            descripcion_guardar,
+                                            publicador_email=st.session_state["usuario"],
+                                        )
+                                    if exito:
+                                        _mostrar_alerta_publicacion(exito, resultado)
+                                        _invalidar_cache_datos()
+                                        st.rerun()
+                                    else:
+                                        st.error(f"❌ Error en la publicación: {resultado}")
+                                except Exception as err:
+                                    st.error(f"❌ Error inesperado al publicar: {err}")
                 st.markdown("---")
 
             # Publicaciones disponibles

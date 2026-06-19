@@ -1584,16 +1584,38 @@ SECTION_CATALOG_CSS = """
     }
     /* Contenedor Streamlit del hero (solo usuarios normales / catalogo_centrado) */
     [data-testid="stMain"] [data-testid="element-container"]:has(.velox-catalogo-hero),
-    [data-testid="stMain"] [data-testid="stMarkdownContainer"]:has(.velox-catalogo-hero),
+    [data-testid="stMain"] [data-testid="stElementContainer"]:has(.velox-catalogo-hero),
     section.main [data-testid="element-container"]:has(.velox-catalogo-hero),
-    section.main [data-testid="stMarkdownContainer"]:has(.velox-catalogo-hero) {
-        text-align: center !important;
+    section.main [data-testid="stElementContainer"]:has(.velox-catalogo-hero) {
         width: 100% !important;
-        display: block !important;
-        margin-left: auto !important;
-        margin-right: auto !important;
+        max-width: 100% !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        text-align: center !important;
     }
-    .velox-catalogo-hero__titulo {
+    [data-testid="stMain"] [data-testid="stMarkdownContainer"]:has(.velox-catalogo-hero),
+    section.main [data-testid="stMarkdownContainer"]:has(.velox-catalogo-hero) {
+        width: 100% !important;
+        max-width: 100% !important;
+        text-align: center !important;
+    }
+    [data-testid="stMain"] [data-testid="stVerticalBlock"]:has(.velox-catalogo-hero),
+    [data-testid="stMain"] [data-testid="stLayoutWrapper"]:has(.velox-catalogo-hero) {
+        width: 100% !important;
+        max-width: 100% !important;
+        align-items: center !important;
+    }
+    [data-testid="stMain"] [data-testid="stMarkdownContainer"] h1.velox-catalogo-hero__titulo.velox-titulo-chip,
+    [data-testid="stMain"] [data-testid="stMarkdownContainer"] p.velox-catalogo-hero__desc,
+    section.main [data-testid="stMarkdownContainer"] h1.velox-catalogo-hero__titulo.velox-titulo-chip,
+    section.main [data-testid="stMarkdownContainer"] p.velox-catalogo-hero__desc {
+        text-align: center !important;
+    }
+    .velox-catalogo-hero__titulo:not(.velox-titulo-chip) {
         color: #1A2332 !important;
         font-size: 2.2rem !important;
         font-weight: 800 !important;
@@ -1605,7 +1627,8 @@ SECTION_CATALOG_CSS = """
         width: 100% !important;
     }
     /* Chip ovalado: solo vista Inicio usuario normal (catalogo_centrado + velox-titulo-chip) */
-    .velox-catalogo-hero__titulo.velox-titulo-chip {
+    .velox-catalogo-hero__titulo.velox-titulo-chip,
+    [data-testid="stMain"] [data-testid="stMarkdownContainer"] h1.velox-catalogo-hero__titulo.velox-titulo-chip {
         display: inline-block !important;
         width: auto !important;
         background-color: #E0F2FE !important;

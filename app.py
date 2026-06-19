@@ -2668,7 +2668,7 @@ def render_catalogo_secciones_freemium(
             """
             <div class="velox-catalogo-hero">
                 <h1 class="velox-catalogo-hero__titulo velox-titulo-chip">SECCIONES</h1>
-                <p class="velox-catalogo-hero__desc" style="margin: 0 auto 1.5rem auto !important;">
+                <p class="velox-catalogo-hero__desc">
                     Explora el catálogo completo veloX. Las secciones con candado requieren activación de acceso.
                 </p>
             </div>

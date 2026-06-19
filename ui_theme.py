@@ -1571,10 +1571,27 @@ def inject_section_catalog_css():
 SECTION_CATALOG_CSS = """
 <style>
     .velox-catalogo-hero {
-        text-align: center;
-        margin: 0.15rem auto 1rem;
-        max-width: 100%;
-        padding: 0 0.5rem;
+        text-align: center !important;
+        width: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        margin: 0.15rem auto 1rem !important;
+        max-width: 100% !important;
+        padding: 0 0.5rem !important;
+        box-sizing: border-box !important;
+    }
+    /* Contenedor Streamlit del hero (solo usuarios normales / catalogo_centrado) */
+    [data-testid="stMain"] [data-testid="element-container"]:has(.velox-catalogo-hero),
+    [data-testid="stMain"] [data-testid="stMarkdownContainer"]:has(.velox-catalogo-hero),
+    section.main [data-testid="element-container"]:has(.velox-catalogo-hero),
+    section.main [data-testid="stMarkdownContainer"]:has(.velox-catalogo-hero) {
+        text-align: center !important;
+        width: 100% !important;
+        display: block !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
     }
     .velox-catalogo-hero__titulo {
         color: #1A2332 !important;
@@ -1585,10 +1602,12 @@ SECTION_CATALOG_CSS = """
         padding: 0 !important;
         text-align: center !important;
         line-height: 1.15 !important;
+        width: 100% !important;
     }
     /* Chip ovalado: solo vista Inicio usuario normal (catalogo_centrado + velox-titulo-chip) */
     .velox-catalogo-hero__titulo.velox-titulo-chip {
         display: inline-block !important;
+        width: auto !important;
         background-color: #E0F2FE !important;
         color: #0F172A !important;
         font-weight: 700 !important;
@@ -1602,16 +1621,19 @@ SECTION_CATALOG_CSS = """
         border: 1px solid rgba(0, 180, 216, 0.22) !important;
         cursor: default !important;
         user-select: none !important;
+        text-align: center !important;
     }
     .velox-catalogo-hero__desc {
-        color: #1A2332;
-        font-size: 0.95rem;
-        font-weight: 400;
-        opacity: 0.88;
+        color: #1A2332 !important;
+        font-size: 0.95rem !important;
+        font-weight: 400 !important;
+        opacity: 0.88 !important;
         margin: 0 auto 1.5rem auto !important;
-        max-width: 38rem;
-        line-height: 1.5;
-        text-align: center;
+        max-width: 38rem !important;
+        width: 100% !important;
+        line-height: 1.5 !important;
+        text-align: center !important;
+        display: block !important;
     }
     .velox-section-grid { margin-bottom: 0.15rem; }
     .velox-section-card {

@@ -1,6 +1,8 @@
 # app.py — Asistente Inteligente veloX (OAuth Google + Business Hub)
 import base64
+import contextlib
 import html as html_module
+import io
 import json
 import os
 import re
@@ -9,6 +11,7 @@ from datetime import datetime
 from typing import Optional
 
 import pandas as pd
+import pygwalker as pyg
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_option_menu import option_menu
@@ -43,6 +46,129 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",  # Obliga sidebar abierta al cargar (también en móvil)
 )
+
+VELOX_CIAN_MARCA_LOADING = "#00B4D8"
+VELOX_CIAN_MARCA_LOADING_DARK = "#0F3D3C"
+
+VELOX_LOADING_BRAND_CSS = f"""
+<style>
+    @keyframes velox-brand-spin {{
+        from {{ transform: rotate(0deg); }}
+        to {{ transform: rotate(360deg); }}
+    }}
+
+    /*
+     * Sustituye iconos nativos de Streamlit (running man, emojis, comida, etc.)
+     * por spinner circular celeste + marca veloX.
+     */
+    [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningIcon"] svg,
+    [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningManIcon"],
+    [data-testid="stStatusWidget"] [data-testid="stStatusWidgetNewYearsIcon"],
+    [data-testid="stStatusWidget"] img {{
+        opacity: 0 !important;
+        width: 0 !important;
+        height: 0 !important;
+        overflow: hidden !important;
+        position: absolute !important;
+        pointer-events: none !important;
+    }}
+
+    [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningIcon"] {{
+        position: relative !important;
+        width: 26px !important;
+        height: 26px !important;
+        min-width: 26px !important;
+        min-height: 26px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }}
+
+    [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningIcon"]::after {{
+        content: "" !important;
+        display: block !important;
+        width: 20px !important;
+        height: 20px !important;
+        border: 2.5px solid rgba(0, 180, 216, 0.28) !important;
+        border-top-color: {VELOX_CIAN_MARCA_LOADING} !important;
+        border-radius: 50% !important;
+        animation: velox-brand-spin 0.75s linear infinite !important;
+    }}
+
+    [data-testid="stSpinner"] [data-testid="stSpinnerIcon"],
+    [data-testid="stSpinner"] svg {{
+        opacity: 0 !important;
+        width: 0 !important;
+        height: 0 !important;
+        overflow: hidden !important;
+        position: absolute !important;
+        pointer-events: none !important;
+    }}
+
+    [data-testid="stSpinner"] > div {{
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.65rem !important;
+    }}
+
+    [data-testid="stSpinner"] > div::before {{
+        content: "" !important;
+        flex-shrink: 0 !important;
+        display: block !important;
+        width: 22px !important;
+        height: 22px !important;
+        border: 2.5px solid rgba(0, 180, 216, 0.28) !important;
+        border-top-color: {VELOX_CIAN_MARCA_LOADING} !important;
+        border-radius: 50% !important;
+        animation: velox-brand-spin 0.75s linear infinite !important;
+    }}
+
+    [data-testid="stSpinner"] [data-testid="stMarkdownContainer"] p,
+    [data-testid="stSpinner"] [data-testid="stMarkdownContainer"] {{
+        color: {VELOX_CIAN_MARCA_LOADING_DARK} !important;
+        font-weight: 600 !important;
+    }}
+
+    [data-testid="stAppSkeleton"]::before,
+    [data-testid="stAppViewContainer"]:has([data-testid="stAppSkeleton"])::before {{
+        content: "⚡ Cargando VeloX..." !important;
+        position: fixed !important;
+        top: 14px !important;
+        right: 16px !important;
+        z-index: 999999 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        padding: 0.45rem 0.85rem !important;
+        background: rgba(255, 255, 255, 0.96) !important;
+        border: 1px solid rgba(0, 180, 216, 0.35) !important;
+        border-radius: 999px !important;
+        box-shadow: 0 4px 14px rgba(15, 61, 60, 0.12) !important;
+        color: {VELOX_CIAN_MARCA_LOADING_DARK} !important;
+        font-size: 0.88rem !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.01em !important;
+        pointer-events: none !important;
+    }}
+</style>
+"""
+
+
+def inject_velox_loading_brand():
+    """Spinner / esqueleto corporativo veloX (sin iconos de comida de Streamlit)."""
+    st.markdown(VELOX_LOADING_BRAND_CSS, unsafe_allow_html=True)
+
+
+@contextlib.contextmanager
+def _velox_spinner(detail: str = ""):
+    """Spinner unificado con marca veloX."""
+    mensaje = "⚡ Cargando VeloX..."
+    if detail:
+        mensaje = f"⚡ Cargando VeloX... {detail}"
+    with st.spinner(mensaje):
+        yield
+
+
+inject_velox_loading_brand()
 
 VELOX_BANNER_PATH = "assets/nuevo_banner_2026.png"
 
@@ -124,28 +250,22 @@ def inject_post_login_shell_layout():
 
 VELOX_TOP_AREA_COMPACT_CSS = """
 <style>
-    /* Post-login: ocultar decoración/toolbar sin alterar layout nativo */
-    .stApp:not(:has(.velox-id-bar)) [data-testid="stDecoration"],
-    .stApp:not(:has(.velox-id-bar)) .stDecoration {
+    /* Ocultación de decoración superior estándar */
+    [data-testid="stDecoration"] {
         display: none !important;
-        height: 0px !important;
-    }
-    .stApp:not(:has(.velox-id-bar)) [data-testid="stToolbar"] {
-        display: none !important;
-        height: 0px !important;
-        min-height: 0px !important;
-        padding: 0px !important;
-        margin: 0px !important;
-    }
-    .stApp:not(:has(.velox-id-bar)) {
-        margin-top: 0px !important;
-        padding-top: 0px !important;
     }
 
-    .stApp:not(:has(.velox-id-bar)) [data-testid="stMain"] .element-container,
-    .stApp:not(:has(.velox-id-bar)) [data-testid="stMain"] [data-testid="element-container"],
-    .stApp:not(:has(.velox-id-bar)) [data-testid="stMain"] .stMarkdown {
-        padding-top: 0px !important;
+    /* Toolbar: ocultar solo con sidebar expandido (stExpandSidebarButton vive en stToolbar) */
+    .stApp:not(:has(.velox-id-bar)):has(section[data-testid="stSidebar"][aria-expanded="true"]) [data-testid="stToolbar"] {
+        display: none !important;
+    }
+
+    /* Reset estructural para compactar el main view */
+    .stApp {
+        margin-top: 0px !important;
+    }
+    [data-testid="stMainBlockContainer"], .main .block-container {
+        padding-top: 0.5rem !important;
     }
 </style>
 """
@@ -160,14 +280,86 @@ def render_velox_top_banner():
         st.image(VELOX_BANNER_PATH, use_container_width=True)
 
 
-@st.cache_resource
+@st.cache_resource(show_spinner=False)
 def init_managers(_cache_version=3):
+    """Instancias singleton de managers (Supabase, Culqi, etc.) — una sola vez por proceso."""
     auth = AuthManager()
     storage = StorageManager()
     messages = MessageManager()
     notifications = NotificationManager()
     payments = PaymentManager()
     return auth, storage, messages, notifications, payments
+
+
+VELOX_DATA_CACHE_VERSION_KEY = "velox_data_cache_version"
+
+
+def _velox_data_cache_version() -> int:
+    return int(st.session_state.get(VELOX_DATA_CACHE_VERSION_KEY, 0))
+
+
+def _invalidar_cache_datos():
+    """Fuerza recarga de lecturas cacheadas (documentos, usuarios, pagos)."""
+    st.session_state[VELOX_DATA_CACHE_VERSION_KEY] = _velox_data_cache_version() + 1
+
+
+@st.cache_data(show_spinner=False, ttl=300)
+def cached_obtener_publicaciones_por_seccion(
+    seccion: Optional[str] = None,
+    subcategoria: Optional[str] = None,
+    _data_cache_version: int = 0,
+):
+    _, storage, _, _, _ = init_managers()
+    return storage.obtener_publicaciones_por_seccion(seccion=seccion, subcategoria=subcategoria)
+
+
+@st.cache_data(show_spinner=False, ttl=300)
+def cached_listar_catalogo_seccion(
+    seccion: str,
+    subcategoria: Optional[str] = None,
+    _data_cache_version: int = 0,
+):
+    _, storage, _, _, _ = init_managers()
+    return storage.listar_catalogo_seccion(seccion, subcategoria)
+
+
+@st.cache_data(show_spinner=False, ttl=300)
+def cached_listar_archivos_usuario(
+    usuario: str,
+    seccion: Optional[str] = None,
+    subcategoria: Optional[str] = None,
+    incluir_publicaciones: bool = False,
+    _data_cache_version: int = 0,
+):
+    _, storage, _, _, _ = init_managers()
+    return storage.listar_archivos_usuario(
+        usuario,
+        seccion=seccion,
+        subcategoria=subcategoria,
+        incluir_publicaciones=incluir_publicaciones,
+    )
+
+
+@st.cache_data(show_spinner=False, ttl=300)
+def cached_obtener_publicaciones_usuario(
+    usuario: str,
+    secciones_usuario: tuple,
+    _data_cache_version: int = 0,
+):
+    _, storage, _, _, _ = init_managers()
+    return storage.obtener_publicaciones_usuario(usuario, list(secciones_usuario))
+
+
+@st.cache_data(show_spinner=False, ttl=300)
+def cached_listar_usuarios(_data_cache_version: int = 0):
+    auth, _, _, _, _ = init_managers()
+    return auth.listar_usuarios()
+
+
+@st.cache_data(show_spinner=False, ttl=120)
+def cached_listar_pagos_pendientes(_data_cache_version: int = 0):
+    _, _, _, _, payments = init_managers()
+    return payments.listar_pagos_pendientes()
 
 auth_manager, storage_manager, message_manager, notification_manager, payment_manager = init_managers()
 
@@ -1046,7 +1238,7 @@ def _dialog_recuperar_password():
         use_container_width=True,
         key="btn_enviar_recuperacion_password",
     ):
-        with st.spinner("Enviando enlace..."):
+        with _velox_spinner("Enviando enlace..."):
             ok, msg = auth_manager.enviar_enlace_recuperacion_password(email_recuperacion)
         if ok:
             st.success(msg)
@@ -1108,7 +1300,7 @@ def render_tab_recuperar_password():
         if error_validacion:
             st.error(error_validacion)
         else:
-            with st.spinner("Actualizando contraseña..."):
+            with _velox_spinner("Actualizando contraseña..."):
                 ok, msg = auth_manager.completar_recuperacion_password(nueva_password.strip())
             if ok:
                 st.success(msg)
@@ -1167,7 +1359,7 @@ def render_tab_login_portal(oauth_url: Optional[str] = None):
         key="btn_iniciar_sesion_velox",
         use_container_width=True,
     ):
-        with st.spinner("Validando credenciales..."):
+        with _velox_spinner("Validando credenciales..."):
             exito, msg = auth_manager.iniciar_sesion_velox(
                 st.session_state.get("login_email", ""),
                 st.session_state.get("login_password", ""),
@@ -1229,7 +1421,7 @@ def render_tab_setup_password_velox():
 
     st.markdown('<div class="velox-btn-primary">', unsafe_allow_html=True)
     if st.button("Guardar contraseña y continuar", key="btn_guardar_password_velox", use_container_width=True):
-        with st.spinner("Guardando contraseña de forma segura..."):
+        with _velox_spinner("Guardando contraseña de forma segura..."):
             exito, msg = auth_manager.configurar_password_velox(
                 email,
                 st.session_state.get("velox_setup_password", ""),
@@ -1291,7 +1483,7 @@ def _procesar_culqi_si_hay_token():
     if not st.session_state.get("autenticado"):
         st.warning("Verifica tu cuenta con Google antes de pagar con tarjeta.")
         return
-    with st.spinner("Procesando cargo Culqi y activando acceso..."):
+    with _velox_spinner("Procesando cargo Culqi y activando acceso..."):
         exito, msg = payment_manager.procesar_pago_culqi_oauth(
             st.session_state["usuario"],
             st.session_state.get("nombre", ""),
@@ -1476,7 +1668,7 @@ def _render_registro_paso_password():
 
     st.markdown('<div class="velox-btn-primary">', unsafe_allow_html=True)
     if st.button("Guardar Contraseña", key="btn_guardar_password_registro", use_container_width=True):
-        with st.spinner("Guardando contraseña de forma segura..."):
+        with _velox_spinner("Guardando contraseña de forma segura..."):
             exito, msg = auth_manager.guardar_password_registro(
                 email,
                 st.session_state.get("registro_password", ""),
@@ -2114,7 +2306,7 @@ def _render_chatbot_panel_abierto(logo_src: str):
         with col_btn:
             if st.button("X", key="cerrar_chat_definitivo_fijo", help="Cerrar conversación"):
                 st.session_state.chat_abierto = False
-                st.rerun()
+                st.rerun(scope="fragment")
 
         with st.container(key="velox_chat_historial", height=410):
             st.markdown(historial_html, unsafe_allow_html=True)
@@ -2136,9 +2328,10 @@ def _render_chatbot_panel_abierto(logo_src: str):
                         respuesta = _generar_respuesta_chatbot(texto)
                         _agregar_mensaje_chat("assistant", respuesta)
                         st.session_state["limpiar_input_chat"] = True
-                        st.rerun()
+                        st.rerun(scope="fragment")
 
 
+@st.fragment
 def render_chatbot_asistente():
     """Chat flotante con IA simulada — solo en Inicio y Mis Documentos."""
     if not _chatbot_visible_en_modulo_actual():
@@ -2152,7 +2345,7 @@ def render_chatbot_asistente():
     st.markdown('<span class="velox-chat-fab-marker" aria-hidden="true"></span>', unsafe_allow_html=True)
     if st.button(" ", key="velox_chat_fab_btn", help="Asistente Inteligente veloX"):
         st.session_state.chat_abierto = not st.session_state.chat_abierto
-        st.rerun()
+        st.rerun(scope="fragment")
 
     if chat_abierto:
         _render_chatbot_panel_abierto(logo_src)
@@ -2242,7 +2435,12 @@ def _puede_publicar_documentos() -> bool:
 
 def _contar_documentos_seccion(seccion_id: str) -> int:
     try:
-        return len(storage_manager.obtener_publicaciones_por_seccion(seccion=seccion_id))
+        return len(
+            cached_obtener_publicaciones_por_seccion(
+                seccion=seccion_id,
+                _data_cache_version=_velox_data_cache_version(),
+            )
+        )
     except Exception:
         return 0
 
@@ -2570,7 +2768,7 @@ def _menu_sidebar_items():
 
 def render_lista_usuarios_solo_lectura():
     """Vista de usuarios sin edición de roles (Administrador)."""
-    usuarios = auth_manager.listar_usuarios()
+    usuarios = cached_listar_usuarios(_data_cache_version=_velox_data_cache_version())
     if not usuarios:
         st.info("No hay usuarios registrados.")
         return
@@ -2597,7 +2795,7 @@ def render_permisos_administrador_tab():
         st.error("Solo el Master puede configurar permisos de administradores.")
         return
 
-    usuarios = auth_manager.listar_usuarios()
+    usuarios = cached_listar_usuarios(_data_cache_version=_velox_data_cache_version())
     admins = [
         email for email, u in usuarios.items() if AuthManager.es_rol_administrador(u.get("rol"))
     ]
@@ -2653,6 +2851,7 @@ def render_permisos_administrador_tab():
         )
         if ok:
             st.success(msg)
+            _invalidar_cache_datos()
             st.rerun()
         else:
             st.error(msg)
@@ -2665,7 +2864,7 @@ def render_lista_usuarios_master():
         st.error("Solo usuarios con rol Master pueden gestionar roles.")
         return
 
-    usuarios = auth_manager.listar_usuarios()
+    usuarios = cached_listar_usuarios(_data_cache_version=_velox_data_cache_version())
     if not usuarios:
         st.info("No hay usuarios registrados.")
         return
@@ -2718,6 +2917,7 @@ def render_lista_usuarios_master():
         ok, msg = auth_manager.actualizar_rol_usuario(email, rol_nuevo, actor)
         if ok:
             st.toast(msg, icon="✅")
+            _invalidar_cache_datos()
             st.rerun()
         else:
             st.error(msg)
@@ -2729,6 +2929,7 @@ def render_lista_usuarios_master():
         sel = st.selectbox("Usuario a eliminar", usuarios_eliminar)
         if st.button("Eliminar", type="secondary"):
             auth_manager.eliminar_usuario(sel, actor)
+            _invalidar_cache_datos()
             st.rerun()
 
 
@@ -2739,7 +2940,7 @@ def render_dashboard_analytics_master(publicaciones, usuarios):
         st.plotly_chart(chart_documentos_por_seccion(publicaciones, SECCIONES), use_container_width=True)
     with c2:
         st.plotly_chart(chart_acceso_usuarios(usuarios), use_container_width=True)
-    pagos = payment_manager.listar_pagos_pendientes()
+    pagos = cached_listar_pagos_pendientes(_data_cache_version=_velox_data_cache_version())
     st.plotly_chart(chart_cobranzas_pendientes(pagos), use_container_width=True)
 
 
@@ -2785,7 +2986,7 @@ def render_gestion_cobranzas_master():
         elif tipo == "error":
             st.error(texto)
 
-    pagos = payment_manager.listar_pagos_pendientes()
+    pagos = cached_listar_pagos_pendientes(_data_cache_version=_velox_data_cache_version())
     st.markdown(f"### ⏳ Pagos pendientes ({len(pagos)})")
 
     if not pagos:
@@ -2835,6 +3036,8 @@ def render_gestion_cobranzas_master():
                     ok, msg = payment_manager.aprobar_pago(pago_id, st.session_state["usuario"])
                     st.session_state.pop("pago_procesando", None)
                     st.session_state["pago_flash"] = ("success" if ok else "error", msg)
+                    if ok:
+                        _invalidar_cache_datos()
                     st.rerun()
             with col_no:
                 motivo_key = f"motivo_{pago_id}"
@@ -2855,6 +3058,8 @@ def render_gestion_cobranzas_master():
                     )
                     st.session_state.pop("pago_procesando", None)
                     st.session_state["pago_flash"] = ("success" if ok else "error", msg)
+                    if ok:
+                        _invalidar_cache_datos()
                     st.rerun()
 
 def _parsear_metadata_notif(metadata):
@@ -3157,6 +3362,7 @@ def _render_fila_documento_publicacion(pub, meta, seccion_seleccionada, seccione
         with cols[5]:
             if st.button("🗑️", key=f"del_{pub['id']}_{indice}", help="Eliminar"):
                 storage_manager.eliminar_publicacion(pub["id"])
+                _invalidar_cache_datos()
                 st.rerun()
 
     if es_master and st.session_state.get(f"editando_{pub['id']}", False):
@@ -3170,6 +3376,7 @@ def _render_fila_documento_publicacion(pub, meta, seccion_seleccionada, seccione
             if exito:
                 st.success(msg)
                 st.session_state.pop(f"editando_{pub['id']}", None)
+                _invalidar_cache_datos()
                 st.rerun()
             else:
                 st.error(msg)
@@ -3205,6 +3412,7 @@ def _render_fila_documento_personal(archivo, meta, indice):
     with cols[5]:
         if st.button("🗑️", key=f"delete_{archivo['id']}_{indice}", help="Eliminar"):
             storage_manager.eliminar_archivo(archivo["id"], st.session_state["usuario"])
+            _invalidar_cache_datos()
             st.rerun()
 
 
@@ -3252,9 +3460,11 @@ def _render_bloque_publicaciones_compacto(
 ):
     """Lista compacta unificada de publicaciones (Inicio y Mis Documentos)."""
     st.markdown(titulo)
-    publicaciones = storage_manager.obtener_publicaciones_por_seccion(
+    _cache_v = _velox_data_cache_version()
+    publicaciones = cached_obtener_publicaciones_por_seccion(
         seccion=seccion_id,
         subcategoria=categoria_actual,
+        _data_cache_version=_cache_v,
     )
     if sincronizar_chatbot and seccion_info:
         _actualizar_catalogo_chatbot_seccion(
@@ -3285,7 +3495,11 @@ def _render_bloque_publicaciones_compacto(
 
 
 def _actualizar_catalogo_chatbot_seccion(seccion_info, seccion_id, subcategoria, secciones_usuario):
-    catalogo = storage_manager.listar_catalogo_seccion(seccion_id, subcategoria)
+    catalogo = cached_listar_catalogo_seccion(
+        seccion_id,
+        subcategoria,
+        _data_cache_version=_velox_data_cache_version(),
+    )
     st.session_state["velox_catalogo_documentos"] = [
         {
             "nombre": item["nombre"],
@@ -3447,6 +3661,74 @@ def render_app_top_bar():
     with col_bell:
         render_campana_notificaciones()
 
+
+def mostrar_modulo_dashboard_interactivo():
+    st.markdown("### 📊 Diseñador de Dashboards Estadísticos")
+    st.markdown(
+        "Sube tu archivo de Excel o CSV para activar el lienzo interactivo. "
+        "Podrás arrastrar variables, crear filtros y diseñar tus reportes a medida para tu uso personal o laboral."
+    )
+
+    archivo_subido = st.file_uploader(
+        "Adjunta tu tabla de datos (.xlsx, .xls, .csv)",
+        type=["xlsx", "xls", "csv"],
+        key="uploader_dashboard_dinamico",
+    )
+
+    if archivo_subido:
+        try:
+            if archivo_subido.name.endswith(".csv"):
+                df = pd.read_csv(archivo_subido)
+            else:
+                df = pd.read_excel(archivo_subido)
+
+            st.success(f"¡Lienzo activado! Se detectaron {df.shape[1]} columnas y {df.shape[0]} filas.")
+
+            buffer = io.BytesIO()
+            with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+                df.to_excel(writer, index=False, sheet_name="Data_veloX")
+            buffer.seek(0)
+
+            st.download_button(
+                label="📥 Descargar archivo Excel para uso personal",
+                data=buffer,
+                file_name=f"reporte_procesado_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="btn_descarga_excel_dashboard",
+            )
+
+            st.write("---")
+
+            pyg_html = pyg.to_html(df, theme="dark")
+            components.html(pyg_html, height=850, scrolling=True)
+
+        except Exception as e:
+            st.error(f"Error al procesar el archivo o generar la descarga: {e}")
+    else:
+        st.info(
+            "💡 Consejo: Asegúrate de que la primera fila de tu Excel contenga los nombres "
+            "de las columnas para que el diseñador las reconozca automáticamente."
+        )
+
+
+def _render_documentos_categoria_inicio(seccion_id, categoria_actual, secciones_usuario, busqueda_key):
+    """Lista de publicaciones por subcategoría dentro de la vista Inicio de una sección."""
+    st.markdown(MIS_DOCS_COMPACT_CSS, unsafe_allow_html=True)
+    busqueda = st.text_input(
+        "🔍 Buscar por nombre o descripción:",
+        key=busqueda_key,
+    )
+    _render_bloque_publicaciones_compacto(
+        seccion_id,
+        categoria_actual,
+        busqueda,
+        secciones_usuario,
+        prefijo="inicio",
+        titulo="### 📢 Documentos disponibles",
+        mensaje_vacio="No hay documentos en esta categoría.",
+    )
+
+
 def render_vista_seccion_inicio(seccion_id):
     if seccion_id not in SECCIONES:
         st.session_state.seccion_activa = "inicio"
@@ -3478,6 +3760,28 @@ def render_vista_seccion_inicio(seccion_id):
     </div>
     """, unsafe_allow_html=True)
 
+    if seccion_id == "laboral":
+        tab_minicursos, tab_formatos, tab_dashboard = st.tabs(
+            ["📚 Mini Cursos", "🗂️ Formatos y Plantillas", "📊 Diseñador de Dashboards"]
+        )
+        with tab_minicursos:
+            _render_documentos_categoria_inicio(
+                seccion_id,
+                "Minicursos",
+                secciones_usuario,
+                busqueda_key=f"buscador_inicio_{seccion_id}_minicursos",
+            )
+        with tab_formatos:
+            _render_documentos_categoria_inicio(
+                seccion_id,
+                "Formatos y Plantillas",
+                secciones_usuario,
+                busqueda_key=f"buscador_inicio_{seccion_id}_formatos",
+            )
+        with tab_dashboard:
+            mostrar_modulo_dashboard_interactivo()
+        return
+
     st.markdown("### 📂 Categorías")
     categoria_actual = st.session_state.categoria_inicio
     with st.container(key="velox_categoria_botones"):
@@ -3493,17 +3797,11 @@ def render_vista_seccion_inicio(seccion_id):
                     kwargs={"categoria": cat},
                 )
 
-    st.markdown(MIS_DOCS_COMPACT_CSS, unsafe_allow_html=True)
-    busqueda = st.text_input("🔍 Buscar por nombre o descripción:", key=f"buscador_inicio_{seccion_id}")
-
-    _render_bloque_publicaciones_compacto(
+    _render_documentos_categoria_inicio(
         seccion_id,
         categoria_actual,
-        busqueda,
         secciones_usuario,
-        prefijo="inicio",
-        titulo="### 📢 Documentos disponibles",
-        mensaje_vacio="No hay documentos en esta categoría.",
+        busqueda_key=f"buscador_inicio_{seccion_id}",
     )
 
 # ==================== PUERTA DE ACCESO (post-definiciones) ====================
@@ -3610,8 +3908,17 @@ else:
             if _es_master():
                 st.header("🏠 Inicio")
                 secciones_usuario = list(SECCIONES.keys())
-                archivos_personales = storage_manager.listar_archivos_usuario(st.session_state['usuario'], incluir_publicaciones=False)
-                publicaciones = storage_manager.obtener_publicaciones_usuario(st.session_state['usuario'], secciones_usuario)
+                _cache_v = _velox_data_cache_version()
+                archivos_personales = cached_listar_archivos_usuario(
+                    st.session_state["usuario"],
+                    incluir_publicaciones=False,
+                    _data_cache_version=_cache_v,
+                )
+                publicaciones = cached_obtener_publicaciones_usuario(
+                    st.session_state["usuario"],
+                    tuple(secciones_usuario),
+                    _data_cache_version=_cache_v,
+                )
 
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
@@ -3621,11 +3928,12 @@ else:
                 with col3:
                     st.markdown(f'<div class="metric-card"><h3>📂</h3><h3>{len(secciones_usuario)}</h3><p>Secciones</p></div>', unsafe_allow_html=True)
                 with col4:
-                    usuarios_total = len(auth_manager.listar_usuarios())
+                    usuarios_map = cached_listar_usuarios(_data_cache_version=_cache_v)
+                    usuarios_total = len(usuarios_map)
                     st.markdown(f'<div class="metric-card"><h3>👥</h3><h3>{usuarios_total}</h3><p>Usuarios</p></div>', unsafe_allow_html=True)
 
-                todas_pubs = storage_manager.obtener_publicaciones_por_seccion()
-                render_dashboard_analytics_master(todas_pubs, auth_manager.listar_usuarios())
+                todas_pubs = cached_obtener_publicaciones_por_seccion(_data_cache_version=_cache_v)
+                render_dashboard_analytics_master(todas_pubs, usuarios_map)
 
                 st.markdown("---")
                 render_catalogo_secciones_freemium(
@@ -3642,8 +3950,10 @@ else:
                         "**Gestión Usuarios → Permisos Administrador**."
                     )
                 elif _puede_ver_panorama_recursos():
-                    publicaciones_user = storage_manager.obtener_publicaciones_usuario(
-                        st.session_state["usuario"], secciones_usuario
+                    publicaciones_user = cached_obtener_publicaciones_usuario(
+                        st.session_state["usuario"],
+                        tuple(secciones_usuario),
+                        _data_cache_version=_velox_data_cache_version(),
                     )
                     render_dashboard_analytics_user(secciones_usuario, publicaciones_user)
                     st.markdown("---")
@@ -3767,7 +4077,7 @@ else:
                         if not archivo_pub:
                             st.error("❌ Selecciona un archivo antes de publicar.")
                         else:
-                            with st.spinner("Publicando y notificando a los alumnos..."):
+                            with _velox_spinner("Publicando y notificando a los alumnos..."):
                                 exito, resultado = storage_manager.publicar_documento(
                                     archivo_pub,
                                     seccion_seleccionada,
@@ -3777,6 +4087,7 @@ else:
                                 )
                             if exito:
                                 _mostrar_alerta_publicacion(exito, resultado)
+                                _invalidar_cache_datos()
                                 st.rerun()
                             else:
                                 st.error(f"❌ Error en la publicación: {resultado}")
@@ -3815,7 +4126,11 @@ else:
                 render_lista_usuarios_solo_lectura()
         with tab2:
             st.markdown("Asignar secciones a usuario")
-            usuarios_lista = [e for e in auth_manager.listar_usuarios() if e != st.session_state['usuario']]
+            usuarios_lista = [
+                e
+                for e in cached_listar_usuarios(_data_cache_version=_velox_data_cache_version())
+                if e != st.session_state["usuario"]
+            ]
             if usuarios_lista:
                 usuario = st.selectbox("Usuario", usuarios_lista)
                 actuales = auth_manager.obtener_secciones_usuario(usuario)
@@ -3827,6 +4142,7 @@ else:
                             nuevas.append(k)
                 if st.button("Guardar permisos"):
                     auth_manager.asignar_secciones_usuario(usuario, nuevas, st.session_state['usuario'])
+                    _invalidar_cache_datos()
                     st.rerun()
             else:
                 st.info("No hay otros usuarios")

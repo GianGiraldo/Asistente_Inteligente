@@ -58,6 +58,7 @@ class StorageManager:
             return False, "No se ha seleccionado ningún archivo"
 
         descripcion_texto = (descripcion or "").strip()
+        subcategoria = (subcategoria or "").strip()
 
         try:
             if es_publicacion:

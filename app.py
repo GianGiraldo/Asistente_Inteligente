@@ -2992,6 +2992,26 @@ def volver_al_inicio():
 def seleccionar_categoria_inicio(categoria):
     st.session_state.categoria_inicio = categoria
 
+
+def _mis_docs_categoria_key(seccion_id: str) -> str:
+    return f"mis_docs_categoria_{seccion_id}"
+
+
+def seleccionar_categoria_mis_docs(seccion_id: str, categoria: str) -> None:
+    st.session_state[_mis_docs_categoria_key(seccion_id)] = categoria
+    st.session_state[_docs_pagina_session_key(seccion_id, categoria, prefijo="pub")] = 1
+
+
+def _obtener_categoria_mis_docs(seccion_id: str, subcategorias: list) -> str:
+    cat_key = _mis_docs_categoria_key(seccion_id)
+    if cat_key not in st.session_state:
+        st.session_state[cat_key] = subcategorias[0]
+    categoria = st.session_state[cat_key]
+    if categoria not in subcategorias:
+        st.session_state[cat_key] = subcategorias[0]
+        categoria = subcategorias[0]
+    return categoria
+
 def _formatear_fecha_notif(fecha_raw):
     if not fecha_raw:
         return "Fecha desconocida"
@@ -4242,22 +4262,27 @@ else:
             subcategorias_disponibles = seccion_info.get("subcategorias", ["General"])
             st.markdown("### 📂 Categorías")
 
-            if 'categoria_seleccionada' not in st.session_state:
-                st.session_state['categoria_seleccionada'] = subcategorias_disponibles[0]
-
             if categoria_redirigida and categoria_redirigida in subcategorias_disponibles:
-                st.session_state['categoria_seleccionada'] = categoria_redirigida
+                st.session_state[_mis_docs_categoria_key(seccion_seleccionada)] = categoria_redirigida
+
+            cat_key = _mis_docs_categoria_key(seccion_seleccionada)
+            categoria_actual = _obtener_categoria_mis_docs(
+                seccion_seleccionada, subcategorias_disponibles
+            )
 
             with st.container(key="velox_categoria_botones"):
                 cols_cat = st.columns(len(subcategorias_disponibles))
                 for idx, cat in enumerate(subcategorias_disponibles):
                     with cols_cat[idx]:
-                        if st.button(cat, key=f"cat_{seccion_seleccionada}_{cat}", use_container_width=True,
-                                     type="primary" if st.session_state['categoria_seleccionada'] == cat else "secondary"):
-                            st.session_state['categoria_seleccionada'] = cat
-                            st.rerun()
+                        st.button(
+                            cat,
+                            key=f"cat_{seccion_seleccionada}_{idx}_{cat}",
+                            use_container_width=True,
+                            type="primary" if categoria_actual == cat else "secondary",
+                            on_click=seleccionar_categoria_mis_docs,
+                            kwargs={"seccion_id": seccion_seleccionada, "categoria": cat},
+                        )
 
-            categoria_actual = st.session_state['categoria_seleccionada']
             st.markdown(f"**Categoría actual:** {categoria_actual}")
 
             st.markdown(MIS_DOCS_COMPACT_CSS, unsafe_allow_html=True)
@@ -4278,10 +4303,17 @@ else:
                     st.caption(
                         f"Publicación en **{seccion_info['nombre']}** · categoría **{categoria_actual}**"
                     )
+                    # Categoría fijada al renderizar el formulario (evita desfase al enviar)
+                    st.session_state[f"mis_docs_pub_target_{seccion_seleccionada}"] = categoria_actual
                     with st.form(
-                        key=f"form_pub_{seccion_seleccionada}_{categoria_actual}",
-                        clear_on_submit=False,
+                        key=f"form_pub_{seccion_seleccionada}",
+                        clear_on_submit=True,
                     ):
+                        st.text_input(
+                            "Categoría de destino",
+                            value=categoria_actual,
+                            disabled=True,
+                        )
                         archivo_pub = st.file_uploader(
                             "Seleccionar archivo",
                             type=["pdf", "xlsx", "xls", "docx", "doc"],
@@ -4295,28 +4327,42 @@ else:
                             "Publicar documento",
                             type="primary",
                         )
-                        if submitted:
-                            descripcion_guardar = (descripcion_texto or "").strip()
-                            if not archivo_pub:
-                                st.error("❌ Selecciona un archivo antes de publicar.")
-                            else:
-                                try:
-                                    with _velox_spinner("Publicando y notificando a los alumnos..."):
-                                        exito, resultado = storage_manager.publicar_documento(
-                                            archivo_pub,
+
+                    if submitted:
+                        categoria_publicar = (
+                            st.session_state.get(f"mis_docs_pub_target_{seccion_seleccionada}")
+                            or st.session_state.get(cat_key)
+                            or categoria_actual
+                        )
+                        descripcion_guardar = (descripcion_texto or "").strip()
+                        if not archivo_pub:
+                            st.error("❌ Selecciona un archivo antes de publicar.")
+                        else:
+                            try:
+                                with _velox_spinner("Publicando y notificando a los alumnos..."):
+                                    exito, resultado = storage_manager.publicar_documento(
+                                        archivo_pub,
+                                        seccion_seleccionada,
+                                        categoria_publicar,
+                                        descripcion_guardar,
+                                        publicador_email=st.session_state["usuario"],
+                                    )
+                                if exito:
+                                    _mostrar_alerta_publicacion(exito, resultado)
+                                    _invalidar_cache_datos()
+                                    st.session_state[cat_key] = categoria_publicar
+                                    st.session_state[
+                                        _docs_pagina_session_key(
                                             seccion_seleccionada,
-                                            categoria_actual,
-                                            descripcion_guardar,
-                                            publicador_email=st.session_state["usuario"],
+                                            categoria_publicar,
+                                            prefijo="pub",
                                         )
-                                    if exito:
-                                        _mostrar_alerta_publicacion(exito, resultado)
-                                        _invalidar_cache_datos()
-                                        st.rerun()
-                                    else:
-                                        st.error(f"❌ Error en la publicación: {resultado}")
-                                except Exception as err:
-                                    st.error(f"❌ Error inesperado al publicar: {err}")
+                                    ] = 1
+                                    st.rerun()
+                                else:
+                                    st.error(f"❌ Error en la publicación: {resultado}")
+                            except Exception as err:
+                                st.error(f"❌ Error inesperado al publicar: {err}")
                 st.markdown("---")
 
             # Publicaciones disponibles

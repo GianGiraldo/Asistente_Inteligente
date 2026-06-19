@@ -3675,6 +3675,166 @@ def mostrar_modulo_dashboard_interactivo():
         key="uploader_dashboard_dinamico",
     )
 
+    def _generar_informe_pdf_velox(dataframe: pd.DataFrame) -> bytes:
+        try:
+            from reportlab.lib import colors
+            from reportlab.lib.pagesizes import letter
+            from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+            from reportlab.lib.units import inch
+            from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+        except ImportError as exc:
+            raise ImportError(
+                "La librería 'reportlab' no está instalada. Ejecuta: pip install reportlab"
+            ) from exc
+
+        def _truncar_texto(valor, max_len: int = 48) -> str:
+            texto = str(valor) if valor is not None else ""
+            return texto if len(texto) <= max_len else texto[: max_len - 3] + "..."
+
+        def _tabla_estilo_encabezado(num_filas: int, num_cols: int) -> TableStyle:
+            return TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0F3D3C")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, 0), 9),
+                    ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+                    ("FONTSIZE", (0, 1), (-1, -1), 8),
+                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F8FA")]),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]
+            )
+
+        buffer_pdf = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer_pdf,
+            pagesize=letter,
+            leftMargin=0.75 * inch,
+            rightMargin=0.75 * inch,
+            topMargin=0.75 * inch,
+            bottomMargin=0.75 * inch,
+            title="Informe veloX",
+        )
+        estilos = getSampleStyleSheet()
+        titulo_estilo = ParagraphStyle(
+            "VeloxTitulo",
+            parent=estilos["Title"],
+            fontName="Helvetica-Bold",
+            fontSize=18,
+            textColor=colors.HexColor("#0F3D3C"),
+            spaceAfter=12,
+        )
+        subtitulo_estilo = ParagraphStyle(
+            "VeloxSubtitulo",
+            parent=estilos["Heading2"],
+            fontName="Helvetica-Bold",
+            fontSize=13,
+            textColor=colors.HexColor("#1A2744"),
+            spaceBefore=14,
+            spaceAfter=8,
+        )
+        cuerpo_estilo = ParagraphStyle(
+            "VeloxCuerpo",
+            parent=estilos["Normal"],
+            fontName="Helvetica",
+            fontSize=10,
+            leading=14,
+            textColor=colors.HexColor("#334155"),
+        )
+
+        elementos = []
+        ahora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        elementos.append(Paragraph("Informe de Análisis de Datos - veloX", titulo_estilo))
+        elementos.append(Paragraph(f"<b>Fecha y hora de generación:</b> {ahora}", cuerpo_estilo))
+        elementos.append(Spacer(1, 0.2 * inch))
+
+        elementos.append(Paragraph("Resumen del conjunto de datos", subtitulo_estilo))
+        columnas = [str(c) for c in dataframe.columns.tolist()]
+        resumen_lineas = [
+            f"<b>Filas:</b> {dataframe.shape[0]}",
+            f"<b>Columnas:</b> {dataframe.shape[1]}",
+            f"<b>Nombres de columnas:</b> {', '.join(columnas) if columnas else '—'}",
+        ]
+        for linea in resumen_lineas:
+            elementos.append(Paragraph(linea, cuerpo_estilo))
+        elementos.append(Spacer(1, 0.15 * inch))
+
+        numericas = dataframe.select_dtypes(include="number")
+        if not numericas.empty:
+            elementos.append(Paragraph("Estadísticas descriptivas (columnas numéricas)", subtitulo_estilo))
+            filas_stats = [["Columna", "Media", "Mediana", "Desv. est.", "Mín", "Máx", "Q1", "Q3"]]
+            for col in numericas.columns:
+                serie = pd.to_numeric(numericas[col], errors="coerce").dropna()
+                if serie.empty:
+                    continue
+                filas_stats.append(
+                    [
+                        _truncar_texto(col, 28),
+                        f"{serie.mean():.4f}",
+                        f"{serie.median():.4f}",
+                        f"{serie.std():.4f}",
+                        f"{serie.min():.4f}",
+                        f"{serie.max():.4f}",
+                        f"{serie.quantile(0.25):.4f}",
+                        f"{serie.quantile(0.75):.4f}",
+                    ]
+                )
+            tabla_stats = Table(filas_stats, repeatRows=1)
+            tabla_stats.setStyle(_tabla_estilo_encabezado(len(filas_stats), len(filas_stats[0])))
+            elementos.append(tabla_stats)
+            elementos.append(Spacer(1, 0.2 * inch))
+
+        categoricas = dataframe.select_dtypes(include=["object", "string", "category"])
+        if not categoricas.empty:
+            elementos.append(Paragraph("Análisis de variables categóricas", subtitulo_estilo))
+            for col in categoricas.columns:
+                elementos.append(
+                    Paragraph(f"<b>Variable:</b> {_truncar_texto(col, 60)}", cuerpo_estilo)
+                )
+                conteos = categoricas[col].astype(str).value_counts().head(10)
+                filas_cat = [["Valor", "Frecuencia"]]
+                for valor, freq in conteos.items():
+                    filas_cat.append([_truncar_texto(valor, 40), str(int(freq))])
+                tabla_cat = Table(filas_cat, colWidths=[3.8 * inch, 1.2 * inch], repeatRows=1)
+                tabla_cat.setStyle(_tabla_estilo_encabezado(len(filas_cat), 2))
+                elementos.append(tabla_cat)
+                elementos.append(Spacer(1, 0.12 * inch))
+
+        if numericas.shape[1] >= 2:
+            elementos.append(PageBreak())
+            elementos.append(Paragraph("Matriz de correlación", subtitulo_estilo))
+            corr = numericas.corr(numeric_only=True)
+            encabezados_corr = [""] + [_truncar_texto(c, 14) for c in corr.columns]
+            filas_corr = [encabezados_corr]
+            for idx, fila in corr.iterrows():
+                filas_corr.append(
+                    [_truncar_texto(idx, 14)]
+                    + [f"{v:.3f}" if pd.notna(v) else "—" for v in fila.tolist()]
+                )
+            tabla_corr = Table(filas_corr, repeatRows=1)
+            tabla_corr.setStyle(_tabla_estilo_encabezado(len(filas_corr), len(filas_corr[0])))
+            elementos.append(tabla_corr)
+            elementos.append(Spacer(1, 0.2 * inch))
+
+        elementos.append(Paragraph("Conclusiones", subtitulo_estilo))
+        elementos.append(
+            Paragraph(
+                "Este informe resume las principales métricas del conjunto de datos cargado. "
+                "Para visualizaciones interactivas, utiliza las herramientas de PyGWalker.",
+                cuerpo_estilo,
+            )
+        )
+
+        doc.build(elementos)
+        buffer_pdf.seek(0)
+        return buffer_pdf.getvalue()
+
     if archivo_subido:
         try:
             if archivo_subido.name.endswith(".csv"):
@@ -3684,18 +3844,36 @@ def mostrar_modulo_dashboard_interactivo():
 
             st.success(f"¡Lienzo activado! Se detectaron {df.shape[1]} columnas y {df.shape[0]} filas.")
 
-            buffer = io.BytesIO()
-            with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-                df.to_excel(writer, index=False, sheet_name="Data_veloX")
-            buffer.seek(0)
+            col_pdf, _ = st.columns([1, 2])
+            with col_pdf:
+                if st.button(
+                    "📊 Generar informe profesional en PDF",
+                    type="primary",
+                    key="btn_generar_pdf_dashboard_velox",
+                ):
+                    try:
+                        pdf_bytes = _generar_informe_pdf_velox(df)
+                        st.session_state["velox_dashboard_pdf_bytes"] = pdf_bytes
+                        st.session_state["velox_dashboard_pdf_nombre"] = (
+                            f"informe_velox_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+                        )
+                    except ImportError as err:
+                        st.error(str(err))
+                    except Exception as err:
+                        st.error(f"No se pudo generar el informe PDF: {err}")
 
-            st.download_button(
-                label="📥 Descargar archivo Excel para uso personal",
-                data=buffer,
-                file_name=f"reporte_procesado_{datetime.now().strftime('%Y%m%d')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="btn_descarga_excel_dashboard",
-            )
+            if st.session_state.get("velox_dashboard_pdf_bytes"):
+                st.download_button(
+                    label="📄 Descargar informe PDF",
+                    data=st.session_state["velox_dashboard_pdf_bytes"],
+                    file_name=st.session_state.get(
+                        "velox_dashboard_pdf_nombre",
+                        f"informe_velox_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                    ),
+                    mime="application/pdf",
+                    type="secondary",
+                    key="btn_descarga_pdf_dashboard_velox",
+                )
 
             st.write("---")
 
@@ -3703,7 +3881,7 @@ def mostrar_modulo_dashboard_interactivo():
             components.html(pyg_html, height=850, scrolling=True)
 
         except Exception as e:
-            st.error(f"Error al procesar el archivo o generar la descarga: {e}")
+            st.error(f"Error al procesar el archivo: {e}")
     else:
         st.info(
             "💡 Consejo: Asegúrate de que la primera fila de tu Excel contenga los nombres "

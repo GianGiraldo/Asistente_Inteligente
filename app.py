@@ -3591,14 +3591,27 @@ def _seccion_desde_notificacion(notif):
     return normalizar_seccion(metadata.get("seccion"))
 
 
-def abrir_notificacion(notificacion_id, seccion, categoria=None):
+def abrir_notificacion(
+    notificacion_id,
+    seccion,
+    categoria=None,
+    titulo=None,
+    publicacion_id=None,
+):
     notification_manager.marcar_como_leida(notificacion_id, st.session_state["usuario"])
     st.session_state["menu_principal"] = "📁 Mis Documentos"
-    st.session_state.seccion_activa = seccion or "inicio"
-    if seccion:
-        st.session_state["seccion_seleccionada_documentos"] = seccion
-    if categoria and seccion:
+    seccion_norm = normalizar_seccion(seccion) if seccion else None
+    st.session_state.seccion_activa = seccion_norm or "inicio"
+    if seccion_norm:
+        st.session_state["seccion_seleccionada_documentos"] = seccion_norm
+    if categoria and seccion_norm:
         st.session_state["categoria_redirigida"] = categoria
+    if titulo:
+        st.session_state["notif_redirect_mensaje"] = f"✅ Has sido redirigido a la publicación: {titulo}"
+        nombre_busqueda = titulo.rsplit(".", 1)[0] if "." in titulo else titulo
+        st.session_state["buscador_mis_docs"] = nombre_busqueda
+    if publicacion_id:
+        st.session_state["notif_redirect_publicacion_id"] = publicacion_id
 
 def render_campana_notificaciones():
     usuario = st.session_state["usuario"]
@@ -3720,6 +3733,8 @@ def render_campana_notificaciones():
                     "notificacion_id": notif["id"],
                     "seccion": seccion,
                     "categoria": categoria,
+                    "titulo": titulo,
+                    "publicacion_id": metadata.get("archivo_id"),
                 },
             )
 
@@ -4220,11 +4235,15 @@ else:
             render_vista_seccion_inicio(st.session_state.seccion_activa)
 
     elif menu_actual == "📁 Mis Documentos":
-        seccion_preseleccionada = st.session_state.pop('seccion_seleccionada_documentos', None)
-        categoria_redirigida = st.session_state.pop('categoria_redirigida', None)
+        seccion_preseleccionada = st.session_state.pop("seccion_seleccionada_documentos", None)
+        categoria_redirigida = st.session_state.pop("categoria_redirigida", None)
+        notif_redirect_mensaje = st.session_state.pop("notif_redirect_mensaje", None)
+        notif_redirect_publicacion_id = st.session_state.pop("notif_redirect_publicacion_id", None)
         st.query_params.clear()
 
         st.header("📁 Mis Documentos")
+        if notif_redirect_mensaje:
+            st.success(notif_redirect_mensaje)
         _sincronizar_rol_master_en_sesion()
 
         if _es_staff():
@@ -4242,11 +4261,25 @@ else:
             st.warning("⚠️ No tienes acceso a ninguna sección. Contacta al administrador.")
         else:
             opciones_secciones = [(s, SECCIONES[s]['nombre']) for s in secciones_usuario]
+            seccion_preseleccionada_norm = (
+                normalizar_seccion(seccion_preseleccionada) if seccion_preseleccionada else None
+            )
+
+            if categoria_redirigida and seccion_preseleccionada_norm:
+                subs_redirect = SECCIONES.get(seccion_preseleccionada_norm, {}).get(
+                    "subcategorias", ["General"]
+                )
+                if categoria_redirigida in subs_redirect:
+                    st.session_state[
+                        _mis_docs_categoria_key(seccion_preseleccionada_norm)
+                    ] = categoria_redirigida
+
             indice_preseleccionado = 0
-            if seccion_preseleccionada:
+            if seccion_preseleccionada_norm:
                 for idx, (sec_id, _) in enumerate(opciones_secciones):
-                    if sec_id == seccion_preseleccionada:
+                    if sec_id == seccion_preseleccionada_norm:
                         indice_preseleccionado = idx
+                        st.session_state["selector_seccion_documentos"] = opciones_secciones[idx]
                         break
 
             seccion_seleccionada = st.selectbox(
@@ -4254,7 +4287,7 @@ else:
                 options=opciones_secciones,
                 format_func=lambda x: x[1],
                 index=indice_preseleccionado,
-                key="selector_seccion_documentos"
+                key="selector_seccion_documentos",
             )[0]
             seccion_info = SECCIONES[seccion_seleccionada]
 
@@ -4271,13 +4304,16 @@ else:
             subcategorias_disponibles = seccion_info.get("subcategorias", ["General"])
             st.markdown("### 📂 Categorías")
 
-            if categoria_redirigida and categoria_redirigida in subcategorias_disponibles:
-                st.session_state[_mis_docs_categoria_key(seccion_seleccionada)] = categoria_redirigida
-
             cat_key = _mis_docs_categoria_key(seccion_seleccionada)
             categoria_actual = _obtener_categoria_mis_docs(
                 seccion_seleccionada, subcategorias_disponibles
             )
+
+            if seccion_preseleccionada_norm:
+                st.session_state[
+                    _docs_pagina_session_key(seccion_seleccionada, categoria_actual, prefijo="pub")
+                ] = 1
+                _invalidar_cache_datos()
 
             with st.container(key="velox_categoria_botones"):
                 cols_cat = st.columns(len(subcategorias_disponibles))

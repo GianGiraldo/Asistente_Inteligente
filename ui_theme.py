@@ -1586,6 +1586,23 @@ SECTION_CATALOG_CSS = """
         text-align: center !important;
         line-height: 1.15 !important;
     }
+    /* Chip ovalado: solo vista Inicio usuario normal (catalogo_centrado + velox-titulo-chip) */
+    .velox-catalogo-hero__titulo.velox-titulo-chip {
+        display: inline-block !important;
+        background-color: #E0F2FE !important;
+        color: #0F172A !important;
+        font-weight: 700 !important;
+        font-size: 1.5rem !important;
+        letter-spacing: 0.04em !important;
+        padding: 8px 32px !important;
+        border-radius: 40px !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+        margin: 0 auto 0.65rem auto !important;
+        line-height: 1.25 !important;
+        border: 1px solid rgba(0, 180, 216, 0.22) !important;
+        cursor: default !important;
+        user-select: none !important;
+    }
     .velox-catalogo-hero__desc {
         color: #1A2332;
         font-size: 0.95rem;

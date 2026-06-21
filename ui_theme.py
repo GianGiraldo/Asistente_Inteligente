@@ -1737,16 +1737,129 @@ def inject_sidebar_theme():
     st.markdown(SIDEBAR_CSS, unsafe_allow_html=True)
 
 
-VELOX_LOADING_BRAND_CSS = """
+VELOX_LOADING_BRAND_CSS = f"""
 <style id="velox-loading-brand">
-    @keyframes velox-brand-spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-    }
+    @keyframes velox-brand-spin {{
+        from {{ transform: rotate(0deg); }}
+        to {{ transform: rotate(360deg); }}
+    }}
 
-    /* Spinner de carga inicial (esqueleto) */
-    [data-testid="stAppSkeleton"]::before,
-    [data-testid="stAppViewContainer"]:has([data-testid="stAppSkeleton"])::before {
+    /*
+     * Spinner corporativo veloX — alta especificidad (.stApp) + !important.
+     * Cubre: esqueleto inicial, stStatusWidget, st.spinner(), st.progress().
+     */
+    .stApp [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningIcon"] svg,
+    .stApp [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningIcon"] img,
+    .stApp [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningIcon"] span,
+    .stApp [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningManIcon"],
+    .stApp [data-testid="stStatusWidget"] [data-testid="stStatusWidgetNewYearsIcon"],
+    .stApp [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningIcon"] > * {{
+        opacity: 0 !important;
+        width: 0 !important;
+        height: 0 !important;
+        overflow: hidden !important;
+        position: absolute !important;
+        pointer-events: none !important;
+        visibility: hidden !important;
+        display: none !important;
+    }}
+
+    .stApp [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningIcon"] {{
+        position: relative !important;
+        width: 26px !important;
+        height: 26px !important;
+        min-width: 26px !important;
+        min-height: 26px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        overflow: visible !important;
+    }}
+
+    .stApp [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningIcon"]::after {{
+        content: "" !important;
+        display: block !important;
+        width: 20px !important;
+        height: 20px !important;
+        border: 2.5px solid rgba(0, 180, 216, 0.28) !important;
+        border-top-color: {VELOX_CIAN_MARCA} !important;
+        border-radius: 50% !important;
+        animation: velox-brand-spin 0.75s linear infinite !important;
+        box-sizing: border-box !important;
+    }}
+
+    .stApp [data-testid="stStatusWidget"] {{
+        z-index: 999998 !important;
+    }}
+
+    .stApp [data-testid="stSpinner"] [data-testid="stSpinnerIcon"],
+    .stApp [data-testid="stSpinner"] svg,
+    .stApp [data-testid="stSpinner"] .material-icons,
+    .stApp [data-testid="stSpinner"] [class*="Spinner"] svg,
+    .stApp [data-testid="stSpinner"] img {{
+        opacity: 0 !important;
+        width: 0 !important;
+        height: 0 !important;
+        overflow: hidden !important;
+        position: absolute !important;
+        pointer-events: none !important;
+        visibility: hidden !important;
+        display: none !important;
+    }}
+
+    .stApp [data-testid="stSpinner"] > div {{
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.65rem !important;
+    }}
+
+    .stApp [data-testid="stSpinner"] > div::before {{
+        content: "" !important;
+        flex-shrink: 0 !important;
+        display: block !important;
+        width: 22px !important;
+        height: 22px !important;
+        border: 2.5px solid rgba(0, 180, 216, 0.28) !important;
+        border-top-color: {VELOX_CIAN_MARCA} !important;
+        border-radius: 50% !important;
+        animation: velox-brand-spin 0.75s linear infinite !important;
+        box-sizing: border-box !important;
+    }}
+
+    .stApp [data-testid="stSpinner"] [data-testid="stMarkdownContainer"] p,
+    .stApp [data-testid="stSpinner"] [data-testid="stMarkdownContainer"] {{
+        color: {VELOX_VERDE_OSCURO} !important;
+        font-weight: 600 !important;
+    }}
+
+    .stApp [data-testid="stFileUploader"] [data-testid="stSpinner"] > div::before,
+    .stApp [data-testid="stChatInput"] [data-testid="stSpinner"] > div::before,
+    .stApp [data-testid="element-container"] [data-testid="stSpinner"] > div::before {{
+        content: "" !important;
+        flex-shrink: 0 !important;
+        display: block !important;
+        width: 20px !important;
+        height: 20px !important;
+        border: 2.5px solid rgba(0, 180, 216, 0.28) !important;
+        border-top-color: {VELOX_CIAN_MARCA} !important;
+        border-radius: 50% !important;
+        animation: velox-brand-spin 0.75s linear infinite !important;
+        box-sizing: border-box !important;
+    }}
+
+    .stApp [data-testid="stProgress"] [data-testid="stSpinner"] [data-testid="stSpinnerIcon"],
+    .stApp [data-testid="stProgress"] [data-testid="stSpinner"] svg,
+    .stApp [data-testid="stProgress"] svg[class*="spinner"],
+    .stApp [data-testid="stProgress"] .material-icons {{
+        opacity: 0 !important;
+        width: 0 !important;
+        height: 0 !important;
+        visibility: hidden !important;
+        display: none !important;
+    }}
+
+    .stApp [data-testid="stAppSkeleton"]::before,
+    .stApp [data-testid="stAppViewContainer"]:has([data-testid="stAppSkeleton"])::before {{
         content: "⚡ Cargando veloX..." !important;
         position: fixed !important;
         top: 14px !important;
@@ -1759,89 +1872,21 @@ VELOX_LOADING_BRAND_CSS = """
         border: 1px solid rgba(0, 180, 216, 0.35) !important;
         border-radius: 999px !important;
         box-shadow: 0 4px 14px rgba(15, 61, 60, 0.12) !important;
-        color: #0F3D3C !important;
+        color: {VELOX_VERDE_OSCURO} !important;
         font-size: 0.88rem !important;
         font-weight: 700 !important;
+        letter-spacing: 0.01em !important;
         pointer-events: none !important;
-    }
-
-    /* Spinner de st.spinner() y otros */
-    [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningIcon"] svg,
-    [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningManIcon"],
-    [data-testid="stStatusWidget"] [data-testid="stStatusWidgetNewYearsIcon"],
-    [data-testid="stStatusWidget"] img {
-        opacity: 0 !important;
-        width: 0 !important;
-        height: 0 !important;
-        overflow: hidden !important;
-        position: absolute !important;
-        pointer-events: none !important;
-    }
-
-    [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningIcon"] {
-        position: relative !important;
-        width: 26px !important;
-        height: 26px !important;
-        min-width: 26px !important;
-        min-height: 26px !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-    }
-
-    [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningIcon"]::after {
-        content: "" !important;
-        display: block !important;
-        width: 20px !important;
-        height: 20px !important;
-        border: 2.5px solid rgba(0, 180, 216, 0.28) !important;
-        border-top-color: #00B4D8 !important;
-        border-radius: 50% !important;
-        animation: velox-brand-spin 0.75s linear infinite !important;
-    }
-
-    [data-testid="stSpinner"] [data-testid="stSpinnerIcon"],
-    [data-testid="stSpinner"] svg {
-        opacity: 0 !important;
-        width: 0 !important;
-        height: 0 !important;
-        overflow: hidden !important;
-        position: absolute !important;
-        pointer-events: none !important;
-    }
-
-    [data-testid="stSpinner"] > div {
-        display: flex !important;
-        align-items: center !important;
-        gap: 0.65rem !important;
-    }
-
-    [data-testid="stSpinner"] > div::before {
-        content: "" !important;
-        flex-shrink: 0 !important;
-        display: block !important;
-        width: 22px !important;
-        height: 22px !important;
-        border: 2.5px solid rgba(0, 180, 216, 0.28) !important;
-        border-top-color: #00B4D8 !important;
-        border-radius: 50% !important;
-        animation: velox-brand-spin 0.75s linear infinite !important;
-    }
-
-    [data-testid="stSpinner"] [data-testid="stMarkdownContainer"] p,
-    [data-testid="stSpinner"] [data-testid="stMarkdownContainer"] {
-        color: #0F3D3C !important;
-        font-weight: 600 !important;
-    }
+    }}
 </style>
 """
 
 
 def inject_velox_loading_brand() -> None:
-    """Spinner / esqueleto corporativo veloX (sin iconos nativos de Streamlit)."""
+    """Inyecta el spinner personalizado de veloX usando st.html() para mayor robustez."""
     import streamlit as st
 
-    st.markdown(VELOX_LOADING_BRAND_CSS, unsafe_allow_html=True)
+    st.html(VELOX_LOADING_BRAND_CSS)
 
 
 __all__ = [

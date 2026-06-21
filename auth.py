@@ -235,10 +235,139 @@ class AuthManager:
         )
 
     def obtener_redirect_url(self) -> str:
-        redirect = self._valor_seccion("app", "redirect_url")
-        if redirect:
-            return redirect.rstrip("/")
+        """URL pública donde Supabase devuelve ?code= (debe estar en Redirect URLs)."""
+        return self.resolver_base_url_app()
+
+    @staticmethod
+    def _normalizar_url_base(url: str) -> str:
+        return (url or "").strip().rstrip("/")
+
+    @staticmethod
+    def _url_es_localhost(url: str) -> bool:
+        u = (url or "").lower()
+        return u.startswith("http://localhost") or u.startswith("http://127.0.0.1")
+
+    @staticmethod
+    def _base_url_desde_entorno() -> str:
+        for var in ("VELOX_BASE_URL", "STREAMLIT_APP_BASE_URL", "APP_BASE_URL"):
+            valor = (os.getenv(var) or "").strip()
+            if valor:
+                return AuthManager._normalizar_url_base(valor)
+        return ""
+
+    @staticmethod
+    def _base_url_desde_contexto_streamlit() -> str:
+        """Inferir URL en Streamlit Cloud u otros despliegues desde headers HTTP."""
+        try:
+            ctx = getattr(st, "context", None)
+            headers = getattr(ctx, "headers", None) if ctx is not None else None
+            if not headers:
+                return ""
+            host = (headers.get("Host") or headers.get("host") or "").strip()
+            if not host:
+                return ""
+            proto = (
+                headers.get("X-Forwarded-Proto")
+                or headers.get("x-forwarded-proto")
+                or "https"
+            ).strip()
+            return AuthManager._normalizar_url_base(f"{proto}://{host}")
+        except Exception:
+            return ""
+
+    @staticmethod
+    def _host_remoto_produccion() -> bool:
+        try:
+            ctx = getattr(st, "context", None)
+            headers = getattr(ctx, "headers", None) if ctx is not None else None
+            if not headers:
+                return False
+            host = (headers.get("Host") or headers.get("host") or "").lower()
+            return bool(host) and host not in ("localhost", "127.0.0.1") and not host.startswith(
+                "localhost:"
+            )
+        except Exception:
+            return False
+
+    def resolver_base_url_app(self) -> str:
+        """
+        URL base pública de la app (redirect_to de Supabase OAuth).
+        Jerarquía: secrets → variables de entorno → headers Streamlit → localhost.
+        """
+        en_produccion = self._host_remoto_produccion()
+
+        try:
+            app_secrets = st.secrets.get("app", {})
+        except Exception:
+            app_secrets = {}
+
+        for key in ("base_url", "redirect_url"):
+            raw = ""
+            try:
+                if hasattr(app_secrets, "get"):
+                    raw = app_secrets.get(key) or ""
+                else:
+                    raw = getattr(app_secrets, key, "") or ""
+            except (KeyError, TypeError, AttributeError):
+                raw = self._valor_seccion("app", key)
+            url = self._normalizar_url_base(str(raw or ""))
+            if not url:
+                continue
+            if en_produccion and self._url_es_localhost(url):
+                continue
+            return url
+
+        env_url = self._base_url_desde_entorno()
+        if env_url and not (en_produccion and self._url_es_localhost(env_url)):
+            return env_url
+
+        ctx_url = self._base_url_desde_contexto_streamlit()
+        if ctx_url:
+            return ctx_url
+
         return "http://localhost:8501"
+
+    def _detectar_base_url_app(self) -> str:
+        """Alias interno; usar resolver_base_url_app()."""
+        return self.resolver_base_url_app()
+
+    def obtener_diagnostico_oauth(self) -> Dict[str, str]:
+        """Metadatos útiles para depurar OAuth (sin exponer secretos)."""
+        client_id = self._valor_seccion("google_oauth", "client_id")
+        return {
+            "redirect_to_activo": self.obtener_redirect_url(),
+            "secrets_app_base_url": self._valor_seccion("app", "base_url") or "(vacío)",
+            "secrets_app_redirect_url": self._valor_seccion("app", "redirect_url") or "(vacío)",
+            "env_VELOX_BASE_URL": os.getenv("VELOX_BASE_URL") or "(vacío)",
+            "contexto_streamlit": self._base_url_desde_contexto_streamlit() or "(vacío)",
+            "supabase_url": self._valor_seccion("supabase", "url") or "(vacío)",
+            "google_client_id_secrets": "configurado" if client_id else "no requerido p/ Supabase OAuth",
+            "oauth_redirect_cache": str(st.session_state.get("google_oauth_redirect") or "(vacío)"),
+        }
+
+    @staticmethod
+    def limpiar_estado_oauth() -> None:
+        for key in (
+            "google_oauth_url",
+            "google_oauth_redirect",
+            "google_oauth_error",
+            "google_oauth_force_refresh",
+            "oauth_last_code",
+        ):
+            st.session_state.pop(key, None)
+
+    def _validar_precondiciones_oauth(self) -> Tuple[bool, str]:
+        if not self._valor_seccion("supabase", "url"):
+            return False, "Falta [supabase].url en .streamlit/secrets.toml (o Secrets de Streamlit Cloud)."
+        if not self._valor_seccion("supabase", "key"):
+            return False, "Falta [supabase].key en .streamlit/secrets.toml (o Secrets de Streamlit Cloud)."
+        redirect_to = self.obtener_redirect_url()
+        if not redirect_to.startswith("http"):
+            return (
+                False,
+                "URL base inválida. Define [app].base_url en secrets o VELOX_BASE_URL en el entorno.",
+            )
+        return True, redirect_to
 
     @staticmethod
     def _query_param(key: str) -> Optional[str]:
@@ -328,12 +457,28 @@ class AuthManager:
         )
 
     def ensure_google_oauth_url(self, force_refresh: bool = False) -> Optional[str]:
-        """Genera la URL OAuth una sola vez por sesión (evita rotar el PKCE verifier)."""
-        if not force_refresh and st.session_state.get("google_oauth_url"):
-            return st.session_state["google_oauth_url"]
+        """
+        URL de autorización Google vía Supabase Auth (PKCE).
+        La URL base (redirect_to) se resuelve dinámicamente; no hay dominios hardcodeados.
+        """
+        redirect_actual = self.obtener_redirect_url()
+        cached_redirect = st.session_state.get("google_oauth_redirect")
+        cached_url = st.session_state.get("google_oauth_url")
+        if (
+            not force_refresh
+            and cached_url
+            and cached_redirect == redirect_actual
+        ):
+            return cached_url
+
+        if force_refresh or cached_redirect != redirect_actual:
+            self.limpiar_estado_oauth()
+
         url = self._generar_google_oauth_url()
         if url:
             st.session_state["google_oauth_url"] = url
+            st.session_state["google_oauth_redirect"] = redirect_actual
+            st.session_state.pop("google_oauth_error", None)
         return url
 
     def get_google_oauth_url(self) -> Optional[str]:
@@ -341,21 +486,16 @@ class AuthManager:
         return self.ensure_google_oauth_url()
 
     def _generar_google_oauth_url(self) -> Optional[str]:
-        """Genera URL oficial de inicio de sesión con Google."""
-        try:
-            client_id, client_secret = self._obtener_credenciales_google()
-            if not client_id or not client_secret:
-                secciones = self._secciones_secrets()
-                print(
-                    "Faltan google_oauth.client_id o client_secret en "
-                    f"{self._ruta_secrets_toml()}. "
-                    f"Secciones cargadas por Streamlit: {secciones or '(ninguna)'}. "
-                    "Streamlit lee .streamlit/secrets.toml (no un archivo en la raíz). "
-                    "Si lo editaste en el IDE, guarda el archivo y reinicia la app."
-                )
-                return None
+        """Genera URL de Supabase Auth (?provider=google) con redirect_to dinámico."""
+        ok, redirect_or_msg = self._validar_precondiciones_oauth()
+        if not ok:
+            st.session_state["google_oauth_error"] = redirect_or_msg
+            print(f"OAuth precondiciones: {redirect_or_msg}")
+            return None
 
-            redirect_to = self.obtener_redirect_url()
+        redirect_to = redirect_or_msg
+        try:
+            print(f"OAuth Supabase redirect_to: {redirect_to}")
             response = self.supabase.auth.sign_in_with_oauth(
                 {
                     "provider": "google",
@@ -369,9 +509,25 @@ class AuthManager:
                     },
                 }
             )
-            return getattr(response, "url", None) or (response.get("url") if isinstance(response, dict) else None)
+            url = getattr(response, "url", None) or (
+                response.get("url") if isinstance(response, dict) else None
+            )
+            if not url:
+                st.session_state["google_oauth_error"] = (
+                    "Supabase no devolvió URL de autorización. "
+                    f"En Supabase → Authentication → URL Configuration, agrega Redirect URL: "
+                    f"{redirect_to}"
+                )
+            return url
         except Exception as e:
-            print(f"Error generando URL OAuth Google: {self._format_error(e)}")
+            err = self._format_error(e)
+            print(f"Error generando URL OAuth Google: {err}")
+            st.session_state["google_oauth_error"] = (
+                f"No se pudo generar la URL OAuth: {err}. "
+                f"redirect_to usado: {redirect_to}. "
+                "Verifica Site URL y Redirect URLs en Supabase, y que Google esté habilitado "
+                "en Supabase → Authentication → Providers → Google."
+            )
             return None
 
     def _persistir_sesion_supabase(self, session) -> None:
@@ -1004,6 +1160,8 @@ class AuthManager:
             st.session_state.pop("google_oauth_url", None)
             if self._es_error_pkce(e):
                 print(f"OAuth PKCE reiniciado: {self._format_error(e)}")
+                AuthManager.limpiar_estado_oauth()
+                st.session_state["google_oauth_force_refresh"] = True
                 return False, ""
             return False, f"Error en callback OAuth: {self._format_error(e)}"
         return False, ""

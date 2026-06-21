@@ -281,7 +281,7 @@ def render_velox_top_banner():
 
 
 @st.cache_resource(show_spinner=False)
-def init_managers(_cache_version=3):
+def init_managers(_cache_version=4):
     """Instancias singleton de managers (Supabase, Culqi, etc.) — una sola vez por proceso."""
     auth = AuthManager()
     storage = StorageManager()
@@ -1857,7 +1857,7 @@ def render_welcome_gateway():
     inject_login_portal_brand_styles()
     oauth_url = auth_manager.ensure_google_oauth_url(
         force_refresh=st.session_state.get("google_oauth_redirect")
-        != auth_manager.resolver_base_url_app()
+        != auth_manager.obtener_redirect_url()
     )
 
     col1, col2, col3 = st.columns([1, 1.5, 1])

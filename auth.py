@@ -853,8 +853,36 @@ class AuthManager:
         email = (user.get("email") or "").strip().lower()
         if not email:
             return False, "Usuario inválido"
+
         perfil = user.get("perfil") or {}
-        acceso = self.payments.usuario_tiene_acceso(user)
+        if not isinstance(perfil, dict):
+            perfil = {}
+
+        pago_confirmado = bool(user.get("pago_confirmado", False))
+        activo = bool(user.get("activo", False))
+
+        try:
+            res_pagos = (
+                self.supabase.table("users")
+                .select("pago_confirmado, activo")
+                .eq("email", email)
+                .execute()
+            )
+            info_pago = self._primera_fila(res_pagos) or {
+                "pago_confirmado": pago_confirmado,
+                "activo": activo,
+            }
+            pago_confirmado = bool(info_pago.get("pago_confirmado", pago_confirmado))
+            activo = bool(info_pago.get("activo", activo))
+        except Exception as e:
+            print(f"Aviso refrescando pago para {email}: {self._format_error(e)}")
+
+        user_para_acceso = {
+            **user,
+            "pago_confirmado": pago_confirmado,
+            "activo": activo,
+        }
+        acceso = self.payments.usuario_tiene_acceso(user_para_acceso)
         st.session_state.update(
             {
                 "autenticado": True,
@@ -869,7 +897,7 @@ class AuthManager:
                 "seccion_activa": "inicio",
             }
         )
-        self._aplicar_permisos_a_sesion(user)
+        self._aplicar_permisos_a_sesion(user_para_acceso)
         return True, "Sesión iniciada"
 
     def _usuario_puede_ingresar_clasico(self, user: Dict[str, Any]) -> Tuple[bool, str]:

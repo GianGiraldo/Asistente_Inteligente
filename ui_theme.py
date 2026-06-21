@@ -1744,10 +1744,7 @@ VELOX_LOADING_BRAND_CSS = f"""
         to {{ transform: rotate(360deg); }}
     }}
 
-    /*
-     * Spinner corporativo veloX — alta especificidad (.stApp) + !important.
-     * Cubre: esqueleto inicial, stStatusWidget, st.spinner(), st.progress().
-     */
+    /* stStatusWidget — reruns y operaciones async */
     .stApp [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningIcon"] svg,
     .stApp [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningIcon"] img,
     .stApp [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningIcon"] span,
@@ -1757,11 +1754,9 @@ VELOX_LOADING_BRAND_CSS = f"""
         opacity: 0 !important;
         width: 0 !important;
         height: 0 !important;
-        overflow: hidden !important;
-        position: absolute !important;
-        pointer-events: none !important;
         visibility: hidden !important;
         display: none !important;
+        pointer-events: none !important;
     }}
 
     .stApp [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningIcon"] {{
@@ -1773,7 +1768,6 @@ VELOX_LOADING_BRAND_CSS = f"""
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        overflow: visible !important;
     }}
 
     .stApp [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningIcon"]::after {{
@@ -1785,26 +1779,18 @@ VELOX_LOADING_BRAND_CSS = f"""
         border-top-color: {VELOX_CIAN_MARCA} !important;
         border-radius: 50% !important;
         animation: velox-brand-spin 0.75s linear infinite !important;
-        box-sizing: border-box !important;
     }}
 
-    .stApp [data-testid="stStatusWidget"] {{
-        z-index: 999998 !important;
-    }}
-
+    /* st.spinner() */
     .stApp [data-testid="stSpinner"] [data-testid="stSpinnerIcon"],
     .stApp [data-testid="stSpinner"] svg,
-    .stApp [data-testid="stSpinner"] .material-icons,
-    .stApp [data-testid="stSpinner"] [class*="Spinner"] svg,
     .stApp [data-testid="stSpinner"] img {{
         opacity: 0 !important;
         width: 0 !important;
         height: 0 !important;
-        overflow: hidden !important;
-        position: absolute !important;
-        pointer-events: none !important;
         visibility: hidden !important;
         display: none !important;
+        pointer-events: none !important;
     }}
 
     .stApp [data-testid="stSpinner"] > div {{
@@ -1823,7 +1809,6 @@ VELOX_LOADING_BRAND_CSS = f"""
         border-top-color: {VELOX_CIAN_MARCA} !important;
         border-radius: 50% !important;
         animation: velox-brand-spin 0.75s linear infinite !important;
-        box-sizing: border-box !important;
     }}
 
     .stApp [data-testid="stSpinner"] [data-testid="stMarkdownContainer"] p,
@@ -1832,32 +1817,7 @@ VELOX_LOADING_BRAND_CSS = f"""
         font-weight: 600 !important;
     }}
 
-    .stApp [data-testid="stFileUploader"] [data-testid="stSpinner"] > div::before,
-    .stApp [data-testid="stChatInput"] [data-testid="stSpinner"] > div::before,
-    .stApp [data-testid="element-container"] [data-testid="stSpinner"] > div::before {{
-        content: "" !important;
-        flex-shrink: 0 !important;
-        display: block !important;
-        width: 20px !important;
-        height: 20px !important;
-        border: 2.5px solid rgba(0, 180, 216, 0.28) !important;
-        border-top-color: {VELOX_CIAN_MARCA} !important;
-        border-radius: 50% !important;
-        animation: velox-brand-spin 0.75s linear infinite !important;
-        box-sizing: border-box !important;
-    }}
-
-    .stApp [data-testid="stProgress"] [data-testid="stSpinner"] [data-testid="stSpinnerIcon"],
-    .stApp [data-testid="stProgress"] [data-testid="stSpinner"] svg,
-    .stApp [data-testid="stProgress"] svg[class*="spinner"],
-    .stApp [data-testid="stProgress"] .material-icons {{
-        opacity: 0 !important;
-        width: 0 !important;
-        height: 0 !important;
-        visibility: hidden !important;
-        display: none !important;
-    }}
-
+    /* Esqueleto de carga inicial */
     .stApp [data-testid="stAppSkeleton"]::before,
     .stApp [data-testid="stAppViewContainer"]:has([data-testid="stAppSkeleton"])::before {{
         content: "⚡ Cargando veloX..." !important;
@@ -1875,7 +1835,6 @@ VELOX_LOADING_BRAND_CSS = f"""
         color: {VELOX_VERDE_OSCURO} !important;
         font-size: 0.88rem !important;
         font-weight: 700 !important;
-        letter-spacing: 0.01em !important;
         pointer-events: none !important;
     }}
 </style>

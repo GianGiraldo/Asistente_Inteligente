@@ -10,7 +10,9 @@ st.set_page_config(
 
 from ui_theme import inject_velox_loading_brand
 
-inject_velox_loading_brand()
+if not st.session_state.get("_velox_loading_brand_injected"):
+    inject_velox_loading_brand()
+    st.session_state["_velox_loading_brand_injected"] = True
 
 import base64
 import contextlib
@@ -201,6 +203,8 @@ def _invalidar_cache_datos():
         cached_obtener_publicaciones_usuario.clear()
         cached_listar_usuarios.clear()
         cached_listar_pagos_pendientes.clear()
+        cached_obtener_secciones_usuario.clear()
+        cached_contar_publicaciones_por_seccion.clear()
     except Exception:
         pass
 
@@ -258,7 +262,23 @@ def cached_listar_usuarios(data_cache_version: int = 0):
     return auth.listar_usuarios()
 
 
-@st.cache_data(show_spinner=False, ttl=120)
+@st.cache_data(show_spinner=False, ttl=300)
+def cached_obtener_secciones_usuario(email: str, data_cache_version: int = 0):
+    auth, _, _, _, _ = init_managers()
+    return auth.obtener_secciones_usuario(email)
+
+
+@st.cache_data(show_spinner=False, ttl=300)
+def cached_contar_publicaciones_por_seccion(data_cache_version: int = 0) -> dict:
+    _, storage, _, _, _ = init_managers()
+    conteos: dict = {}
+    for pub in storage.obtener_publicaciones_por_seccion():
+        seccion = pub.get("seccion") or ""
+        conteos[seccion] = conteos.get(seccion, 0) + 1
+    return conteos
+
+
+@st.cache_data(show_spinner=False, ttl=300)
 def cached_listar_pagos_pendientes(data_cache_version: int = 0):
     _, _, _, _, payments = init_managers()
     return payments.listar_pagos_pendientes()
@@ -276,7 +296,9 @@ try:
 except Exception as e:
     st.session_state["auth_callback_error"] = f"Error de autenticación: {e}"
 
-inject_global_theme()
+if not st.session_state.get("_velox_global_theme_injected"):
+    inject_global_theme()
+    st.session_state["_velox_global_theme_injected"] = True
 
 SECCIONES = {
     "contabilidad": {
@@ -1001,7 +1023,7 @@ VELOX_LOGO_BLANCO_PATH = "assets/logo_blanco.png"
 VELOX_LOGO_SINFONDO_PATH = "assets/logo_blanco_sinfondo.png"
 
 
-@st.cache_data
+@st.cache_data(show_spinner=False)
 def _velox_logo_data_uri(path: str = VELOX_LOGO_PATH) -> Optional[str]:
     """Data URI del logo local para incrustarlo en HTML sin depender de st.image."""
     if not os.path.exists(path):
@@ -2374,7 +2396,10 @@ def _secciones_efectivas() -> list:
     if AuthManager.es_rol_administrador(rol):
         secciones = st.session_state.get("secciones_staff") or []
         return [s for s in secciones if s in SECCIONES]
-    return auth_manager.obtener_secciones_usuario(st.session_state["usuario"])
+    return cached_obtener_secciones_usuario(
+        st.session_state["usuario"],
+        data_cache_version=_velox_data_cache_version(),
+    )
 
 
 def _puede_publicar_documentos() -> bool:
@@ -2387,12 +2412,10 @@ def _puede_publicar_documentos() -> bool:
 
 def _contar_documentos_seccion(seccion_id: str) -> int:
     try:
-        return len(
-            cached_obtener_publicaciones_por_seccion(
-                seccion=seccion_id,
-                data_cache_version=_velox_data_cache_version(),
-            )
+        conteos = cached_contar_publicaciones_por_seccion(
+            data_cache_version=_velox_data_cache_version(),
         )
+        return int(conteos.get(seccion_id, 0))
     except Exception:
         return 0
 
@@ -2727,7 +2750,9 @@ def render_lista_usuarios_solo_lectura():
 
     data = []
     for email, u in sorted(usuarios.items(), key=lambda item: (item[1].get("nombre") or item[0]).lower()):
-        secciones = auth_manager.obtener_secciones_usuario(email)
+        secciones = cached_obtener_secciones_usuario(
+            email, data_cache_version=_velox_data_cache_version()
+        )
         data.append(
             {
                 "Email": email,
@@ -2828,7 +2853,9 @@ def render_lista_usuarios_master():
 
     rows = []
     for email, u in sorted(usuarios.items(), key=lambda item: (item[1].get("nombre") or item[0]).lower()):
-        secciones = auth_manager.obtener_secciones_usuario(email)
+        secciones = cached_obtener_secciones_usuario(
+            email, data_cache_version=_velox_data_cache_version()
+        )
         rows.append(
             {
                 "Email": email,
@@ -4365,7 +4392,9 @@ else:
             ]
             if usuarios_lista:
                 usuario = st.selectbox("Usuario", usuarios_lista)
-                actuales = auth_manager.obtener_secciones_usuario(usuario)
+                actuales = cached_obtener_secciones_usuario(
+                    usuario, data_cache_version=_velox_data_cache_version()
+                )
                 nuevas = []
                 cols = st.columns(3)
                 for i, (k, v) in enumerate(SECCIONES.items()):
@@ -4471,7 +4500,10 @@ else:
             # Usuario normal: enviar consulta
             st.header("📬 Mis Consultas")
             st.markdown("Envía tu consulta al administrador y revisa las respuestas recibidas.")
-            secciones_usuario = auth_manager.obtener_secciones_usuario(st.session_state['usuario'])
+            secciones_usuario = cached_obtener_secciones_usuario(
+                st.session_state["usuario"],
+                data_cache_version=_velox_data_cache_version(),
+            )
             if secciones_usuario:
                 with st.container(border=True):
                     seccion = st.selectbox(
@@ -4536,7 +4568,10 @@ else:
                     st.markdown(f"**Rol:** {perfil['rol'].upper()}")
                     st.markdown(f"**ID veloX:** {perfil.get('codigo_usuario', '—')}")
                     st.markdown("**Secciones asignadas:**")
-                    secciones_usuario = auth_manager.obtener_secciones_usuario(usuario_email)
+                    secciones_usuario = cached_obtener_secciones_usuario(
+                        usuario_email,
+                        data_cache_version=_velox_data_cache_version(),
+                    )
                     for s in secciones_usuario:
                         if s in SECCIONES:
                             st.markdown(f"- {SECCIONES[s]['nombre']}")

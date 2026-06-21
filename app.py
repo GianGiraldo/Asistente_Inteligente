@@ -1067,9 +1067,12 @@ def render_google_oauth_button(
     label: str = "Iniciar sesión con Google",
     oauth_url: Optional[str] = None,
 ) -> bool:
+    if st.session_state.pop("google_oauth_force_refresh", False):
+        auth_manager.ensure_google_oauth_url(force_refresh=True)
+
     url = oauth_url or st.session_state.get("google_oauth_url")
     if not url:
-        url = auth_manager.ensure_google_oauth_url()
+        url = auth_manager.ensure_google_oauth_url(force_refresh=True)
     if url:
         st.markdown(
             f'<div class="google-btn-wrap"><a href="{url}" target="_self">'
@@ -1077,9 +1080,15 @@ def render_google_oauth_button(
             unsafe_allow_html=True,
         )
         return True
+    detalle = st.session_state.pop("google_oauth_error", None)
     st.error(
-        "No se pudo iniciar OAuth. Revisa el bloque [google_oauth] en "
-        "`.streamlit/secrets.toml` y la URL de redirección en Supabase."
+        detalle
+        or (
+            "No se pudo iniciar OAuth. Revisa el bloque [google_oauth] en "
+            "`.streamlit/secrets.toml`, la URL de redirección en Supabase y "
+            f"`[app].base_url` / `[app].redirect_url` (actual: "
+            f"{auth_manager.obtener_redirect_url()})."
+        )
     )
     return False
 
@@ -1836,7 +1845,10 @@ def render_welcome_gateway():
     inject_welcome_layout()
     inject_velox_text_input_styles()
     inject_login_portal_brand_styles()
-    oauth_url = auth_manager.ensure_google_oauth_url()
+    oauth_url = auth_manager.ensure_google_oauth_url(
+        force_refresh=st.session_state.get("google_oauth_redirect")
+        != auth_manager.obtener_redirect_url()
+    )
 
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:

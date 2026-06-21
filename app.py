@@ -1070,6 +1070,10 @@ def render_google_oauth_button(
     if st.session_state.pop("google_oauth_force_refresh", False):
         auth_manager.ensure_google_oauth_url(force_refresh=True)
 
+    redirect_esperado = auth_manager.obtener_redirect_url()
+    if st.session_state.get("google_oauth_redirect") not in (None, redirect_esperado):
+        auth_manager.ensure_google_oauth_url(force_refresh=True)
+
     url = oauth_url or st.session_state.get("google_oauth_url")
     if not url:
         url = auth_manager.ensure_google_oauth_url(force_refresh=True)
@@ -1080,16 +1084,22 @@ def render_google_oauth_button(
             unsafe_allow_html=True,
         )
         return True
+
     detalle = st.session_state.pop("google_oauth_error", None)
     st.error(
         detalle
         or (
-            "No se pudo iniciar OAuth. Revisa el bloque [google_oauth] en "
-            "`.streamlit/secrets.toml`, la URL de redirección en Supabase y "
-            f"`[app].base_url` / `[app].redirect_url` (actual: "
-            f"{auth_manager.obtener_redirect_url()})."
+            "No se pudo iniciar OAuth. Define `[app].base_url` en secrets (o `VELOX_BASE_URL`) "
+            "y agrega esa URL en Supabase → Authentication → Redirect URLs."
         )
     )
+    with st.expander("Diagnóstico OAuth (sin secretos)", expanded=False):
+        for clave, valor in auth_manager.obtener_diagnostico_oauth().items():
+            st.text(f"{clave}: {valor}")
+        st.caption(
+            "Flujo: Supabase Auth (no Google directo). redirect_to debe ser la raíz de la app, "
+            "p. ej. https://tu-dominio.streamlit.app — sin /oauth2callback."
+        )
     return False
 
 
@@ -1847,7 +1857,7 @@ def render_welcome_gateway():
     inject_login_portal_brand_styles()
     oauth_url = auth_manager.ensure_google_oauth_url(
         force_refresh=st.session_state.get("google_oauth_redirect")
-        != auth_manager.obtener_redirect_url()
+        != auth_manager.resolver_base_url_app()
     )
 
     col1, col2, col3 = st.columns([1, 1.5, 1])

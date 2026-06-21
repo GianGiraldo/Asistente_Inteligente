@@ -612,6 +612,99 @@ class AuthManager:
         perfil = user.get("perfil")
         return dict(perfil) if isinstance(perfil, dict) else {}
 
+    @staticmethod
+    def _primera_fila(result) -> Optional[Dict[str, Any]]:
+        """Extrae la primera fila de una respuesta Supabase sin KeyError/IndexError."""
+        data = getattr(result, "data", None)
+        if not data:
+            return None
+        if isinstance(data, list):
+            return data[0] if data else None
+        if isinstance(data, dict) and any(k in data for k in ("email", "id", "rol")):
+            return data
+        return None
+
+    @staticmethod
+    def _nombre_desde_email(email: str) -> str:
+        local = (email or "").split("@")[0]
+        return local.replace(".", " ").replace("_", " ").title() or "Usuario"
+
+    def _obtener_usuario_db(self, email: str) -> Optional[Dict[str, Any]]:
+        email_norm = (email or "").strip().lower()
+        if not email_norm:
+            return None
+        try:
+            result = self.supabase.table("users").select("*").eq("email", email_norm).execute()
+            return self._primera_fila(result)
+        except Exception as e:
+            print(f"Error obteniendo usuario {email_norm}: {self._format_error(e)}")
+            return None
+
+    def _crear_registro_usuario_inicial(
+        self,
+        email: str,
+        nombre: Optional[str] = None,
+        avatar: Optional[str] = None,
+        auth_provider: Optional[str] = "google",
+    ) -> Dict[str, Any]:
+        """Inserta un usuario nuevo en public.users con valores por defecto seguros."""
+        email_norm = (email or "").strip().lower()
+        nombre_final = (nombre or self._nombre_desde_email(email_norm)).strip()
+        perfil: Dict[str, Any] = {
+            "velox_password_configured": False,
+            "velox_password_temp": True,
+        }
+        if auth_provider:
+            perfil["auth_provider"] = auth_provider
+        if avatar:
+            perfil["avatar_url"] = avatar
+
+        es_master = email_norm == self.MASTER_EMAIL
+        pw_hash, salt = self._password_temporal_oauth(email_norm)
+        nuevo = {
+            "email": email_norm,
+            "password": pw_hash,
+            "password_salt": salt,
+            "nombre": nombre_final,
+            "rol": "master" if es_master else "usuario",
+            "secciones": list(SECCIONES_DEFAULT()),
+            "creado": datetime.now().isoformat(),
+            "activo": es_master,
+            "pago_confirmado": es_master,
+            "perfil": perfil,
+        }
+        try:
+            insert = self.supabase.table("users").insert(nuevo).execute()
+            row = self._primera_fila(insert)
+            if row:
+                return row
+        except Exception as e:
+            texto = self._format_error(e).lower()
+            if not any(fragmento in texto for fragmento in ("duplicate", "unique", "already exists")):
+                print(f"Error creando usuario {email_norm}: {self._format_error(e)}")
+
+        existente = self._obtener_usuario_db(email_norm)
+        return existente if existente else nuevo
+
+    def _asegurar_usuario_db(
+        self,
+        email: str,
+        nombre: Optional[str] = None,
+        avatar: Optional[str] = None,
+        auth_provider: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Obtiene el registro en users o lo crea en caliente si aún no existe."""
+        email_norm = (email or "").strip().lower()
+        user = self._obtener_usuario_db(email_norm)
+        if user:
+            return user
+        return self._crear_registro_usuario_inicial(
+            email_norm,
+            nombre=nombre,
+            avatar=avatar,
+            auth_provider=auth_provider or "google",
+        )
+
     def requiere_configurar_password_velox(self, user: Dict[str, Any]) -> bool:
         """True si la cuenta aún no tiene contraseña definitiva veloX."""
         perfil = self._perfil_usuario(user)
@@ -701,10 +794,12 @@ class AuthManager:
             return False, "La contraseña debe tener al menos 6 caracteres"
 
         try:
-            result = self.supabase.table("users").select("*").eq("email", email_norm).execute()
-            if not result.data:
-                return False, "No encontramos tu cuenta. Vuelve a verificar con Google."
-            user = result.data[0]
+            user = self._obtener_usuario_db(email_norm)
+            if not user:
+                user = self._asegurar_usuario_db(
+                    email_norm,
+                    auth_provider="google",
+                )
             if not self.requiere_configurar_password_velox(user):
                 return True, "Tu contraseña veloX ya estaba configurada."
 
@@ -725,10 +820,9 @@ class AuthManager:
             return False, "La contraseña debe tener al menos 6 caracteres"
 
         try:
-            result = self.supabase.table("users").select("*").eq("email", email_norm).execute()
-            if not result.data:
+            user = self._obtener_usuario_db(email_norm)
+            if not user:
                 return False, "No encontramos tu cuenta. Verifica el correo o contacta soporte."
-            user = result.data[0]
 
             puede, msg = self._usuario_puede_ingresar_clasico(user)
             if not puede:
@@ -741,8 +835,7 @@ class AuthManager:
             if not ok_save:
                 return False, msg_save
 
-            refreshed = self.supabase.table("users").select("*").eq("email", email_norm).execute()
-            user_actualizado = refreshed.data[0] if refreshed.data else user
+            user_actualizado = self._obtener_usuario_db(email_norm) or user
             ok, msg_aplicar = self._aplicar_usuario_db(user_actualizado)
             if ok:
                 st.session_state.pop("velox_setup_email", None)
@@ -803,10 +896,21 @@ class AuthManager:
             return False, "El correo electrónico es obligatorio"
 
         try:
-            result = self.supabase.table("users").select("*").eq("email", email_norm).execute()
-            if not result.data:
+            user = self._obtener_usuario_db(email_norm)
+            autenticado_supabase = False
+            if password:
+                autenticado_supabase = self._intentar_supabase_auth_password(
+                    email_norm, password
+                )
+
+            if not user and autenticado_supabase:
+                user = self._asegurar_usuario_db(
+                    email_norm,
+                    auth_provider="email",
+                )
+
+            if not user:
                 return False, "Correo o contraseña incorrectos"
-            user = result.data[0]
 
             puede, msg = self._usuario_puede_ingresar_clasico(user)
             if not puede:
@@ -819,7 +923,6 @@ class AuthManager:
             if not password:
                 return False, "La contraseña es obligatoria"
 
-            autenticado_supabase = self._intentar_supabase_auth_password(email_norm, password)
             autenticado_local = self._verificar_password_usuario(password, user)
             if not autenticado_supabase and not autenticado_local:
                 return False, "Correo o contraseña incorrectos"
@@ -935,10 +1038,10 @@ class AuthManager:
             self.supabase.auth.update_user({"password": nueva_password})
             email_norm = (st.session_state.get("recovery_email") or "").strip().lower()
             if email_norm:
-                result = self.supabase.table("users").select("*").eq("email", email_norm).execute()
-                if result.data:
+                user = self._obtener_usuario_db(email_norm)
+                if user:
                     ok_local, msg_local = self._persistir_password_velox(
-                        email_norm, nueva_password, result.data[0]
+                        email_norm, nueva_password, user
                     )
                     if not ok_local:
                         return False, msg_local
@@ -1042,51 +1145,40 @@ class AuthManager:
             return False, f"Error al actualizar rol: {self._format_error(e)}"
 
     def _sincronizar_usuario_google(self, email: str, nombre: str, avatar: Optional[str]) -> Dict[str, Any]:
-        result = self.supabase.table("users").select("*").eq("email", email).execute()
-        perfil_oauth = {"avatar_url": avatar, "auth_provider": "google"} if avatar else {"auth_provider": "google"}
+        email_norm = (email or "").strip().lower()
+        perfil_oauth = (
+            {"avatar_url": avatar, "auth_provider": "google"}
+            if avatar
+            else {"auth_provider": "google"}
+        )
 
-        if result.data:
-            user = result.data[0]
-            perfil = {**(user.get("perfil") or {}), **perfil_oauth}
-            update_data: Dict[str, Any] = {"nombre": nombre, "perfil": perfil}
-            if email == self.MASTER_EMAIL:
-                update_data["rol"] = "master"
-                update_data["activo"] = True
-                update_data["pago_confirmado"] = True
-            if not perfil.get("velox_password_configured") and (
-                not user.get("password") or not user.get("password_salt")
-            ):
-                pw_hash, salt = self._password_temporal_oauth(email)
-                update_data["password"] = pw_hash
-                update_data["password_salt"] = salt
-                perfil["velox_password_temp"] = True
-                perfil["velox_password_configured"] = False
-                update_data["perfil"] = perfil
-            self.supabase.table("users").update(update_data).eq("email", email).execute()
-            user.update(update_data)
-            return user
+        user = self._obtener_usuario_db(email_norm)
+        if not user:
+            return self._crear_registro_usuario_inicial(
+                email_norm,
+                nombre=nombre,
+                avatar=avatar,
+                auth_provider="google",
+            )
 
-        es_master = email == self.MASTER_EMAIL
-        pw_hash, salt = self._password_temporal_oauth(email)
-        perfil_nuevo = {
-            **perfil_oauth,
-            "velox_password_configured": False,
-            "velox_password_temp": True,
-        }
-        nuevo = {
-            "email": email,
-            "password": pw_hash,
-            "password_salt": salt,
-            "nombre": nombre,
-            "rol": "master" if es_master else "usuario",
-            "secciones": list(SECCIONES_DEFAULT()),
-            "creado": datetime.now().isoformat(),
-            "activo": es_master,
-            "pago_confirmado": es_master,
-            "perfil": perfil_nuevo,
-        }
-        insert = self.supabase.table("users").insert(nuevo).execute()
-        return insert.data[0] if insert.data else nuevo
+        perfil = {**self._perfil_usuario(user), **perfil_oauth}
+        update_data: Dict[str, Any] = {"nombre": nombre, "perfil": perfil}
+        if email_norm == self.MASTER_EMAIL:
+            update_data["rol"] = "master"
+            update_data["activo"] = True
+            update_data["pago_confirmado"] = True
+        if not perfil.get("velox_password_configured") and (
+            not user.get("password") or not user.get("password_salt")
+        ):
+            pw_hash, salt = self._password_temporal_oauth(email_norm)
+            update_data["password"] = pw_hash
+            update_data["password_salt"] = salt
+            perfil["velox_password_temp"] = True
+            perfil["velox_password_configured"] = False
+            update_data["perfil"] = perfil
+        self.supabase.table("users").update(update_data).eq("email", email_norm).execute()
+        user.update(update_data)
+        return user
 
     def procesar_retorno_auth_url(self) -> Tuple[bool, str]:
         """Intercepta callbacks de URL antes de renderizar login (OAuth, recovery, tokens)."""
@@ -1185,13 +1277,19 @@ class AuthManager:
         if st.session_state.get("autenticado") and st.session_state.get("usuario"):
             try:
                 email = st.session_state["usuario"]
-                db = self.supabase.table("users").select("*").eq("email", email).execute()
-                if db.data:
-                    user = db.data[0]
-                    st.session_state["acceso_pagado"] = self.payments.usuario_tiene_acceso(user)
-                    st.session_state["rol"] = user.get("rol", "usuario")
-                    st.session_state["secciones"] = user.get("secciones") or ["excel"]
-                    self._aplicar_permisos_a_sesion(user)
+                user = self._obtener_usuario_db(email)
+                if not user:
+                    user = self._asegurar_usuario_db(
+                        email,
+                        nombre=st.session_state.get("nombre"),
+                        avatar=st.session_state.get("avatar_url"),
+                        auth_provider="google",
+                    )
+                st.session_state["acceso_pagado"] = self.payments.usuario_tiene_acceso(user)
+                st.session_state["rol"] = user.get("rol", "usuario")
+                st.session_state["secciones"] = user.get("secciones") or ["excel"]
+                st.session_state["nombre"] = user.get("nombre", st.session_state.get("nombre"))
+                self._aplicar_permisos_a_sesion(user)
                 return True
             except Exception as e:
                 print(f"Error refrescando sesión local: {self._format_error(e)}")
@@ -1284,9 +1382,9 @@ class AuthManager:
                 .eq("email", email_norm)
                 .execute()
             )
-            if not result.data:
+            user = self._primera_fila(result)
+            if not user:
                 return None
-            user = result.data[0]
             perfil_json = user.get("perfil") or {}
             return {
                 "nombre": user["nombre"],

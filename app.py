@@ -1,4 +1,17 @@
 # app.py — Asistente Inteligente veloX (OAuth Google + Business Hub)
+import streamlit as st
+
+st.set_page_config(
+    page_title="veloX",
+    page_icon="⚡",
+    layout="wide",
+    initial_sidebar_state="expanded",  # Obliga sidebar abierta al cargar (también en móvil)
+)
+
+from ui_theme import inject_velox_loading_brand
+
+inject_velox_loading_brand()
+
 import base64
 import contextlib
 import html as html_module
@@ -12,7 +25,6 @@ from typing import Optional
 
 import pandas as pd
 import pygwalker as pyg
-import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_option_menu import option_menu
 
@@ -40,137 +52,18 @@ from ui_theme import (
     VELOX_ULTRA_COMPACT_LAYOUT_CSS,
 )
 
-st.set_page_config(
-    page_title="veloX",
-    page_icon="⚡",
-    layout="wide",
-    initial_sidebar_state="expanded",  # Obliga sidebar abierta al cargar (también en móvil)
-)
-
-VELOX_CIAN_MARCA_LOADING = "#00B4D8"
-VELOX_CIAN_MARCA_LOADING_DARK = "#0F3D3C"
-
-VELOX_LOADING_BRAND_CSS = f"""
-<style>
-    @keyframes velox-brand-spin {{
-        from {{ transform: rotate(0deg); }}
-        to {{ transform: rotate(360deg); }}
-    }}
-
-    /*
-     * Sustituye iconos nativos de Streamlit (running man, emojis, comida, etc.)
-     * por spinner circular celeste + marca veloX.
-     */
-    [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningIcon"] svg,
-    [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningManIcon"],
-    [data-testid="stStatusWidget"] [data-testid="stStatusWidgetNewYearsIcon"],
-    [data-testid="stStatusWidget"] img {{
-        opacity: 0 !important;
-        width: 0 !important;
-        height: 0 !important;
-        overflow: hidden !important;
-        position: absolute !important;
-        pointer-events: none !important;
-    }}
-
-    [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningIcon"] {{
-        position: relative !important;
-        width: 26px !important;
-        height: 26px !important;
-        min-width: 26px !important;
-        min-height: 26px !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-    }}
-
-    [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningIcon"]::after {{
-        content: "" !important;
-        display: block !important;
-        width: 20px !important;
-        height: 20px !important;
-        border: 2.5px solid rgba(0, 180, 216, 0.28) !important;
-        border-top-color: {VELOX_CIAN_MARCA_LOADING} !important;
-        border-radius: 50% !important;
-        animation: velox-brand-spin 0.75s linear infinite !important;
-    }}
-
-    [data-testid="stSpinner"] [data-testid="stSpinnerIcon"],
-    [data-testid="stSpinner"] svg {{
-        opacity: 0 !important;
-        width: 0 !important;
-        height: 0 !important;
-        overflow: hidden !important;
-        position: absolute !important;
-        pointer-events: none !important;
-    }}
-
-    [data-testid="stSpinner"] > div {{
-        display: flex !important;
-        align-items: center !important;
-        gap: 0.65rem !important;
-    }}
-
-    [data-testid="stSpinner"] > div::before {{
-        content: "" !important;
-        flex-shrink: 0 !important;
-        display: block !important;
-        width: 22px !important;
-        height: 22px !important;
-        border: 2.5px solid rgba(0, 180, 216, 0.28) !important;
-        border-top-color: {VELOX_CIAN_MARCA_LOADING} !important;
-        border-radius: 50% !important;
-        animation: velox-brand-spin 0.75s linear infinite !important;
-    }}
-
-    [data-testid="stSpinner"] [data-testid="stMarkdownContainer"] p,
-    [data-testid="stSpinner"] [data-testid="stMarkdownContainer"] {{
-        color: {VELOX_CIAN_MARCA_LOADING_DARK} !important;
-        font-weight: 600 !important;
-    }}
-
-    [data-testid="stAppSkeleton"]::before,
-    [data-testid="stAppViewContainer"]:has([data-testid="stAppSkeleton"])::before {{
-        content: "⚡ Cargando VeloX..." !important;
-        position: fixed !important;
-        top: 14px !important;
-        right: 16px !important;
-        z-index: 999999 !important;
-        display: inline-flex !important;
-        align-items: center !important;
-        padding: 0.45rem 0.85rem !important;
-        background: rgba(255, 255, 255, 0.96) !important;
-        border: 1px solid rgba(0, 180, 216, 0.35) !important;
-        border-radius: 999px !important;
-        box-shadow: 0 4px 14px rgba(15, 61, 60, 0.12) !important;
-        color: {VELOX_CIAN_MARCA_LOADING_DARK} !important;
-        font-size: 0.88rem !important;
-        font-weight: 700 !important;
-        letter-spacing: 0.01em !important;
-        pointer-events: none !important;
-    }}
-</style>
-"""
-
-
-def inject_velox_loading_brand():
-    """Spinner / esqueleto corporativo veloX (sin iconos de comida de Streamlit)."""
-    st.markdown(VELOX_LOADING_BRAND_CSS, unsafe_allow_html=True)
+VELOX_BANNER_PATH = "assets/nuevo_banner_2026.png"
 
 
 @contextlib.contextmanager
 def _velox_spinner(detail: str = ""):
     """Spinner unificado con marca veloX."""
-    mensaje = "⚡ Cargando VeloX..."
+    mensaje = "⚡ Cargando veloX..."
     if detail:
-        mensaje = f"⚡ Cargando VeloX... {detail}"
+        mensaje = f"⚡ Cargando veloX... {detail}"
     with st.spinner(mensaje):
         yield
 
-
-inject_velox_loading_brand()
-
-VELOX_BANNER_PATH = "assets/nuevo_banner_2026.png"
 
 VELOX_SIDEBAR_COLLAPSE_CONTROL_CSS = """
 <style>

@@ -971,10 +971,12 @@ MSG_REGISTRO_COMPLETADO = (
 )
 REGISTRO_SESSION_KEYS = (
     "registro_en_progreso",
+    "registro_email_ok",
     "registro_pago_ok",
     "registro_metodo_pago_usado",
     "registro_password_ok",
     "registro_listo_confirmacion",
+    "registro_email",
 )
 
 
@@ -1646,7 +1648,7 @@ def _render_registro_confirmacion_final():
 
 
 def render_tab_adquirir_acceso(oauth_url: Optional[str] = None):
-    st.session_state["oauth_intent"] = "register"
+    _ = oauth_url
     if not st.session_state.get("registro_en_progreso"):
         _iniciar_registro_flujo()
 
@@ -1690,22 +1692,47 @@ def render_tab_adquirir_acceso(oauth_url: Optional[str] = None):
         """,
         unsafe_allow_html=True,
     )
-    st.markdown('<p class="velox-section-title">Verificación de identidad</p>', unsafe_allow_html=True)
+    st.markdown('<p class="velox-section-title">Correo electrónico</p>', unsafe_allow_html=True)
 
-    authed = st.session_state.get("autenticado")
+    paso1_ok = bool(st.session_state.get("registro_email_ok"))
 
-    if not authed:
+    if not paso1_ok:
         st.markdown(
-            '<p class="velox-section-caption">Verifica tu correo real con Google antes de continuar al pago.</p>',
+            '<p class="velox-section-caption">Ingresa tu correo electrónico para continuar con el registro.</p>',
             unsafe_allow_html=True,
         )
-        render_google_oauth_button("Verificar cuenta con Google", oauth_url=oauth_url)
+        st.markdown('<div class="velox-portal-form">', unsafe_allow_html=True)
+        st.text_input(
+            "Correo electrónico",
+            key="registro_email",
+            label_visibility="collapsed",
+            placeholder="Correo electrónico",
+        )
+        st.markdown('<div class="velox-btn-primary">', unsafe_allow_html=True)
+        if st.button("Continuar", key="btn_registro_continuar_email", use_container_width=True):
+            email_ingresado = (st.session_state.get("registro_email") or "").strip()
+            with _velox_spinner("Validando correo..."):
+                ok, msg, ir_login = auth_manager.continuar_registro_manual(email_ingresado)
+            if ir_login:
+                st.error(msg)
+                _reset_registro_flujo()
+                auth_manager.cerrar_sesion(silent=True)
+                st.session_state.welcome_active_tab = WELCOME_TAB_LOGIN
+                if email_ingresado:
+                    st.session_state.login_email = email_ingresado.strip().lower()
+                st.rerun()
+            elif ok:
+                st.rerun()
+            else:
+                st.error(msg)
+        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
         _close_portal_scroll()
         return
 
     email = st.session_state.get("usuario", "")
     st.markdown(
-        f'<div class="velox-identity-badge">✅ Identidad verificada: '
+        f'<div class="velox-identity-badge">✅ Correo registrado: '
         f"<strong>{email}</strong></div>",
         unsafe_allow_html=True,
     )

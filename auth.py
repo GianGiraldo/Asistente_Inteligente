@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import re
 import secrets
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -27,6 +28,7 @@ VISTA_RECUPERAR_PASSWORD = "recuperar_password"
 PLANTILLA_ENLACE_RECUPERACION_SUPABASE = (
     '{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery'
 )
+EMAIL_FORMATO_REGEX = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 
 
 class AuthManager:
@@ -669,6 +671,67 @@ class AuthManager:
         except Exception as e:
             print(f"Error obteniendo usuario {email_norm}: {self._format_error(e)}")
             return None
+
+    @staticmethod
+    def validar_formato_email(email: str) -> bool:
+        return bool(EMAIL_FORMATO_REGEX.match((email or "").strip()))
+
+    def usuario_tiene_cuenta_completa(self, user: Optional[Dict[str, Any]]) -> bool:
+        """True si la cuenta ya tiene contraseña veloX y acceso activo (debe usar login)."""
+        if not user:
+            return False
+        if self.es_staff(user.get("rol")):
+            return True
+        if self.requiere_configurar_password_velox(user):
+            return False
+        activo = bool(user.get("activo"))
+        pago_ok = bool(user.get("pago_confirmado"))
+        habilitado = user.get("habilitado")
+        if habilitado is not None:
+            pago_ok = pago_ok or bool(habilitado)
+        return activo and pago_ok
+
+    def continuar_registro_manual(self, email: str) -> Tuple[bool, str, bool]:
+        """
+        Paso 1 del registro: valida correo, crea usuario si es nuevo y prepara la sesión.
+        Retorna (exito, mensaje, redirigir_a_login).
+        """
+        email_norm = (email or "").strip().lower()
+        if not email_norm:
+            return False, "El correo electrónico es obligatorio.", False
+        if not self.validar_formato_email(email_norm):
+            return False, "Ingresa un correo electrónico válido (ej. usuario@dominio.com).", False
+
+        user = self._obtener_usuario_db(email_norm)
+        if user and self.usuario_tiene_cuenta_completa(user):
+            return False, "Este correo ya está registrado. Por favor, inicia sesión.", True
+
+        if not user:
+            user = self._crear_registro_usuario_inicial(
+                email_norm,
+                auth_provider="email",
+            )
+
+        nombre = user.get("nombre") or self._nombre_desde_email(email_norm)
+        acceso = self.payments.usuario_tiene_acceso(user)
+        st.session_state.update(
+            {
+                "autenticado": True,
+                "usuario": email_norm,
+                "nombre": nombre,
+                "rol": user.get("rol", "usuario"),
+                "secciones": user.get("secciones") or ["excel"],
+                "avatar_url": None,
+                "acceso_pagado": acceso,
+                "login_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "menu_principal": "🏠 Inicio",
+                "seccion_activa": "inicio",
+            }
+        )
+        self._aplicar_permisos_a_sesion(user)
+        st.session_state["registro_en_progreso"] = True
+        st.session_state["registro_email_ok"] = True
+        return True, "Correo registrado. Continúa con el pago.", False
 
     def _crear_registro_usuario_inicial(
         self,

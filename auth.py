@@ -1084,7 +1084,7 @@ class AuthManager:
                 return False, "No encontramos una cuenta registrada con ese correo."
 
             redirect_to = self.obtener_redirect_url()
-            self.supabase.auth.reset_password_for_email(
+            self.supabase.auth.reset_password_email(
                 email_norm,
                 {"redirect_to": redirect_to},
             )

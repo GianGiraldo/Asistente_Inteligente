@@ -331,11 +331,21 @@ class AuthManager:
         """Alias interno; usar resolver_base_url_app()."""
         return self.resolver_base_url_app()
 
+    def _supabase_oauth_callback_url(self) -> str:
+        """URI que Google debe tener registrada (callback de Supabase, no la app)."""
+        supabase_base = self._normalizar_url_base(self._valor_seccion("supabase", "url"))
+        if not supabase_base:
+            return ""
+        return f"{supabase_base}/auth/v1/callback"
+
     def obtener_diagnostico_oauth(self) -> Dict[str, str]:
         """Metadatos útiles para depurar OAuth (sin exponer secretos)."""
         client_id = self._valor_seccion("google_oauth", "client_id")
+        redirect_to = self.obtener_redirect_url()
         return {
-            "redirect_to_activo": self.obtener_redirect_url(),
+            "redirect_to_activo": redirect_to,
+            "google_callback_registrar_en_cloud": self._supabase_oauth_callback_url() or "(vacío)",
+            "supabase_redirect_urls_debe_incluir": redirect_to,
             "secrets_app_base_url": self._valor_seccion("app", "base_url") or "(vacío)",
             "secrets_app_redirect_url": self._valor_seccion("app", "redirect_url") or "(vacío)",
             "env_VELOX_BASE_URL": os.getenv("VELOX_BASE_URL") or "(vacío)",
@@ -366,6 +376,18 @@ class AuthManager:
             return (
                 False,
                 "URL base inválida. Define [app].base_url en secrets o VELOX_BASE_URL en el entorno.",
+            )
+        if "supabase.co/auth/v1/callback" in redirect_to:
+            return (
+                False,
+                "redirect_to apunta al callback de Supabase; debe ser la URL pública de tu app "
+                "(p. ej. https://veloxperu.streamlit.app). "
+                "En Google Cloud registra el callback de Supabase, no la URL de Streamlit.",
+            )
+        if self._host_remoto_produccion() and self._url_es_localhost(redirect_to):
+            return (
+                False,
+                "redirect_to es localhost en producción. Define [app].base_url en Streamlit Cloud Secrets.",
             )
         return True, redirect_to
 
@@ -486,7 +508,12 @@ class AuthManager:
         return self.ensure_google_oauth_url()
 
     def _generar_google_oauth_url(self) -> Optional[str]:
-        """Genera URL de Supabase Auth (?provider=google) con redirect_to dinámico."""
+        """
+        Genera URL de Supabase Auth (?provider=google).
+
+        redirect_to = URL de la app (donde Supabase devuelve ?code=).
+        Google Cloud debe registrar el callback de Supabase (.../auth/v1/callback), no la app.
+        """
         ok, redirect_or_msg = self._validar_precondiciones_oauth()
         if not ok:
             st.session_state["google_oauth_error"] = redirect_or_msg
@@ -495,7 +522,10 @@ class AuthManager:
 
         redirect_to = redirect_or_msg
         try:
-            print(f"OAuth Supabase redirect_to: {redirect_to}")
+            print(
+                f"OAuth Supabase redirect_to (app): {redirect_to} | "
+                f"Google callback esperado: {self._supabase_oauth_callback_url()}"
+            )
             response = self.supabase.auth.sign_in_with_oauth(
                 {
                     "provider": "google",

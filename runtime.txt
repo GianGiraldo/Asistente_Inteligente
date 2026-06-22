@@ -1,1 +1,6 @@
+<<<<<<< HEAD
 python-3.9
+=======
+text
+python-3.9
+>>>>>>> d6862f9c6b4fbf4844246d3690a0754ccb992bc2

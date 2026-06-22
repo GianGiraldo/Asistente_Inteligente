@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 streamlit>=1.35.0
 streamlit-option-menu>=0.3.12
 pandas==2.0.3
@@ -9,3 +10,9 @@ reportlab>=4.0.0
 supabase==2.0.0
 requests>=2.31.0
 xlrd>=2.0.1
+=======
+streamlit>=1.35.0
+pandas
+plotly
+openpyxl
+>>>>>>> d6862f9c6b4fbf4844246d3690a0754ccb992bc2

@@ -1012,8 +1012,8 @@ def render_google_oauth_button(
         for clave, valor in auth_manager.obtener_diagnostico_oauth().items():
             st.text(f"{clave}: {valor}")
         st.caption(
-            "Flujo: Supabase Auth (no Google directo). redirect_to debe ser la raíz de la app, "
-            "p. ej. https://tu-dominio.streamlit.app — sin /oauth2callback."
+            "Flujo: Supabase Auth (no Google directo). redirect_to activo: "
+            f"{redirect_esperado} — raíz de la app, sin /oauth2callback."
         )
     return False
 

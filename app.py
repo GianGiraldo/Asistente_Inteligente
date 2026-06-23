@@ -1840,11 +1840,11 @@ VELOX_LEGAL_FOOTER_CSS = """
         margin-bottom: 0.35rem;
     }
     .velox-legal-footer__links a {
-        color: #8a8f98;
+        color: #4a6fa5;
         text-decoration: none;
     }
     .velox-legal-footer__links a:hover {
-        color: #5c6370;
+        color: #3a5988;
         text-decoration: underline;
     }
     .velox-legal-footer__sep {
@@ -1867,7 +1867,15 @@ VELOX_LEGAL_FOOTER_CSS = """
 """
 
 LEGAL_DOCS_DIR = "data"
-LIBRO_RECLAMACIONES_URL = "https://veloxperu.com/libro-reclamaciones"
+LIBRO_RECLAMACIONES_URL = (
+    "https://docs.google.com/forms/d/e/1FAIpQLSexps1r4DvjE4EgNYzCw6e8G7SomSupJVikKnKADA8nVhRW5w/viewform?usp=publish-editor"
+)
+TERMINOS_CONDICIONES_URL = (
+    "https://drive.google.com/file/d/1EGm93-Y3S3RD6pbw4J1AzTyrNI2goiyg/view?usp=sharing"
+)
+POLITICA_PRIVACIDAD_URL = (
+    "https://drive.google.com/file/d/11pns9IKiw3cRR_b9WpSaT00cWAEkM3NG/view?usp=sharing"
+)
 
 
 def _leer_documento_legal(nombre_archivo: str) -> str:
@@ -1890,9 +1898,9 @@ def render_footer() -> None:
             <div class="velox-legal-footer__links">
                 <a href="{LIBRO_RECLAMACIONES_URL}" target="_blank" rel="noopener noreferrer">📖 Libro de Reclamaciones</a>
                 <span class="velox-legal-footer__sep">|</span>
-                <a href="?page=terminos">📄 Términos y Condiciones</a>
+                <a href="{TERMINOS_CONDICIONES_URL}" target="_blank" rel="noopener noreferrer">📄 Términos y Condiciones</a>
                 <span class="velox-legal-footer__sep">|</span>
-                <a href="?page=privacidad">🔒 Política de Privacidad</a>
+                <a href="{POLITICA_PRIVACIDAD_URL}" target="_blank" rel="noopener noreferrer">🔒 Política de Privacidad</a>
             </div>
             <div class="velox-legal-footer__copy">© 2026 veloX - Todos los derechos reservados</div>
         </footer>

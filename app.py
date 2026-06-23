@@ -3,7 +3,7 @@ import streamlit as st
 
 st.set_page_config(
     page_title="veloX",
-    page_icon="⚡",
+    page_icon="assets/velox.png",
     layout="wide",
     initial_sidebar_state="expanded",  # Obliga sidebar abierta al cargar (también en móvil)
 )

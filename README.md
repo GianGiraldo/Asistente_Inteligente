@@ -1,6 +1,6 @@
-# Optimizo con Velox
+# veloX
 
-**Optimizo con Velox** (veloX) es una plataforma web de gestión documental inteligente para profesionales y empresas. Permite organizar documentos por secciones (Contabilidad, Laboral, Financiero, Logístico, Excel), con subcategorías, buscador, publicaciones del administrador y consultas entre usuarios.
+**veloX** es una plataforma web de gestión documental inteligente para profesionales y empresas. Permite organizar documentos por secciones (Contabilidad, Laboral, Financiero, Logístico, Excel), con subcategorías, buscador, publicaciones del administrador y consultas entre usuarios.
 
 ![Python Version](https://img.shields.io/badge/Python-3.8%2B-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)

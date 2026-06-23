@@ -777,7 +777,7 @@ def inject_login_portal_brand_styles():
 
 # ==================== PASARELA DE BIENVENIDA veloX (Premium) ====================
 YAPE_QR_PATH = "assets/qr_pago.png"
-WHATSAPP_ADMIN_LINK = "https://w.app/s58dpa"
+WHATSAPP_ADMIN_LINK = "https://wa.me/51913827482?text=Hola,%20solicito%20información%20sobre%20la%20seccion%20.........."
 YAPE_OAUTH_KEYS = ["yape_oauth_celular", "yape_comprobante_upload"]
 WELCOME_TAB_LOGIN = 0
 WELCOME_TAB_REGISTER = 1

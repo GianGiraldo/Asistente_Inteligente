@@ -5,7 +5,7 @@ import os
 import streamlit as st
 
 st.set_page_config(
-    page_title="veloX",
+    page_title="Optimizo con Velox",
     page_icon="assets/velox.png",
     layout="wide",
     initial_sidebar_state="expanded",  # Obliga sidebar abierta al cargar (también en móvil)
@@ -24,13 +24,16 @@ st.markdown(
     f"""
     <meta name="apple-mobile-web-app-title" content="veloX">
     <meta name="application-name" content="veloX">
+    <meta property="og:title" content="Optimizo con Velox">
+    <meta property="og:description" content="Plataforma veloX de gestión documental inteligente para profesionales y empresas.">
+    <meta name="description" content="Optimizo con Velox — plataforma veloX de gestión documental inteligente.">
     <link rel="apple-touch-icon" href="{_velox_pwa_icon_href}">
     <link rel="icon" type="image/png" href="{_velox_pwa_icon_href}">
     <script>
     (function () {{
         var head = document.head || document.getElementsByTagName("head")[0];
         if (!head) return;
-        document.title = "veloX";
+        document.title = "Optimizo con Velox";
         [
             ["apple-mobile-web-app-title", "veloX"],
             ["application-name", "veloX"],
@@ -59,7 +62,7 @@ st.markdown(
             link.setAttribute("href", href);
         }});
         var manifest = {{
-            name: "veloX",
+            name: "Optimizo con Velox",
             short_name: "veloX",
             icons: [{{ src: "{_velox_pwa_icon_href}", sizes: "512x512", type: "image/png" }}],
             display: "standalone",

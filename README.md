@@ -1,11 +1,11 @@
-# Asistente Inteligente
+# Optimizo con Velox
+
+**Optimizo con Velox** (veloX) es una plataforma web de gestión documental inteligente para profesionales y empresas. Permite organizar documentos por secciones (Contabilidad, Laboral, Financiero, Logístico, Excel), con subcategorías, buscador, publicaciones del administrador y consultas entre usuarios.
 
 ![Python Version](https://img.shields.io/badge/Python-3.8%2B-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Streamlit](https://img.shields.io/badge/Framework-Streamlit-red)
 ![Contributions Welcome](https://img.shields.io/badge/Contributions-Welcome-brightgreen)
-
-**Asistente Inteligente** es una aplicación web para la gestión documental inteligente, que permite organizar documentos por secciones (Contabilidad, Laboral, Financiero, Logístico, Excel), con subcategorías, buscador, sistema de publicaciones del master y consultas entre usuarios.
 
 ## 🚀 Características
 
@@ -26,7 +26,7 @@
 - [Streamlit](https://streamlit.io/) – Framework para la interfaz web
 - [Pandas](https://pandas.pydata.org/) – Manejo de datos
 - [Plotly](https://plotly.com/) – Visualizaciones
-- JSON como base de datos ligera
+- [Supabase](https://supabase.com/) – Base de datos y autenticación
 
 ## 📁 Estructura del repositorio
 ├── app.py # Aplicación principal
@@ -37,10 +37,8 @@
 ├── README.md
 ├── .gitignore
 ├── assets/ # Imágenes y logos
-├── data/ # Archivos JSON (se crean automáticamente)
-├── uploads/ # Documentos personales
-├── publicaciones/ # Documentos públicos
-└── videos/ # Tutoriales
+├── data/ # Documentos legales y datos auxiliares
+└── sql/ # Esquemas de base de datos
 
 ## 🧪 Instalación y ejecución local
 
@@ -71,7 +69,7 @@ streamlit run app.py
 
 ## 🌐 Demo en vivo
 
-*Próximamente (despliegue en Streamlit Cloud)*
+[veloxperu.streamlit.app](https://veloxperu.streamlit.app)
 
 ## 🤝 Cómo contribuir
 
@@ -85,4 +83,4 @@ Este proyecto está bajo la licencia MIT. Consulta el archivo `LICENSE` para má
 
 Desarrollado por **Gian Pier Giraldo** – [GitHub](https://github.com/tu_usuario)
 
-> **Nota sobre persistencia:** Actualmente la aplicación guarda los datos en archivos JSON locales. Para entornos de producción se recomienda migrar a una base de datos externa como Supabase (instrucciones próximamente).
+> **Nota:** La aplicación utiliza Supabase para autenticación, almacenamiento y gestión de usuarios en producción.

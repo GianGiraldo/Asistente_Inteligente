@@ -1825,57 +1825,7 @@ def login_screen():
 
 
 # ==================== FOOTER LEGAL Y PÁGINAS INTERNAS ====================
-VELOX_LEGAL_FOOTER_CSS = """
-<style>
-    .velox-legal-footer {
-        text-align: center;
-        color: #8a8f98;
-        font-size: 0.82rem;
-        line-height: 1.6;
-        margin: 2rem auto 1rem;
-        padding: 0.75rem 1rem 0;
-        max-width: 960px;
-    }
-    .velox-legal-footer__links {
-        margin-bottom: 0.35rem;
-    }
-    .velox-legal-footer__links a {
-        color: #4a6fa5;
-        text-decoration: none;
-    }
-    .velox-legal-footer__links a:hover {
-        color: #3a5988;
-        text-decoration: underline;
-    }
-    .velox-legal-footer__sep {
-        color: #c5c9d0;
-        margin: 0 0.45rem;
-    }
-    .velox-legal-footer__copy {
-        color: #9aa0a9;
-        font-size: 0.78rem;
-    }
-    .velox-legal-page {
-        max-width: 820px;
-        margin: 0 auto;
-        padding: 1rem 1.25rem 2rem;
-    }
-    .velox-legal-page .velox-legal-back {
-        margin-bottom: 1rem;
-    }
-</style>
-"""
-
 LEGAL_DOCS_DIR = "data"
-LIBRO_RECLAMACIONES_URL = (
-    "https://docs.google.com/forms/d/e/1FAIpQLSexps1r4DvjE4EgNYzCw6e8G7SomSupJVikKnKADA8nVhRW5w/viewform?usp=publish-editor"
-)
-TERMINOS_CONDICIONES_URL = (
-    "https://drive.google.com/file/d/1EGm93-Y3S3RD6pbw4J1AzTyrNI2goiyg/view?usp=sharing"
-)
-POLITICA_PRIVACIDAD_URL = (
-    "https://drive.google.com/file/d/11pns9IKiw3cRR_b9WpSaT00cWAEkM3NG/view?usp=sharing"
-)
 
 
 def _leer_documento_legal(nombre_archivo: str) -> str:
@@ -1891,19 +1841,18 @@ def _leer_documento_legal(nombre_archivo: str) -> str:
 
 def render_footer() -> None:
     """Footer legal centrado para login y dashboard."""
+    st.markdown("---")
     st.markdown(
-        VELOX_LEGAL_FOOTER_CSS
-        + f"""
-        <footer class="velox-legal-footer">
-            <div class="velox-legal-footer__links">
-                <a href="{LIBRO_RECLAMACIONES_URL}" target="_blank" rel="noopener noreferrer">📖 Libro de Reclamaciones</a>
-                <span class="velox-legal-footer__sep">|</span>
-                <a href="{TERMINOS_CONDICIONES_URL}" target="_blank" rel="noopener noreferrer">📄 Términos y Condiciones</a>
-                <span class="velox-legal-footer__sep">|</span>
-                <a href="{POLITICA_PRIVACIDAD_URL}" target="_blank" rel="noopener noreferrer">🔒 Política de Privacidad</a>
-            </div>
-            <div class="velox-legal-footer__copy">© 2026 veloX - Todos los derechos reservados</div>
-        </footer>
+        """
+        <div style='text-align: center; padding: 1rem 0; font-size: 0.85rem; color: #64748b;'>
+            <a href='https://docs.google.com/forms/d/e/1FAIpQLSexps1r4DvjE4EgNYzCw6e8G7SomSupJVikKnKADA8nVhRW5w/viewform?usp=public+editor' target='_blank' style='color: #4a6fa5; text-decoration: none; margin: 0 10px;'>📖 Libro de Reclamaciones</a>
+            <span style='color: #cbd5e1;'>|</span>
+            <a href='https://drive.google.com/file/d/1EGm93-Y3S3RD6pbw4J1AzTyrNI2goiyg/view?usp=sharing' target='_blank' style='color: #4a6fa5; text-decoration: none; margin: 0 10px;'>📄 Términos y Condiciones</a>
+            <span style='color: #cbd5e1;'>|</span>
+            <a href='https://drive.google.com/file/d/11pns9IKiw3cRR_b9WpSaT00cWAEkM3NG/view?usp=sharing' target='_blank' style='color: #4a6fa5; text-decoration: none; margin: 0 10px;'>🔒 Política de Privacidad</a>
+            <br>
+            <span style='font-size: 0.75rem;'>© 2026 veloX - Todos los derechos reservados</span>
+        </div>
         """,
         unsafe_allow_html=True,
     )
@@ -1912,7 +1861,10 @@ def render_footer() -> None:
 def mostrar_terminos_condiciones() -> None:
     inject_welcome_layout()
     inject_global_theme()
-    st.markdown('<div class="velox-legal-page">', unsafe_allow_html=True)
+    st.markdown(
+        '<div style="max-width:820px;margin:0 auto;padding:1rem 1.25rem 2rem;">',
+        unsafe_allow_html=True,
+    )
     st.markdown(
         '<div class="velox-legal-back">'
         '<a href="?" style="color:#5c6370;text-decoration:none;">← Volver al inicio</a>'
@@ -1927,7 +1879,10 @@ def mostrar_terminos_condiciones() -> None:
 def mostrar_politica_privacidad() -> None:
     inject_welcome_layout()
     inject_global_theme()
-    st.markdown('<div class="velox-legal-page">', unsafe_allow_html=True)
+    st.markdown(
+        '<div style="max-width:820px;margin:0 auto;padding:1rem 1.25rem 2rem;">',
+        unsafe_allow_html=True,
+    )
     st.markdown(
         '<div class="velox-legal-back">'
         '<a href="?" style="color:#5c6370;text-decoration:none;">← Volver al inicio</a>'

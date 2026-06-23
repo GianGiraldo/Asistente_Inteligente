@@ -1790,6 +1790,7 @@ def render_pantalla_solo_recuperacion():
         render_velox_brand_header()
         with st.container(border=True):
             render_tab_recuperar_password()
+    render_footer()
 
 
 def render_welcome_gateway():
@@ -1820,6 +1821,114 @@ def render_welcome_gateway():
 
 def login_screen():
     render_welcome_gateway()
+    render_footer()
+
+
+# ==================== FOOTER LEGAL Y PÁGINAS INTERNAS ====================
+VELOX_LEGAL_FOOTER_CSS = """
+<style>
+    .velox-legal-footer {
+        text-align: center;
+        color: #8a8f98;
+        font-size: 0.82rem;
+        line-height: 1.6;
+        margin: 2rem auto 1rem;
+        padding: 0.75rem 1rem 0;
+        max-width: 960px;
+    }
+    .velox-legal-footer__links {
+        margin-bottom: 0.35rem;
+    }
+    .velox-legal-footer__links a {
+        color: #8a8f98;
+        text-decoration: none;
+    }
+    .velox-legal-footer__links a:hover {
+        color: #5c6370;
+        text-decoration: underline;
+    }
+    .velox-legal-footer__sep {
+        color: #c5c9d0;
+        margin: 0 0.45rem;
+    }
+    .velox-legal-footer__copy {
+        color: #9aa0a9;
+        font-size: 0.78rem;
+    }
+    .velox-legal-page {
+        max-width: 820px;
+        margin: 0 auto;
+        padding: 1rem 1.25rem 2rem;
+    }
+    .velox-legal-page .velox-legal-back {
+        margin-bottom: 1rem;
+    }
+</style>
+"""
+
+LEGAL_DOCS_DIR = "data"
+LIBRO_RECLAMACIONES_URL = "https://veloxperu.com/libro-reclamaciones"
+
+
+def _leer_documento_legal(nombre_archivo: str) -> str:
+    path = os.path.join(LEGAL_DOCS_DIR, nombre_archivo)
+    if not os.path.exists(path):
+        return (
+            "El documento legal no está disponible en este momento. "
+            "Por favor, contacte a soporte@veloxperu.com."
+        )
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
+def render_footer() -> None:
+    """Footer legal centrado para login y dashboard."""
+    st.markdown(
+        VELOX_LEGAL_FOOTER_CSS
+        + f"""
+        <footer class="velox-legal-footer">
+            <div class="velox-legal-footer__links">
+                <a href="{LIBRO_RECLAMACIONES_URL}" target="_blank" rel="noopener noreferrer">📖 Libro de Reclamaciones</a>
+                <span class="velox-legal-footer__sep">|</span>
+                <a href="?page=terminos">📄 Términos y Condiciones</a>
+                <span class="velox-legal-footer__sep">|</span>
+                <a href="?page=privacidad">🔒 Política de Privacidad</a>
+            </div>
+            <div class="velox-legal-footer__copy">© 2026 veloX - Todos los derechos reservados</div>
+        </footer>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def mostrar_terminos_condiciones() -> None:
+    inject_welcome_layout()
+    inject_global_theme()
+    st.markdown('<div class="velox-legal-page">', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="velox-legal-back">'
+        '<a href="?" style="color:#5c6370;text-decoration:none;">← Volver al inicio</a>'
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(_leer_documento_legal("terminos_condiciones.txt"))
+    st.markdown("</div>", unsafe_allow_html=True)
+    render_footer()
+
+
+def mostrar_politica_privacidad() -> None:
+    inject_welcome_layout()
+    inject_global_theme()
+    st.markdown('<div class="velox-legal-page">', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="velox-legal-back">'
+        '<a href="?" style="color:#5c6370;text-decoration:none;">← Volver al inicio</a>'
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(_leer_documento_legal("politica_privacidad.txt"))
+    st.markdown("</div>", unsafe_allow_html=True)
+    render_footer()
 
 
 # ==================== CHATBOT ASISTENTE IA (flotante) ====================
@@ -4035,6 +4144,14 @@ def render_vista_seccion_inicio(seccion_id):
     )
 
 # ==================== PUERTA DE ACCESO (post-definiciones) ====================
+_legal_page = (st.query_params.get("page") or "").strip().lower()
+if _legal_page == "terminos":
+    mostrar_terminos_condiciones()
+    st.stop()
+if _legal_page == "privacidad":
+    mostrar_politica_privacidad()
+    st.stop()
+
 auth_manager.inicializar_estado_auth()
 if "seccion_activa" not in st.session_state:
     st.session_state.seccion_activa = "inicio"
@@ -4651,5 +4768,4 @@ else:
     if _chatbot_visible_en_modulo_actual():
         render_chatbot_asistente()
 
-    st.markdown("---")
-    st.markdown("<div style='text-align:center'>Asistente Inteligente veloX · Business Hub © 2026</div>", unsafe_allow_html=True)
+    render_footer()

@@ -1,4 +1,7 @@
 # app.py — Asistente Inteligente veloX (OAuth Google + Business Hub)
+import base64
+import os
+
 import streamlit as st
 
 st.set_page_config(
@@ -6,6 +9,76 @@ st.set_page_config(
     page_icon="assets/velox.png",
     layout="wide",
     initial_sidebar_state="expanded",  # Obliga sidebar abierta al cargar (también en móvil)
+)
+
+# Forzar nombre e ícono para aplicaciones móviles (PWA)
+_velox_pwa_icon_href = "assets/velox.png"
+if os.path.exists(_velox_pwa_icon_href):
+    with open(_velox_pwa_icon_href, "rb") as _velox_icon_file:
+        _velox_pwa_icon_href = (
+            "data:image/png;base64,"
+            + base64.b64encode(_velox_icon_file.read()).decode("ascii")
+        )
+
+st.markdown(
+    f"""
+    <meta name="apple-mobile-web-app-title" content="veloX">
+    <meta name="application-name" content="veloX">
+    <link rel="apple-touch-icon" href="{_velox_pwa_icon_href}">
+    <link rel="icon" type="image/png" href="{_velox_pwa_icon_href}">
+    <script>
+    (function () {{
+        var head = document.head || document.getElementsByTagName("head")[0];
+        if (!head) return;
+        document.title = "veloX";
+        [
+            ["apple-mobile-web-app-title", "veloX"],
+            ["application-name", "veloX"],
+        ].forEach(function (pair) {{
+            var meta = document.querySelector('meta[name="' + pair[0] + '"]');
+            if (!meta) {{
+                meta = document.createElement("meta");
+                meta.setAttribute("name", pair[0]);
+                head.appendChild(meta);
+            }}
+            meta.setAttribute("content", pair[1]);
+        }});
+        [
+            ["apple-touch-icon", "{_velox_pwa_icon_href}"],
+            ["icon", "{_velox_pwa_icon_href}"],
+        ].forEach(function (pair) {{
+            var rel = pair[0];
+            var href = pair[1];
+            var link = document.querySelector('link[rel="' + rel + '"]');
+            if (!link) {{
+                link = document.createElement("link");
+                link.setAttribute("rel", rel);
+                if (rel === "icon") link.setAttribute("type", "image/png");
+                head.appendChild(link);
+            }}
+            link.setAttribute("href", href);
+        }});
+        var manifest = {{
+            name: "veloX",
+            short_name: "veloX",
+            icons: [{{ src: "{_velox_pwa_icon_href}", sizes: "512x512", type: "image/png" }}],
+            display: "standalone",
+            start_url: ".",
+        }};
+        var manifestLink = document.querySelector('link[rel="manifest"]');
+        if (!manifestLink) {{
+            manifestLink = document.createElement("link");
+            manifestLink.setAttribute("rel", "manifest");
+            head.appendChild(manifestLink);
+        }}
+        manifestLink.setAttribute(
+            "href",
+            "data:application/json," + encodeURIComponent(JSON.stringify(manifest))
+        );
+    }})();
+    </script>
+    """,
+    unsafe_allow_html=True,
 )
 
 from ui_theme import inject_velox_loading_brand

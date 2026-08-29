@@ -1,0 +1,60 @@
+# Control de versiones
+.git
+.gitignore
+.github
+
+# Entornos virtuales
+.venv
+venv
+env
+env_personal
+ENV
+
+# Bytecode y cachés de Python
+__pycache__
+*.py[cod]
+*$py.class
+*.pyo
+.pytest_cache
+.mypy_cache
+.ruff_cache
+*.egg-info
+dist
+build
+
+# IDE y contenedores de desarrollo
+.vscode
+.idea
+.devcontainer
+
+# Secretos locales (inyectar en Cloud Run vía Secret Manager o variables de entorno)
+.env
+.env.*
+.streamlit/secrets.toml
+config.py
+
+# Datos locales, uploads y artefactos temporales
+data/
+uploads/
+publicaciones/
+videos/
+*.log
+*.tmp
+~$*
+
+# Scripts de utilidad (no necesarios en runtime)
+scripts/
+sql/
+
+# Documentación
+README.md
+LICENSE
+*.md
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile
+.dockerignore

@@ -779,6 +779,7 @@ def inject_login_portal_brand_styles():
 YAPE_QR_PATH = "assets/qr_pago.png"
 WHATSAPP_ADMIN_LINK = "https://wa.me/51913827482?text=Hola,%20solicito%20información%20sobre%20la%20seccion%20.........."
 YAPE_OAUTH_KEYS = ["yape_oauth_celular", "yape_comprobante_upload"]
+WELCOME_TAB_GATE = -1
 WELCOME_TAB_LOGIN = 0
 WELCOME_TAB_REGISTER = 1
 WELCOME_TAB_SETUP_PASSWORD = 2
@@ -915,6 +916,9 @@ LOGIN_PORTAL_BRAND_CSS = f"""
     .st-key-btn_iniciar_sesion_velox [data-testid="stBaseButton-primary"] button,
     .st-key-btn_iniciar_sesion_velox .stButton > button,
     .st-key-btn_registrarme_portal .stButton > button,
+    .st-key-btn_gate_iniciar_sesion [data-testid="stBaseButton-primary"] button,
+    .st-key-btn_gate_iniciar_sesion .stButton > button,
+    .st-key-btn_gate_registrarse .stButton > button,
     .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) [data-testid="stBaseButton-primary"] button,
     .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) [data-testid="stBaseButton-primary"] button,
     .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) .st-key-btn_registrarme_portal .stButton > button {{
@@ -932,12 +936,18 @@ LOGIN_PORTAL_BRAND_CSS = f"""
     .st-key-btn_iniciar_sesion_velox [data-testid="stBaseButton-primary"] button p,
     .st-key-btn_iniciar_sesion_velox .stButton > button p,
     .st-key-btn_registrarme_portal .stButton > button p,
+    .st-key-btn_gate_iniciar_sesion [data-testid="stBaseButton-primary"] button p,
+    .st-key-btn_gate_iniciar_sesion .stButton > button p,
+    .st-key-btn_gate_registrarse .stButton > button p,
     .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) [data-testid="stBaseButton-primary"] button p,
     .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) [data-testid="stBaseButton-primary"] button p,
     .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) .st-key-btn_registrarme_portal .stButton > button p,
     .st-key-btn_iniciar_sesion_velox [data-testid="stBaseButton-primary"] button span,
     .st-key-btn_iniciar_sesion_velox .stButton > button span,
     .st-key-btn_registrarme_portal .stButton > button span,
+    .st-key-btn_gate_iniciar_sesion [data-testid="stBaseButton-primary"] button span,
+    .st-key-btn_gate_iniciar_sesion .stButton > button span,
+    .st-key-btn_gate_registrarse .stButton > button span,
     .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) [data-testid="stBaseButton-primary"] button span,
     .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) [data-testid="stBaseButton-primary"] button span,
     .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) .st-key-btn_registrarme_portal .stButton > button span {{
@@ -949,6 +959,9 @@ LOGIN_PORTAL_BRAND_CSS = f"""
     .st-key-btn_iniciar_sesion_velox [data-testid="stBaseButton-primary"] button:hover,
     .st-key-btn_iniciar_sesion_velox .stButton > button:hover,
     .st-key-btn_registrarme_portal .stButton > button:hover,
+    .st-key-btn_gate_iniciar_sesion [data-testid="stBaseButton-primary"] button:hover,
+    .st-key-btn_gate_iniciar_sesion .stButton > button:hover,
+    .st-key-btn_gate_registrarse .stButton > button:hover,
     .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) [data-testid="stBaseButton-primary"] button:hover,
     .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) [data-testid="stBaseButton-primary"] button:hover,
     .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) .st-key-btn_registrarme_portal .stButton > button:hover {{
@@ -1053,6 +1066,12 @@ REGISTRO_SESSION_KEYS = (
     "registro_password_ok",
     "registro_listo_confirmacion",
     "registro_email",
+    "registro_paso",
+    "registro_otp_enviado",
+    "registro_otp_verificado",
+    "registro_supabase_access",
+    "registro_supabase_refresh",
+    "registro_completado_email",
 )
 
 
@@ -1170,7 +1189,24 @@ def render_divider_or(text: str = "o ingresa con tu cuenta administradora"):
 
 def _init_welcome_tab_state():
     if "welcome_active_tab" not in st.session_state:
-        st.session_state.welcome_active_tab = WELCOME_TAB_LOGIN
+        st.session_state.welcome_active_tab = WELCOME_TAB_GATE
+
+
+def _init_registro_otp_state():
+    if "registro_paso" not in st.session_state:
+        st.session_state.registro_paso = 1
+
+
+def _reset_registro_otp_flujo():
+    for key in REGISTRO_SESSION_KEYS:
+        st.session_state.pop(key, None)
+    st.session_state.registro_paso = 1
+
+
+def _iniciar_registro_otp_flujo():
+    _reset_registro_otp_flujo()
+    st.session_state.registro_en_progreso = True
+    st.session_state.registro_paso = 1
 
 
 def _init_login_form_state():
@@ -1182,13 +1218,11 @@ def _init_login_form_state():
 
 
 def _reset_registro_flujo():
-    for key in REGISTRO_SESSION_KEYS:
-        st.session_state.pop(key, None)
+    _reset_registro_otp_flujo()
 
 
 def _iniciar_registro_flujo():
-    _reset_registro_flujo()
-    st.session_state.registro_en_progreso = True
+    _iniciar_registro_otp_flujo()
 
 
 def _registro_bloquea_acceso_app() -> bool:
@@ -1202,8 +1236,15 @@ def _marcar_pago_registro_completado(metodo: str):
 
 
 def _finalizar_registro_y_volver_login():
-    _reset_registro_flujo()
+    email_guardado = (
+        st.session_state.get("registro_completado_email")
+        or st.session_state.get("registro_email")
+        or ""
+    ).strip().lower()
+    _reset_registro_otp_flujo()
     st.session_state.welcome_active_tab = WELCOME_TAB_LOGIN
+    if email_guardado:
+        st.session_state.login_email = email_guardado
     auth_manager.cerrar_sesion(silent=True)
     st.rerun()
 
@@ -1213,11 +1254,21 @@ def render_portal_id_bar():
     _init_welcome_tab_state()
     active = st.session_state.welcome_active_tab
 
-    if active == WELCOME_TAB_LOGIN:
+    if active == WELCOME_TAB_GATE:
         st.markdown(
-            '<div class="velox-id-bar">Correo Electrónico</div>',
+            '<div class="velox-id-bar">Acceso veloX</div>',
             unsafe_allow_html=True,
         )
+    elif active == WELCOME_TAB_LOGIN:
+        st.markdown(
+            '<div class="velox-id-bar">Iniciar Sesión</div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown('<div class="velox-back-login">', unsafe_allow_html=True)
+        if st.button("← Volver", key="nav_volver_gate_desde_login"):
+            st.session_state.welcome_active_tab = WELCOME_TAB_GATE
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
     elif active == WELCOME_TAB_SETUP_PASSWORD:
         st.markdown(
             '<div class="velox-id-bar velox-id-bar--register">Configura tu acceso veloX</div>',
@@ -1230,13 +1281,22 @@ def render_portal_id_bar():
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
     else:
+        paso = st.session_state.get("registro_paso", 1)
+        titulos = {
+            1: "Registrarse · Paso 1 · Correo Gmail",
+            2: "Registrarse · Paso 2 · Código OTP",
+            3: "Registrarse · Paso 3 · Contraseña",
+            4: "Registrarse · Confirmación",
+        }
         st.markdown(
-            '<div class="velox-id-bar velox-id-bar--register">Crear cuenta veloX</div>',
+            f'<div class="velox-id-bar velox-id-bar--register">{titulos.get(paso, "Crear cuenta veloX")}</div>',
             unsafe_allow_html=True,
         )
         st.markdown('<div class="velox-back-login">', unsafe_allow_html=True)
-        if st.button("← Volver al inicio de sesión", key="nav_volver_login"):
-            st.session_state.welcome_active_tab = WELCOME_TAB_LOGIN
+        if st.button("← Volver", key="nav_volver_gate_desde_registro"):
+            _reset_registro_otp_flujo()
+            st.session_state.welcome_active_tab = WELCOME_TAB_GATE
+            auth_manager.cerrar_sesion(silent=True)
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -1335,6 +1395,39 @@ def render_tab_recuperar_password():
     st.markdown("</div>", unsafe_allow_html=True)
 
 
+def render_tab_gate_portal():
+    """Pantalla inicial: solo Iniciar Sesión y Registrarse."""
+    st.markdown('<div class="velox-portal-body velox-portal-body--login">', unsafe_allow_html=True)
+    st.markdown(
+        '<p class="velox-section-caption" style="text-align:center;margin:1rem 0 1.25rem;">'
+        "Plataforma de capacitación veloX. Elige cómo deseas continuar."
+        "</p>",
+        unsafe_allow_html=True,
+    )
+    st.markdown('<div class="velox-portal-form">', unsafe_allow_html=True)
+
+    if st.button(
+        "Iniciar Sesión",
+        type="primary",
+        key="btn_gate_iniciar_sesion",
+        use_container_width=True,
+    ):
+        st.session_state.welcome_active_tab = WELCOME_TAB_LOGIN
+        st.rerun()
+
+    if st.button(
+        "Registrarse",
+        key="btn_gate_registrarse",
+        use_container_width=True,
+    ):
+        _iniciar_registro_otp_flujo()
+        st.session_state.welcome_active_tab = WELCOME_TAB_REGISTER
+        st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
 def render_tab_login_portal(oauth_url: Optional[str] = None):
     """Portada: correo/contraseña, Iniciar Sesión y enlace a Registrarme."""
     _ = oauth_url
@@ -1391,10 +1484,6 @@ def render_tab_login_portal(oauth_url: Optional[str] = None):
             st.rerun()
         else:
             st.error(msg)
-
-    if st.button("Registrarme", key="btn_registrarme_portal", use_container_width=True):
-        st.session_state.welcome_active_tab = WELCOME_TAB_REGISTER
-        st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
@@ -1733,23 +1822,75 @@ def _render_registro_confirmacion_final():
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-def render_tab_registro_velox(oauth_url: Optional[str] = None):
-    """Registro simple: correo + contraseña o Google OAuth."""
-    st.session_state["oauth_intent"] = "register"
-    _open_portal_scroll()
-    st.markdown(
-        '<p class="velox-section-caption" style="text-align:center;margin-bottom:1rem;">'
-        "Crea tu cuenta veloX. Podrás explorar el catálogo y desbloquear secciones desde la plataforma."
-        "</p>",
-        unsafe_allow_html=True,
-    )
-    st.markdown('<div class="velox-portal-form">', unsafe_allow_html=True)
+def _render_registro_paso_email_otp():
+    st.caption("Ingresa tu correo de Gmail. Te enviaremos un código de verificación de 6 dígitos.")
     st.text_input(
-        "Correo electrónico",
+        "Correo Gmail",
         key="registro_email",
         label_visibility="collapsed",
-        placeholder="Correo electrónico (Gmail recomendado)",
+        placeholder="usuario@gmail.com",
+        value=(st.session_state.get("registro_email") or ""),
     )
+    if st.button(
+        "Enviar código de verificación",
+        type="primary",
+        key="btn_registro_enviar_otp",
+        use_container_width=True,
+    ):
+        with _velox_spinner("Enviando código a tu Gmail..."):
+            ok, msg = auth_manager.enviar_codigo_registro_otp(
+                st.session_state.get("registro_email", "")
+            )
+        if ok:
+            st.session_state.registro_paso = 2
+            st.success(msg)
+            st.rerun()
+        else:
+            st.error(msg)
+
+
+def _render_registro_paso_validar_otp():
+    email = (st.session_state.get("registro_email") or "").strip().lower()
+    st.caption(f"Código enviado a **{email}**. Revisa tu bandeja de Gmail (y spam).")
+    st.text_input(
+        "Código OTP",
+        key="registro_otp_codigo",
+        label_visibility="collapsed",
+        placeholder="Código de 6 dígitos",
+        max_chars=6,
+    )
+    col_validar, col_reenviar = st.columns(2)
+    with col_validar:
+        if st.button(
+            "Validar código",
+            type="primary",
+            key="btn_registro_validar_otp",
+            use_container_width=True,
+        ):
+            with _velox_spinner("Verificando código..."):
+                ok, msg = auth_manager.verificar_codigo_registro_otp(
+                    email,
+                    st.session_state.get("registro_otp_codigo", ""),
+                )
+            if ok:
+                st.session_state.registro_paso = 3
+                st.success(msg)
+                st.rerun()
+            else:
+                st.error(msg)
+    with col_reenviar:
+        if st.button("Reenviar código", key="btn_registro_reenviar_otp", use_container_width=True):
+            with _velox_spinner("Reenviando código..."):
+                ok, msg = auth_manager.enviar_codigo_registro_otp(email)
+            if ok:
+                st.success(msg)
+            else:
+                st.error(msg)
+
+
+def _render_registro_paso_password_otp():
+    email = (st.session_state.get("registro_email") or "").strip().lower()
+    st.caption(f"Cuenta verificada: **{email}**. Define tu contraseña de acceso a veloX.")
     st.text_input(
         "Contraseña",
         type="password",
@@ -1764,24 +1905,79 @@ def render_tab_registro_velox(oauth_url: Optional[str] = None):
         label_visibility="collapsed",
         placeholder="Confirmar contraseña",
     )
-    st.markdown('<div class="velox-btn-primary">', unsafe_allow_html=True)
-    if st.button("Crear cuenta", key="btn_crear_cuenta_velox", use_container_width=True):
+    if st.button(
+        "Guardar contraseña",
+        type="primary",
+        key="btn_registro_guardar_password_otp",
+        use_container_width=True,
+    ):
         with _velox_spinner("Creando tu cuenta..."):
-            ok, msg = auth_manager.registrar_usuario_velox(
-                st.session_state.get("registro_email", ""),
+            ok, msg = auth_manager.completar_registro_otp_password(
+                email,
                 st.session_state.get("registro_password_nueva", ""),
                 st.session_state.get("registro_password_confirmar", ""),
             )
         if ok:
+            st.session_state.registro_paso = 4
+            st.session_state.registro_completado_email = email
             st.success(msg)
             st.rerun()
         else:
             st.error(msg)
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
 
-    render_divider_or("o regístrate con Google")
-    render_google_oauth_button("Continuar con Google", oauth_url=oauth_url)
+
+def _render_registro_confirmacion_otp():
+    email = (st.session_state.get("registro_completado_email") or st.session_state.get("registro_email") or "").strip().lower()
+    st.markdown(
+        f"""
+        <div class="velox-register-success">
+            <div class="velox-register-success__icon">✅</div>
+            <div class="velox-register-success__title">¡Cuenta creada!</div>
+            <p class="velox-register-success__text">
+                Tu cuenta veloX con <strong>{email}</strong> fue creada exitosamente.
+                Inicia sesión con tu correo y la contraseña que acabas de definir.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if st.button(
+        "Ir a Iniciar Sesión",
+        type="primary",
+        key="btn_registro_ir_login",
+        use_container_width=True,
+    ):
+        _finalizar_registro_y_volver_login()
+
+
+def render_tab_registro_velox(oauth_url: Optional[str] = None):
+    """Registro por OTP: Gmail → código → contraseña → confirmación."""
+    _ = oauth_url
+    _init_registro_otp_state()
+    st.session_state["registro_en_progreso"] = True
+
+    paso = st.session_state.get("registro_paso", 1)
+    if paso <= 1 and not st.session_state.get("registro_otp_enviado"):
+        paso = 1
+    elif paso <= 2 and st.session_state.get("registro_otp_enviado") and not st.session_state.get("registro_otp_verificado"):
+        paso = max(paso, 2)
+    elif st.session_state.get("registro_otp_verificado") and paso < 3:
+        paso = 3
+    st.session_state.registro_paso = paso
+
+    _open_portal_scroll()
+    st.markdown('<div class="velox-portal-form">', unsafe_allow_html=True)
+
+    if paso == 1:
+        _render_registro_paso_email_otp()
+    elif paso == 2:
+        _render_registro_paso_validar_otp()
+    elif paso == 3:
+        _render_registro_paso_password_otp()
+    else:
+        _render_registro_confirmacion_otp()
+
+    st.markdown("</div>", unsafe_allow_html=True)
     _close_portal_scroll()
 
 
@@ -1829,7 +2025,9 @@ def render_welcome_gateway():
         with st.container(border=True):
             render_portal_id_bar()
 
-            if st.session_state.welcome_active_tab == WELCOME_TAB_LOGIN:
+            if st.session_state.welcome_active_tab == WELCOME_TAB_GATE:
+                render_tab_gate_portal()
+            elif st.session_state.welcome_active_tab == WELCOME_TAB_LOGIN:
                 render_tab_login_portal(oauth_url=oauth_url)
             elif st.session_state.welcome_active_tab == WELCOME_TAB_SETUP_PASSWORD:
                 render_tab_setup_password_velox()

@@ -695,6 +695,211 @@ class AuthManager:
     def validar_formato_email(email: str) -> bool:
         return bool(EMAIL_FORMATO_REGEX.match((email or "").strip()))
 
+    def validar_email_gmail(self, email: str) -> Tuple[bool, str]:
+        """Valida formato y dominio @gmail.com para registro OTP."""
+        email_norm = (email or "").strip().lower()
+        if not email_norm:
+            return False, "El correo electrónico es obligatorio."
+        if not self.validar_formato_email(email_norm):
+            return False, "Ingresa un correo válido (ej. usuario@gmail.com)."
+        if not email_norm.endswith("@gmail.com"):
+            return False, "Debes registrar tu cuenta con un correo de Gmail (@gmail.com)."
+        return True, email_norm
+
+    @staticmethod
+    def _usuario_auth_sin_identidades(res: Any) -> bool:
+        user = getattr(res, "user", None)
+        if user is None and isinstance(res, dict):
+            user = res.get("user")
+        if not user:
+            return False
+        identities = getattr(user, "identities", None)
+        if identities is None and isinstance(user, dict):
+            identities = user.get("identities")
+        return identities is not None and len(identities) == 0
+
+    def _mensaje_error_registro_signup(self, exc: Exception) -> str:
+        texto = self._format_error(exc).lower()
+        if any(
+            fragmento in texto
+            for fragmento in ("already", "registered", "exists", "duplicate", "user already")
+        ):
+            return "Este correo ya está registrado. Por favor, inicia sesión."
+        if "rate limit" in texto or "too many requests" in texto:
+            return (
+                "Demasiados intentos seguidos. Espera unos minutos e inténtalo de nuevo."
+            )
+        if "invalid" in texto and "email" in texto:
+            return "El correo ingresado no es válido."
+        return f"No se pudo enviar el código de verificación: {self._format_error(exc)}"
+
+    def _mensaje_error_registro_otp(self, exc: Exception) -> str:
+        texto = self._format_error(exc).lower()
+        if any(
+            fragmento in texto
+            for fragmento in ("invalid", "expired", "otp", "token", "incorrect")
+        ):
+            return "Código incorrecto o expirado. Revisa tu Gmail o solicita uno nuevo."
+        return f"No se pudo verificar el código: {self._format_error(exc)}"
+
+    def _persistir_sesion_registro_supabase(self, access: str, refresh: str) -> None:
+        st.session_state["registro_supabase_access"] = access
+        st.session_state["registro_supabase_refresh"] = refresh
+        try:
+            self.supabase.auth.set_session(access, refresh)
+        except Exception as e:
+            print(f"Sesión registro Supabase: {self._format_error(e)}")
+
+    def _restaurar_sesion_registro_supabase(self) -> bool:
+        access = st.session_state.get("registro_supabase_access")
+        refresh = st.session_state.get("registro_supabase_refresh")
+        if not access or not refresh:
+            return False
+        try:
+            self.supabase.auth.set_session(access, refresh)
+            return True
+        except Exception as e:
+            print(f"Sesión registro inválida: {self._format_error(e)}")
+            return False
+
+    def enviar_codigo_registro_otp(self, email: str) -> Tuple[bool, str]:
+        """Paso 1: sign_up en Supabase Auth → envía OTP de 6 dígitos al Gmail."""
+        ok_email, email_or_msg = self.validar_email_gmail(email)
+        if not ok_email:
+            return False, email_or_msg
+        email_norm = email_or_msg
+
+        user = self._obtener_usuario_db(email_norm)
+        if user and not self.requiere_configurar_password_velox(user):
+            return False, "Este correo ya está registrado. Por favor, inicia sesión."
+
+        redirect_to = self.obtener_redirect_url()
+        temp_password = secrets.token_urlsafe(32)
+        try:
+            res = self.supabase.auth.sign_up(
+                {
+                    "email": email_norm,
+                    "password": temp_password,
+                    "options": {"email_redirect_to": redirect_to},
+                }
+            )
+            if self._usuario_auth_sin_identidades(res):
+                return False, "Este correo ya está registrado. Por favor, inicia sesión."
+
+            st.session_state["registro_en_progreso"] = True
+            st.session_state["registro_email"] = email_norm
+            st.session_state["registro_otp_enviado"] = True
+            st.session_state.pop("registro_otp_verificado", None)
+            st.session_state.pop("registro_supabase_access", None)
+            st.session_state.pop("registro_supabase_refresh", None)
+            return (
+                True,
+                f"Enviamos un código de 6 dígitos a {email_norm}. Revisa tu bandeja de Gmail.",
+            )
+        except Exception as e:
+            return False, self._mensaje_error_registro_signup(e)
+
+    def verificar_codigo_registro_otp(self, email: str, codigo: str) -> Tuple[bool, str]:
+        """Paso 2: valida OTP con verify_otp y conserva sesión temporal para el paso 3."""
+        ok_email, email_or_msg = self.validar_email_gmail(email)
+        if not ok_email:
+            return False, email_or_msg
+        email_norm = email_or_msg
+
+        registro_email = (st.session_state.get("registro_email") or "").strip().lower()
+        if registro_email and registro_email != email_norm:
+            return False, "El correo no coincide con el del paso anterior."
+
+        token = re.sub(r"\s+", "", (codigo or "").strip())
+        if not re.fullmatch(r"\d{6}", token):
+            return False, "Ingresa el código de 6 dígitos que recibiste en tu Gmail."
+
+        tipos_otp = ("signup", "email")
+        ultimo_error = ""
+        for tipo in tipos_otp:
+            try:
+                res = self.supabase.auth.verify_otp(
+                    {"email": email_norm, "token": token, "type": tipo}
+                )
+                access, refresh = self._extraer_tokens_sesion_auth(res)
+                if not access or not refresh:
+                    ultimo_error = "Código incorrecto o expirado."
+                    continue
+                self._persistir_sesion_registro_supabase(access, refresh)
+                st.session_state["registro_en_progreso"] = True
+                st.session_state["registro_email"] = email_norm
+                st.session_state["registro_otp_verificado"] = True
+                return True, "Código verificado correctamente. Ahora crea tu contraseña."
+            except Exception as e:
+                ultimo_error = self._mensaje_error_registro_otp(e)
+
+        return False, ultimo_error or "Código incorrecto o expirado."
+
+    def completar_registro_otp_password(
+        self, email: str, password: str, confirmar_password: str
+    ) -> Tuple[bool, str]:
+        """Paso 3: define contraseña con update_user y crea el perfil en public.users."""
+        if not st.session_state.get("registro_otp_verificado"):
+            return False, "Debes verificar el código antes de crear tu contraseña."
+
+        ok_email, email_or_msg = self.validar_email_gmail(email)
+        if not ok_email:
+            return False, email_or_msg
+        email_norm = email_or_msg
+
+        registro_email = (st.session_state.get("registro_email") or "").strip().lower()
+        if registro_email != email_norm:
+            return False, "El correo no coincide con el verificado."
+
+        if not password or not confirmar_password:
+            return False, "La contraseña es obligatoria."
+        if password != confirmar_password:
+            return False, "Las contraseñas no coinciden."
+        if len(password) < 6:
+            return False, "La contraseña debe tener al menos 6 caracteres."
+
+        if not self._restaurar_sesion_registro_supabase():
+            return False, (
+                "La sesión de verificación expiró. Vuelve al paso 1 e ingresa tu correo de nuevo."
+            )
+
+        try:
+            self.supabase.auth.update_user({"password": password})
+        except Exception as e:
+            texto = self._format_error(e).lower()
+            if any(p in texto for p in ("jwt", "expired", "session", "invalid")):
+                return False, (
+                    "La sesión de verificación expiró. Solicita un nuevo código desde el paso 1."
+                )
+            return False, f"No se pudo guardar la contraseña: {self._format_error(e)}"
+
+        user = self._obtener_usuario_db(email_norm)
+        if not user:
+            user = self._crear_registro_usuario_inicial(email_norm, auth_provider="email")
+
+        ok_save, msg_save = self._persistir_password_velox(email_norm, password, user)
+        if not ok_save:
+            return False, msg_save
+
+        try:
+            self.supabase.auth.sign_out()
+        except Exception:
+            pass
+        for key in (
+            "registro_en_progreso",
+            "registro_otp_verificado",
+            "registro_otp_enviado",
+            "registro_supabase_access",
+            "registro_supabase_refresh",
+            "access_token",
+            "refresh_token",
+            "session_string",
+        ):
+            st.session_state.pop(key, None)
+
+        st.session_state["registro_completado_email"] = email_norm
+        return True, "¡Tu cuenta fue creada exitosamente!"
+
     def usuario_tiene_cuenta_completa(self, user: Optional[Dict[str, Any]]) -> bool:
         """True si la cuenta ya tiene contraseña veloX y acceso activo (debe usar login)."""
         if not user:
@@ -1407,6 +1612,10 @@ class AuthManager:
 
     def bootstrap_session(self) -> bool:
         """Restaura sesión Supabase desde session_state (evita desconexión al recargar)."""
+        if st.session_state.get("registro_en_progreso"):
+            self._restaurar_sesion_registro_supabase()
+            return False
+
         if st.session_state.get("password_recovery_mode"):
             access = st.session_state.get("access_token")
             refresh = st.session_state.get("refresh_token")

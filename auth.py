@@ -787,7 +787,7 @@ class AuthManager:
                 return False, "Este correo ya está registrado. Por favor, inicia sesión."
 
             st.session_state["registro_en_progreso"] = True
-            st.session_state["registro_email"] = email_norm
+            st.session_state["registro_email_confirmado"] = email_norm
             st.session_state["registro_otp_enviado"] = True
             st.session_state.pop("registro_otp_verificado", None)
             st.session_state.pop("registro_supabase_access", None)
@@ -806,8 +806,10 @@ class AuthManager:
             return False, email_or_msg
         email_norm = email_or_msg
 
-        registro_email = (st.session_state.get("registro_email") or "").strip().lower()
-        if registro_email and registro_email != email_norm:
+        email_confirmado = (
+            st.session_state.get("registro_email_confirmado") or ""
+        ).strip().lower()
+        if email_confirmado and email_confirmado != email_norm:
             return False, "El correo no coincide con el del paso anterior."
 
         token = re.sub(r"\s+", "", (codigo or "").strip())
@@ -827,7 +829,7 @@ class AuthManager:
                     continue
                 self._persistir_sesion_registro_supabase(access, refresh)
                 st.session_state["registro_en_progreso"] = True
-                st.session_state["registro_email"] = email_norm
+                st.session_state["registro_email_confirmado"] = email_norm
                 st.session_state["registro_otp_verificado"] = True
                 return True, "Código verificado correctamente. Ahora crea tu contraseña."
             except Exception as e:
@@ -847,8 +849,10 @@ class AuthManager:
             return False, email_or_msg
         email_norm = email_or_msg
 
-        registro_email = (st.session_state.get("registro_email") or "").strip().lower()
-        if registro_email != email_norm:
+        email_confirmado = (
+            st.session_state.get("registro_email_confirmado") or ""
+        ).strip().lower()
+        if email_confirmado != email_norm:
             return False, "El correo no coincide con el verificado."
 
         if not password or not confirmar_password:

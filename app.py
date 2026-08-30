@@ -1065,7 +1065,7 @@ REGISTRO_SESSION_KEYS = (
     "registro_metodo_pago_usado",
     "registro_password_ok",
     "registro_listo_confirmacion",
-    "registro_email",
+    "registro_email_confirmado",
     "registro_paso",
     "registro_otp_enviado",
     "registro_otp_verificado",
@@ -1200,6 +1200,7 @@ def _init_registro_otp_state():
 def _reset_registro_otp_flujo():
     for key in REGISTRO_SESSION_KEYS:
         st.session_state.pop(key, None)
+    st.session_state.pop("registro_email", None)
     st.session_state.registro_paso = 1
 
 
@@ -1238,7 +1239,7 @@ def _marcar_pago_registro_completado(metodo: str):
 def _finalizar_registro_y_volver_login():
     email_guardado = (
         st.session_state.get("registro_completado_email")
-        or st.session_state.get("registro_email")
+        or st.session_state.get("registro_email_confirmado")
         or ""
     ).strip().lower()
     _reset_registro_otp_flujo()
@@ -1829,7 +1830,6 @@ def _render_registro_paso_email_otp():
         key="registro_email",
         label_visibility="collapsed",
         placeholder="usuario@gmail.com",
-        value=(st.session_state.get("registro_email") or ""),
     )
     if st.button(
         "Enviar código de verificación",
@@ -1850,7 +1850,10 @@ def _render_registro_paso_email_otp():
 
 
 def _render_registro_paso_validar_otp():
-    email = (st.session_state.get("registro_email") or "").strip().lower()
+    email = (st.session_state.get("registro_email_confirmado") or "").strip().lower()
+    if not email:
+        st.session_state.registro_paso = 1
+        st.rerun()
     st.caption(f"Código enviado a **{email}**. Revisa tu bandeja de Gmail (y spam).")
     st.text_input(
         "Código OTP",
@@ -1889,7 +1892,10 @@ def _render_registro_paso_validar_otp():
 
 
 def _render_registro_paso_password_otp():
-    email = (st.session_state.get("registro_email") or "").strip().lower()
+    email = (st.session_state.get("registro_email_confirmado") or "").strip().lower()
+    if not email:
+        st.session_state.registro_paso = 1
+        st.rerun()
     st.caption(f"Cuenta verificada: **{email}**. Define tu contraseña de acceso a veloX.")
     st.text_input(
         "Contraseña",
@@ -1927,7 +1933,11 @@ def _render_registro_paso_password_otp():
 
 
 def _render_registro_confirmacion_otp():
-    email = (st.session_state.get("registro_completado_email") or st.session_state.get("registro_email") or "").strip().lower()
+    email = (
+        st.session_state.get("registro_completado_email")
+        or st.session_state.get("registro_email_confirmado")
+        or ""
+    ).strip().lower()
     st.markdown(
         f"""
         <div class="velox-register-success">

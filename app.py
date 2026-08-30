@@ -103,9 +103,8 @@ from typing import Dict, Optional
 
 import pandas as pd
 import pygwalker as pyg
+import streamlit as st
 import streamlit.components.v1 as components
-from streamlit_option_menu import option_menu
-
 from analytics_charts import (
     chart_acceso_usuarios,
     chart_actividad_secciones_usuario,
@@ -281,6 +280,7 @@ def _invalidar_cache_datos():
         cached_listar_pagos_pendientes.clear()
         cached_obtener_secciones_usuario.clear()
         cached_contar_publicaciones_por_seccion.clear()
+        cached_contar_consultas_no_leidas.clear()
     except Exception:
         pass
 
@@ -354,10 +354,16 @@ def cached_contar_publicaciones_por_seccion(data_cache_version: int = 0) -> dict
     return conteos
 
 
-@st.cache_data(show_spinner=False, ttl=300)
+@st.cache_data(show_spinner=False, ttl=30)
 def cached_listar_pagos_pendientes(data_cache_version: int = 0):
     _, _, _, _, payments = init_managers()
     return payments.listar_pagos_pendientes()
+
+
+@st.cache_data(show_spinner=False, ttl=30)
+def cached_contar_consultas_no_leidas(email: str, data_cache_version: int = 0) -> int:
+    _, _, messages, _, _ = init_managers()
+    return messages.contar_consultas_no_leidas(email)
 
 auth_manager, storage_manager, message_manager, notification_manager, payment_manager = init_managers()
 
@@ -600,6 +606,35 @@ SIDEBAR_NAV_CAPSULE_CSS = """
     [data-testid="stSidebar"] .stButton > button:hover {
         transform: translateY(-1px);
         box-shadow: 0 6px 16px rgba(15, 23, 42, 0.14) !important;
+    }
+    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button {
+        width: 100% !important;
+        justify-content: flex-start !important;
+        text-align: left !important;
+        padding: 10px 12px !important;
+        font-weight: 600 !important;
+        background-color: #F1F3F5 !important;
+        color: #1a2744 !important;
+        border: 1px solid #E4E7EB !important;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06) !important;
+        margin-bottom: 6px !important;
+    }
+    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button:hover {
+        background-color: #E4E8EE !important;
+        border-color: #CBD5E1 !important;
+    }
+    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[kind="primary"],
+    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[data-testid="stBaseButton-primary"] {
+        background-color: #1a2744 !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(255, 255, 255, 0.12) !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24) !important;
+        font-weight: 700 !important;
+    }
+    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[kind="primary"]:hover,
+    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[data-testid="stBaseButton-primary"]:hover {
+        background-color: #243556 !important;
+        color: #ffffff !important;
     }
     /* Logo y perfil compacto del sidebar */
     [data-testid="stSidebar"] .sidebar-brand-logo {
@@ -3048,167 +3083,61 @@ def _menu_sidebar_items():
     return items
 
 
-def _indice_menu_consultas(menu_labels):
-    for i, label in enumerate(menu_labels):
-        if label == "Consultas":
-            return i
-    return -1
+def _sidebar_menu_button_key(valor: str) -> str:
+    slug = re.sub(r"[^\w]+", "_", (valor or "")).strip("_").lower()
+    return f"main_menu_{slug}"
 
 
-def inject_sidebar_consultas_badge(count: int, consultas_index: int = -1):
-    """Insignia flotante sobre la opción Consultas del option_menu lateral."""
-    if count <= 0 or consultas_index < 0:
+def _etiqueta_menu_sidebar(etiqueta: str, valor: str, unread_count: int) -> str:
+    if valor == AuthManager.MODULO_CONSULTAS:
+        if unread_count > 0:
+            n = unread_count if unread_count < 100 else "99+"
+            return f"Consultas 🟡 ({n})"
+        return "Consultas"
+    return valor
+
+
+def _init_unread_count_si_falta() -> None:
+    if not st.session_state.get("autenticado"):
         return
-    badge_text = str(count) if count < 100 else "99+"
-    components.html(
-        f"""
-<script>
-(function () {{
-  var count = {int(count)};
-  var badgeText = {json.dumps(badge_text)};
-  var consultasIndex = {int(consultas_index)};
+    usuario = (st.session_state.get("usuario") or "").strip().lower()
+    if not usuario:
+        return
+    if (
+        "unread_count" not in st.session_state
+        or st.session_state.get("_unread_count_user") != usuario
+    ):
+        st.session_state["unread_count"] = cached_contar_consultas_no_leidas(
+            usuario,
+            data_cache_version=_velox_data_cache_version(),
+        )
+        st.session_state["_unread_count_user"] = usuario
 
-  function parentDoc() {{
-    try {{
-      return window.parent.document;
-    }} catch (e) {{
-      return document;
-    }}
-  }}
 
-  function badgeCss() {{
-    return `
-      .nav-link {{
-        position: relative !important;
-      }}
-      .velox-consultas-badge {{
-        position: absolute;
-        top: -6px;
-        right: -6px;
-        z-index: 10;
-        background-color: #F59E0B;
-        color: #0F172A;
-        font-weight: 800;
-        font-size: 11px;
-        border-radius: 9999px;
-        padding: 2px 7px;
-        min-width: 20px;
-        height: 20px;
-        text-align: center;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border: 3px solid #FFFFFF;
-        box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.15);
-        line-height: 1;
-        pointer-events: none;
-        box-sizing: border-box;
-      }}
-    `;
-  }}
+def _limpiar_notificaciones_consultas(email: str) -> None:
+    message_manager.marcar_consultas_leidas(email)
+    st.session_state["unread_count"] = 0
 
-  function injectIntoMenuDoc(menuDoc) {{
-    if (!menuDoc) return false;
-    if (!menuDoc.getElementById("velox-consultas-badge-css")) {{
-      var style = menuDoc.createElement("style");
-      style.id = "velox-consultas-badge-css";
-      style.textContent = badgeCss();
-      menuDoc.head.appendChild(style);
-    }}
-    var links = menuDoc.querySelectorAll(".nav-link, a.nav-link");
-    var applied = false;
-    links.forEach(function (link, idx) {{
-      var text = (link.textContent || "").trim();
-      var isConsultas = text.indexOf("Consultas") !== -1 || idx === consultasIndex;
-      if (!isConsultas) return;
-      applied = true;
-      link.style.position = "relative";
-      var badge = link.querySelector(".velox-consultas-badge");
-      if (!badge) {{
-        badge = menuDoc.createElement("span");
-        badge.className = "velox-consultas-badge";
-        link.appendChild(badge);
-      }}
-      badge.textContent = badgeText;
-    }});
-    return applied;
-  }}
 
-  function injectOverlayFallback(panel) {{
-    if (!panel) return;
-    var overlay = panel.querySelector(".velox-consultas-badge-overlay");
-    if (!overlay) {{
-      overlay = parentDoc().createElement("span");
-      overlay.className = "velox-consultas-badge-overlay";
-      overlay.style.cssText = [
-        "position:absolute",
-        "z-index:10",
-        "background-color:#F59E0B",
-        "color:#0F172A",
-        "font-weight:800",
-        "font-size:11px",
-        "border-radius:9999px",
-        "padding:2px 7px",
-        "min-width:20px",
-        "height:20px",
-        "display:inline-flex",
-        "align-items:center",
-        "justify-content:center",
-        "border:3px solid #FFFFFF",
-        "box-shadow:0px 2px 4px rgba(0,0,0,0.15)",
-        "pointer-events:none",
-        "box-sizing:border-box",
-      ].join(";");
-      panel.appendChild(overlay);
-    }}
-    var iframe = panel.querySelector("iframe");
-    var iframeHeight = iframe ? iframe.offsetHeight : panel.offsetHeight;
-    var itemHeight = Math.max(44, Math.floor(iframeHeight / Math.max(consultasIndex + 2, 4)));
-    var top = 6 + consultasIndex * (itemHeight + 6) - 6;
-    overlay.style.top = top + "px";
-    overlay.style.right = "2px";
-    overlay.textContent = badgeText;
-  }}
-
-  function applyBadge() {{
-    var doc = parentDoc();
-    var panel = doc.querySelector('[data-testid="stSidebar"] .st-key-sidebar_menu_panel');
-    if (!panel) return;
-    panel.style.position = "relative";
-    panel.style.overflow = "visible";
-    var menuIframe = panel.querySelector("iframe");
-    if (menuIframe) {{
-      try {{
-        var menuDoc = menuIframe.contentDocument || menuIframe.contentWindow.document;
-        if (injectIntoMenuDoc(menuDoc)) {{
-          var old = panel.querySelector(".velox-consultas-badge-overlay");
-          if (old) old.remove();
-          return;
-        }}
-      }} catch (e) {{}}
-    }}
-    injectOverlayFallback(panel);
-  }}
-
-  applyBadge();
-  [120, 350, 800, 1500].forEach(function (ms) {{
-    setTimeout(applyBadge, ms);
-  }});
-  try {{
-    var doc = parentDoc();
-    var panel = doc.querySelector('[data-testid="stSidebar"] .st-key-sidebar_menu_panel');
-    if (panel && window.parent.MutationObserver) {{
-      new window.parent.MutationObserver(applyBadge).observe(panel, {{
-        childList: true,
-        subtree: true,
-      }});
-    }}
-  }} catch (e) {{}}
-}})();
-</script>
-""",
-        height=0,
-    )
+def _render_sidebar_menu_botones(menu_items, menu_principal: str) -> None:
+    unread_count = int(st.session_state.get("unread_count") or 0)
+    with st.container(key="sidebar_menu_panel"):
+        for etiqueta, _icono, valor in menu_items:
+            label = _etiqueta_menu_sidebar(etiqueta, valor, unread_count)
+            activo = valor == menu_principal
+            if st.button(
+                label,
+                key=_sidebar_menu_button_key(valor),
+                use_container_width=True,
+                type="primary" if activo else "secondary",
+            ):
+                if valor == AuthManager.MODULO_CONSULTAS:
+                    _limpiar_notificaciones_consultas(st.session_state.get("usuario", ""))
+                if valor != menu_principal:
+                    st.session_state["menu_principal"] = valor
+                    if etiqueta == "Inicio":
+                        st.session_state.seccion_activa = "inicio"
+                    st.rerun()
 
 
 def render_lista_usuarios_solo_lectura():
@@ -5025,6 +4954,7 @@ else:
     render_velox_top_banner()
     render_app_top_bar()
     render_activation_banner()
+    _init_unread_count_si_falta()
 
     # ==================== SIDEBAR ====================
     with st.sidebar:
@@ -5051,49 +4981,12 @@ else:
         st.markdown("</div>", unsafe_allow_html=True)
 
         menu_items = _menu_sidebar_items()
-        menu_labels = [item[0] for item in menu_items]
-        menu_icons = [item[1] for item in menu_items]
         menu_values = [item[2] for item in menu_items]
-        label_to_value = dict(zip(menu_labels, menu_values))
-        value_to_label = dict(zip(menu_values, menu_labels))
 
         if st.session_state.get("menu_principal") not in menu_values:
             st.session_state["menu_principal"] = menu_values[0]
 
-        current_label = value_to_label.get(st.session_state["menu_principal"], menu_labels[0])
-        default_index = menu_labels.index(current_label) if current_label in menu_labels else 0
-
-        with st.container(key="sidebar_menu_panel"):
-            seleccion_label = option_menu(
-                menu_title=None,
-                options=menu_labels,
-                icons=menu_icons,
-                menu_icon="list",
-                default_index=default_index,
-                orientation="vertical",
-                styles=SIDEBAR_MENU_STYLES,
-                key="sidebar_option_menu",
-            )
-
-        usuario_sidebar = st.session_state.get("usuario", "")
-        consultas_activo = (
-            st.session_state.get("menu_principal") == AuthManager.MODULO_CONSULTAS
-            or label_to_value.get(seleccion_label) == AuthManager.MODULO_CONSULTAS
-        )
-        if consultas_activo:
-            message_manager.marcar_consultas_leidas(usuario_sidebar)
-
-        consultas_idx = _indice_menu_consultas(menu_labels)
-        if consultas_idx >= 0 and AuthManager.MODULO_CONSULTAS in menu_values:
-            consultas_no_leidas = message_manager.contar_consultas_no_leidas(usuario_sidebar)
-            inject_sidebar_consultas_badge(consultas_no_leidas, consultas_idx)
-
-        seleccion = label_to_value[seleccion_label]
-        if seleccion != st.session_state["menu_principal"]:
-            st.session_state["menu_principal"] = seleccion
-            if seleccion_label == "Inicio":
-                st.session_state.seccion_activa = "inicio"
-            st.rerun()
+        _render_sidebar_menu_botones(menu_items, st.session_state["menu_principal"])
 
         st.divider()
         if st.button("Cerrar Sesión", icon="🚪", use_container_width=True, key="sidebar_logout"):
@@ -5427,6 +5320,9 @@ else:
             st.info("Versión 1.0")
 
     elif menu_actual == AuthManager.MODULO_CONSULTAS:
+        if int(st.session_state.get("unread_count") or 0) > 0:
+            _limpiar_notificaciones_consultas(st.session_state.get("usuario", ""))
+
         if _es_staff() and _puede_modulo(AuthManager.MODULO_CONSULTAS):
             st.header("📬 Gestión de Consultas")
             st.caption("Revisa y responde las consultas enviadas por los usuarios de la plataforma.")

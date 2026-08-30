@@ -1697,7 +1697,15 @@ class AuthManager:
         for key in SESSION_KEYS:
             if key in st.session_state:
                 del st.session_state[key]
-        for extra in ("google_oauth_url", "oauth_last_code", "velox_setup_email", "password_recovery_mode", "recovery_email"):
+        for extra in (
+            "google_oauth_url",
+            "oauth_last_code",
+            "velox_setup_email",
+            "password_recovery_mode",
+            "recovery_email",
+            "unread_count",
+            "_unread_count_user",
+        ):
             st.session_state.pop(extra, None)
         if not silent:
             st.toast("Sesión cerrada correctamente", icon="👋")

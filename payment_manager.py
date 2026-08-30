@@ -23,6 +23,13 @@ PLAN_1_CURSO_MONTO = 30.00
 PLAN_2_CURSOS_MONTO = 50.00
 PLAN_1_CURSO_LABEL = "1 Curso"
 PLAN_2_CURSOS_LABEL = "2 Cursos"
+CURSOS_PLAN_VALIDOS = frozenset({
+    "contabilidad",
+    "power_bi",
+    "comercio_exterior",
+    "logistico",
+    "excel",
+})
 EXTENSIONES_COMPROBANTE = ("jpg", "jpeg", "png", "pdf")
 CULQI_SCRIPT_URLS = (
     "https://checkout.culqi.com/js/v4",
@@ -509,6 +516,10 @@ class PaymentManager:
             if max_cursos == 1:
                 return False, "Debes seleccionar exactamente 1 curso para el Plan Individual."
             return False, "Debes seleccionar exactamente 2 cursos para el Plan Dúo."
+
+        invalidos = [c for c in cursos_limpios if c not in CURSOS_PLAN_VALIDOS]
+        if invalidos:
+            return False, f"Cursos no válidos: {', '.join(invalidos)}."
 
         user = self._obtener_usuario(email_norm)
         if not user:

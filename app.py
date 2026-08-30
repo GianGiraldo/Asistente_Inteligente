@@ -2631,6 +2631,12 @@ def _etiqueta_rol_sidebar(rol: str) -> str:
     return etiquetas.get((rol or "usuario").lower(), "👤 Miembro")
 
 
+def _es_master_admin_comprobantes() -> bool:
+    """Panel de comprobantes: exclusivo para el correo Master principal."""
+    email = (st.session_state.get("usuario") or "").strip().lower()
+    return bool(email) and email == AuthManager.MASTER_EMAIL.lower()
+
+
 def _es_master() -> bool:
     rol = AuthManager.normalizar_rol(st.session_state.get("rol"))
     if AuthManager.es_rol_master(rol):
@@ -3011,21 +3017,34 @@ def render_catalogo_secciones_freemium(
 def _menu_sidebar_items():
     rol = st.session_state.get("rol", "usuario")
     if _es_master():
-        return auth_manager.filtrar_menu_staff(
+        items = auth_manager.filtrar_menu_staff(
             MENU_SIDEBAR_MASTER,
             rol,
             st.session_state.get("modulos_permitidos"),
         )
-    if _es_admin():
+    elif _es_admin():
         items = auth_manager.filtrar_menu_staff(
             MENU_SIDEBAR_MASTER,
             rol,
             st.session_state.get("modulos_permitidos"),
         )
         if not any(valor == "👤 Mi Perfil" for _, _, valor in items):
-            return list(items) + [MENU_SIDEBAR_PERFIL]
-        return items
-    return MENU_SIDEBAR_USER
+            items = list(items) + [MENU_SIDEBAR_PERFIL]
+    else:
+        return MENU_SIDEBAR_USER
+
+    if not _es_master_admin_comprobantes():
+        items = [item for item in items if item[2] != AuthManager.MODULO_COBRANZAS]
+    else:
+        items = [
+            (
+                "Pagos / Comprobantes" if valor == AuthManager.MODULO_COBRANZAS else etiqueta,
+                icono,
+                valor,
+            )
+            for etiqueta, icono, valor in items
+        ]
+    return items
 
 
 def render_lista_usuarios_solo_lectura():
@@ -3260,10 +3279,83 @@ def _formatear_fecha_notif(fecha_raw):
     except (ValueError, TypeError):
         return str(fecha_raw)[:16].replace("T", " ")
 
-def render_gestion_cobranzas_master():
-    """Panel Master: aprobar o rechazar pagos Yape/Plim pendientes."""
-    st.header("💳 Gestión de Cobranzas y Activaciones")
-    st.caption("Revisa pagos manuales Yape/Plim y activa el acceso de los alumnos.")
+def _formatear_cursos_comprobante(cursos_raw) -> str:
+    """Etiquetas legibles para cursos_solicitados (claves Supabase)."""
+    if cursos_raw is None:
+        return "—"
+    if isinstance(cursos_raw, str):
+        texto = cursos_raw.strip()
+        if not texto:
+            return "—"
+        try:
+            cursos_raw = json.loads(texto)
+        except json.JSONDecodeError:
+            return CURSOS_PLAN_CATALOGO.get(texto.lower(), texto)
+    if not isinstance(cursos_raw, list):
+        return str(cursos_raw)
+    if not cursos_raw:
+        return "—"
+    nombres = []
+    for curso in cursos_raw:
+        clave = str(curso or "").strip().lower()
+        if not clave:
+            continue
+        nombres.append(CURSOS_PLAN_CATALOGO.get(clave, clave.replace("_", " ").title()))
+    return ", ".join(nombres) if nombres else "—"
+
+
+COMPROBANTES_ADMIN_CSS = """
+<style>
+    .velox-comprobante-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 0.85rem 1rem;
+        margin-bottom: 0.75rem;
+        box-shadow: 0 2px 8px rgba(26, 54, 93, 0.06);
+    }
+    .velox-comprobante-card__meta {
+        color: #475569;
+        font-size: 0.88rem;
+        line-height: 1.55;
+    }
+    .st-key-btn_aprobar_comprobante .stButton > button {
+        background: #16a34a !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        border-radius: 8px !important;
+        font-weight: bold !important;
+    }
+    .st-key-btn_aprobar_comprobante .stButton > button:hover {
+        background: #15803d !important;
+        color: #FFFFFF !important;
+    }
+    .st-key-btn_rechazar_comprobante .stButton > button {
+        background: #dc2626 !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        border-radius: 8px !important;
+        font-weight: bold !important;
+    }
+    .st-key-btn_rechazar_comprobante .stButton > button:hover {
+        background: #b91c1c !important;
+        color: #FFFFFF !important;
+    }
+</style>
+"""
+
+
+def render_gestion_comprobantes_admin():
+    """Panel Master (correo exclusivo): aprobar o rechazar comprobantes pendientes."""
+    if not _es_master_admin_comprobantes():
+        st.error("Acceso denegado. Este panel es exclusivo del administrador Master.")
+        return
+
+    st.markdown(COMPROBANTES_ADMIN_CSS, unsafe_allow_html=True)
+    st.header("💳 Gestión de Pagos / Comprobantes")
+    st.caption(
+        "Revisa solicitudes Yape/Plim pendientes, valida comprobantes y activa cursos en las cuentas de los alumnos."
+    )
 
     if st.session_state.get("pago_flash"):
         tipo, texto = st.session_state.pop("pago_flash")
@@ -3273,80 +3365,123 @@ def render_gestion_cobranzas_master():
             st.error(texto)
 
     pagos = cached_listar_pagos_pendientes(data_cache_version=_velox_data_cache_version())
-    st.markdown(f"### ⏳ Pagos pendientes ({len(pagos)})")
+    st.markdown(f"### ⏳ Solicitudes pendientes ({len(pagos)})")
 
     if not pagos:
-        st.info("No hay pagos manuales pendientes de revisión.")
+        st.info("No hay comprobantes pendientes de revisión.")
         return
 
-    df = pd.DataFrame([
-        {
-            "Email": p.get("email"),
-            "Nombre": p.get("nombre", "—"),
-            "Celular": p.get("celular") or "—",
-            "Captura": "✅" if p.get("comprobante_url") else "—",
-            "Monto": f"S/ {float(p.get('monto', MONTO_SOLES)):.2f}",
-            "Método": (p.get("metodo_pago") or "yape_plim").replace("_", " ").upper(),
-            "Fecha": _formatear_fecha_notif(p.get("fecha")),
-        }
-        for p in pagos
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "Fecha": _formatear_fecha_notif(p.get("fecha")),
+                "Email": p.get("email"),
+                "Plan": p.get("plan_seleccionado") or "—",
+                "Cursos": _formatear_cursos_comprobante(p.get("cursos_solicitados")),
+                "Monto": f"S/ {float(p.get('monto', MONTO_SOLES)):.2f}",
+                "Comprobante": "✅" if p.get("comprobante_url") else "—",
+            }
+            for p in pagos
+        ]
+    )
     st.dataframe(df, hide_index=True, use_container_width=True)
     st.markdown("---")
 
     for pago in pagos:
         pago_id = pago["id"]
+        url_comprobante = (pago.get("comprobante_url") or "").strip()
+        cursos_txt = _formatear_cursos_comprobante(pago.get("cursos_solicitados"))
+        plan_txt = pago.get("plan_seleccionado") or "—"
+
         with st.container(border=True):
-            ref = "Captura adjunta" if pago.get("comprobante_url") else "—"
             st.markdown(
-                f"**{pago.get('nombre', 'Sin nombre')}** · `{pago.get('email')}`  \n"
-                f"Celular: **{pago.get('celular') or '—'}** · Comprobante: **{ref}** · "
-                f"Método: **{(pago.get('metodo_pago') or 'yape_plim').replace('_', ' ').upper()}**"
+                f"""
+                <div class="velox-comprobante-card__meta">
+                <strong>{pago.get('nombre', 'Sin nombre')}</strong> · <code>{pago.get('email')}</code><br>
+                <strong>Fecha:</strong> {_formatear_fecha_notif(pago.get('fecha'))} ·
+                <strong>Plan:</strong> {plan_txt} ·
+                <strong>Cursos:</strong> {cursos_txt} ·
+                <strong>Monto:</strong> S/ {float(pago.get('monto', MONTO_SOLES)):.2f}
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
-            if pago.get("comprobante_url"):
-                st.image(
-                    pago["comprobante_url"],
-                    caption="Comprobante Yape / Plim — validación visual",
-                    width=360,
-                )
-            col_ok, col_no = st.columns(2)
-            with col_ok:
-                if st.button(
-                    "✅ Aprobar Pago",
-                    key=f"aprobar_{pago_id}",
-                    type="primary",
-                    use_container_width=True,
-                    disabled=st.session_state.get("pago_procesando") == pago_id,
-                ):
-                    st.session_state["pago_procesando"] = pago_id
-                    ok, msg = payment_manager.aprobar_pago(pago_id, st.session_state["usuario"])
-                    st.session_state.pop("pago_procesando", None)
-                    st.session_state["pago_flash"] = ("success" if ok else "error", msg)
-                    if ok:
-                        _invalidar_cache_datos()
-                    st.rerun()
-            with col_no:
-                motivo_key = f"motivo_{pago_id}"
-                motivo = st.text_input(
-                    "Motivo de rechazo",
-                    key=motivo_key,
-                    placeholder="Ej. Código incorrecto o monto no coincide",
-                )
-                if st.button(
-                    "❌ Rechazar Pago",
-                    key=f"rechazar_{pago_id}",
-                    use_container_width=True,
-                    disabled=st.session_state.get("pago_procesando") == pago_id,
-                ):
-                    st.session_state["pago_procesando"] = pago_id
-                    ok, msg = payment_manager.rechazar_pago(
-                        pago_id, st.session_state["usuario"], motivo
+
+            col_prev, col_sp = st.columns([1, 2])
+            with col_prev:
+                if url_comprobante:
+                    es_imagen = any(
+                        url_comprobante.lower().split("?")[0].endswith(ext)
+                        for ext in (".jpg", ".jpeg", ".png", ".webp", ".gif")
                     )
-                    st.session_state.pop("pago_procesando", None)
-                    st.session_state["pago_flash"] = ("success" if ok else "error", msg)
-                    if ok:
-                        _invalidar_cache_datos()
-                    st.rerun()
+                    if es_imagen:
+                        st.image(url_comprobante, caption="Vista previa", width=280)
+                    st.link_button(
+                        "🔍 Ver comprobante",
+                        url_comprobante,
+                        use_container_width=True,
+                    )
+                else:
+                    st.caption("Sin archivo adjunto.")
+
+            with col_sp:
+                col_ok, col_no = st.columns(2)
+                with col_ok:
+                    st.markdown('<div class="st-key-btn_aprobar_comprobante">', unsafe_allow_html=True)
+                    if st.button(
+                        "Aprobar Acceso",
+                        key=f"aprobar_comprobante_{pago_id}",
+                        use_container_width=True,
+                        disabled=st.session_state.get("pago_procesando") == pago_id,
+                    ):
+                        st.session_state["pago_procesando"] = pago_id
+                        ok, msg = payment_manager.aprobar_pago(
+                            pago_id, st.session_state["usuario"]
+                        )
+                        st.session_state.pop("pago_procesando", None)
+                        if ok:
+                            st.session_state["pago_flash"] = (
+                                "success",
+                                "Acceso activado correctamente",
+                            )
+                            _invalidar_cache_datos()
+                        else:
+                            st.session_state["pago_flash"] = ("error", msg)
+                        st.rerun()
+                    st.markdown("</div>", unsafe_allow_html=True)
+                with col_no:
+                    motivo_key = f"motivo_comprobante_{pago_id}"
+                    st.text_input(
+                        "Motivo de rechazo (opcional)",
+                        key=motivo_key,
+                        placeholder="Ej. monto incorrecto o comprobante ilegible",
+                        label_visibility="collapsed",
+                    )
+                    st.markdown('<div class="st-key-btn_rechazar_comprobante">', unsafe_allow_html=True)
+                    if st.button(
+                        "Rechazar",
+                        key=f"rechazar_comprobante_{pago_id}",
+                        use_container_width=True,
+                        disabled=st.session_state.get("pago_procesando") == pago_id,
+                    ):
+                        st.session_state["pago_procesando"] = pago_id
+                        motivo = st.session_state.get(motivo_key, "")
+                        ok, msg = payment_manager.rechazar_pago(
+                            pago_id,
+                            st.session_state["usuario"],
+                            motivo or "Rechazado por el administrador",
+                        )
+                        st.session_state.pop("pago_procesando", None)
+                        st.session_state["pago_flash"] = ("success" if ok else "error", msg)
+                        if ok:
+                            _invalidar_cache_datos()
+                        st.rerun()
+                    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def render_gestion_cobranzas_master():
+    """Alias retrocompatible → panel exclusivo Master."""
+    render_gestion_comprobantes_admin()
 
 def _parsear_metadata_notif(metadata):
     if isinstance(metadata, dict):
@@ -5025,8 +5160,13 @@ else:
             with tab_perm_admin:
                 render_permisos_administrador_tab()
 
-    elif menu_actual == AuthManager.MODULO_COBRANZAS and _puede_modulo(AuthManager.MODULO_COBRANZAS):
-        render_gestion_cobranzas_master()
+    elif menu_actual == AuthManager.MODULO_COBRANZAS:
+        if _es_master_admin_comprobantes():
+            render_gestion_comprobantes_admin()
+        else:
+            st.warning("Acceso denegado. Este módulo es exclusivo del administrador Master.")
+            st.session_state["menu_principal"] = AuthManager.MODULO_INICIO
+            st.rerun()
 
     elif menu_actual == AuthManager.MODULO_CONFIGURACION and _puede_modulo(AuthManager.MODULO_CONFIGURACION):
         st.header("Configuración")

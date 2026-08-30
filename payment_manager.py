@@ -172,6 +172,8 @@ class PaymentManager:
             "fecha": comprobante.get("creado"),
             "metodo_pago": comprobante.get("metodo_pago") or METODO_YAPE_PLIM,
             "estado": comprobante.get("estado", ESTADO_PENDIENTE),
+            "plan_seleccionado": comprobante.get("plan_seleccionado") or "—",
+            "cursos_solicitados": comprobante.get("cursos_solicitados") or [],
         }
 
     def _insertar_comprobante(

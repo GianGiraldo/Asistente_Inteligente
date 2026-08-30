@@ -19,6 +19,11 @@ CARPETA_COMPROBANTES = "comprobantes_pago"
 MONTO_SOLES = 9.90
 MONTO_CENTIMOS = 990
 MONEDA = "PEN"
+PLAN_1_CURSO_MONTO = 30.00
+PLAN_2_CURSOS_MONTO = 50.00
+PLAN_1_CURSO_LABEL = "1 Curso"
+PLAN_2_CURSOS_LABEL = "2 Cursos"
+EXTENSIONES_COMPROBANTE = ("jpg", "jpeg", "png", "pdf")
 CULQI_SCRIPT_URLS = (
     "https://checkout.culqi.com/js/v4",
     "https://js.culqi.com/v4",
@@ -161,31 +166,53 @@ class PaymentManager:
         comprobante_url: str,
         comprobante_ruta: str = "",
         metodo_pago: str = METODO_YAPE_PLIM,
+        monto: Optional[float] = None,
+        plan_seleccionado: Optional[str] = None,
+        cursos_solicitados: Optional[List[str]] = None,
     ) -> Tuple[bool, str]:
         """Inserta registro en tabla comprobantes (payload mínimo compatible con Supabase)."""
-        candidatos = [
-            {
-                "usuario_email": email_norm,
-                "celular": cel_norm,
-                "metodo_pago": metodo_pago,
-                "archivo_url": comprobante_url,
-                "estado": ESTADO_PENDIENTE,
-                "monto": MONTO_SOLES,
-            },
-            {
-                "usuario_email": email_norm,
-                "celular": cel_norm,
-                "metodo_pago": metodo_pago,
-                "archivo_url": comprobante_url,
-                "estado": ESTADO_PENDIENTE,
-            },
-            {
-                "usuario_email": email_norm,
-                "celular": cel_norm,
-                "metodo_pago": metodo_pago,
-                "archivo_url": comprobante_url,
-            },
-        ]
+        monto_final = float(monto if monto is not None else MONTO_SOLES)
+        base = {
+            "usuario_email": email_norm,
+            "celular": cel_norm or None,
+            "metodo_pago": metodo_pago,
+            "archivo_url": comprobante_url,
+            "estado": ESTADO_PENDIENTE,
+            "monto": monto_final,
+        }
+        if comprobante_ruta:
+            base["archivo_ruta"] = comprobante_ruta
+        if plan_seleccionado:
+            base["plan_seleccionado"] = plan_seleccionado
+        if cursos_solicitados is not None:
+            base["cursos_solicitados"] = cursos_solicitados
+
+        candidatos = [base, {k: v for k, v in base.items() if v is not None}]
+        candidatos.extend(
+            [
+                {
+                    "usuario_email": email_norm,
+                    "celular": cel_norm,
+                    "metodo_pago": metodo_pago,
+                    "archivo_url": comprobante_url,
+                    "estado": ESTADO_PENDIENTE,
+                    "monto": monto_final,
+                },
+                {
+                    "usuario_email": email_norm,
+                    "celular": cel_norm,
+                    "metodo_pago": metodo_pago,
+                    "archivo_url": comprobante_url,
+                    "estado": ESTADO_PENDIENTE,
+                },
+                {
+                    "usuario_email": email_norm,
+                    "celular": cel_norm,
+                    "metodo_pago": metodo_pago,
+                    "archivo_url": comprobante_url,
+                },
+            ]
+        )
         ultimo_error = ""
         for data in candidatos:
             try:
@@ -209,12 +236,25 @@ class PaymentManager:
         """Sube captura Yape/Plim a Supabase Storage. Retorna (ok, msg, url, ruta)."""
         try:
             extension = (archivo.name or "captura.jpg").split(".")[-1].lower()
-            if extension not in ("jpg", "jpeg"):
-                return False, "Solo se aceptan capturas en formato JPEG (.jpg o .jpeg).", None, None
+            if extension not in EXTENSIONES_COMPROBANTE:
+                return (
+                    False,
+                    "Formatos permitidos: JPG, PNG o PDF.",
+                    None,
+                    None,
+                )
             email_slug = re.sub(r"[^a-z0-9]+", "_", email.lower()).strip("_")
             nombre_unico = f"{uuid.uuid4()}.{extension}"
             ruta = f"{CARPETA_COMPROBANTES}/{email_slug}/{nombre_unico}"
-            content_type = getattr(archivo, "type", None) or f"image/{extension}"
+            content_types = {
+                "jpg": "image/jpeg",
+                "jpeg": "image/jpeg",
+                "png": "image/png",
+                "pdf": "application/pdf",
+            }
+            content_type = getattr(archivo, "type", None) or content_types.get(
+                extension, "application/octet-stream"
+            )
             self.supabase.storage.from_(BUCKET_COMPROBANTES).upload(
                 ruta,
                 archivo.getvalue(),
@@ -434,6 +474,72 @@ class PaymentManager:
             return False, msg_up
 
         return self._insertar_comprobante(email_norm, cel_norm, url, ruta)
+
+    def registrar_comprobante_plan_cursos(
+        self,
+        email: str,
+        plan_id: str,
+        cursos_ids: List[str],
+        comprobante_file: Any = None,
+    ) -> Tuple[bool, str]:
+        """Registra solicitud de plan de cursos con comprobante Yape/Plim."""
+        planes = {
+            "1_curso": (PLAN_1_CURSO_MONTO, PLAN_1_CURSO_LABEL, 1),
+            "2_cursos": (PLAN_2_CURSOS_MONTO, PLAN_2_CURSOS_LABEL, 2),
+        }
+        plan = planes.get((plan_id or "").strip())
+        if not plan:
+            return False, "Selecciona un plan válido."
+
+        monto, plan_label, max_cursos = plan
+        ok_email, email_norm = self.validar_email(email)
+        if not ok_email:
+            return False, email_norm
+
+        if not comprobante_file:
+            return False, "Adjunta la captura o comprobante de tu transferencia."
+
+        cursos_limpios = []
+        for curso_id in cursos_ids or []:
+            curso_norm = str(curso_id or "").strip().lower()
+            if curso_norm and curso_norm not in cursos_limpios:
+                cursos_limpios.append(curso_norm)
+
+        if len(cursos_limpios) != max_cursos:
+            if max_cursos == 1:
+                return False, "Debes seleccionar exactamente 1 curso para el Plan Individual."
+            return False, "Debes seleccionar exactamente 2 cursos para el Plan Dúo."
+
+        user = self._obtener_usuario(email_norm)
+        if not user:
+            return False, "No encontramos tu perfil. Vuelve a iniciar sesión."
+
+        if self._obtener_comprobante_pendiente(email_norm):
+            return False, "Ya tienes una solicitud pendiente de revisión."
+
+        ok_up, msg_up, url, ruta = self._subir_comprobante_pago(email_norm, comprobante_file)
+        if not ok_up:
+            return False, msg_up
+
+        ok_ins, msg_ins = self._insertar_comprobante(
+            email_norm,
+            "",
+            url,
+            ruta or "",
+            metodo_pago=METODO_YAPE_PLIM,
+            monto=monto,
+            plan_seleccionado=plan_label,
+            cursos_solicitados=cursos_limpios,
+        )
+        if not ok_ins:
+            return False, msg_ins
+
+        nombres = ", ".join(cursos_limpios)
+        return (
+            True,
+            f"Solicitud enviada correctamente. Plan {plan_label} · S/ {monto:.2f} · Cursos: {nombres}. "
+            "Un administrador revisará tu comprobante y activará el acceso.",
+        )
 
     def procesar_pago_culqi_oauth(self, email: str, nombre: str, token_culqi: str) -> Tuple[bool, str]:
         """Culqi vinculado al correo Google de la sesión actual."""

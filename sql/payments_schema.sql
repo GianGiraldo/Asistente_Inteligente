@@ -43,6 +43,8 @@ ALTER TABLE comprobantes ADD COLUMN IF NOT EXISTS motivo_rechazo TEXT;
 ALTER TABLE comprobantes ADD COLUMN IF NOT EXISTS revisado_por TEXT;
 ALTER TABLE comprobantes ADD COLUMN IF NOT EXISTS creado TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE comprobantes ADD COLUMN IF NOT EXISTS fecha_revision TIMESTAMPTZ;
+ALTER TABLE comprobantes ADD COLUMN IF NOT EXISTS plan_seleccionado TEXT;
+ALTER TABLE comprobantes ADD COLUMN IF NOT EXISTS cursos_solicitados JSONB DEFAULT '[]'::jsonb;
 
 -- Master y usuarios activos conservan acceso
 UPDATE users

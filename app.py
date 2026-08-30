@@ -99,7 +99,7 @@ import os
 import re
 import time
 from datetime import datetime
-from typing import Optional
+from typing import Dict, Optional
 
 import pandas as pd
 import pygwalker as pyg
@@ -4013,11 +4013,286 @@ def render_campana_notificaciones():
                 },
             )
 
+PLANES_COMPRA_CURSOS = {
+    "1_curso": {
+        "titulo": "Plan Individual (1 Curso)",
+        "precio": 30.0,
+        "plan_label": "1 Curso",
+        "max_cursos": 1,
+        "detalle": "Acceso a 1 curso a tu elección",
+    },
+    "2_cursos": {
+        "titulo": "Plan Dúo (2 Cursos)",
+        "precio": 50.0,
+        "plan_label": "2 Cursos",
+        "max_cursos": 2,
+        "detalle": "Acceso a 2 cursos · Ahorras S/ 10",
+    },
+}
+
+PLAN_COMPRA_HEADER_CSS = f"""
+<style>
+    .velox-plan-topbar-wrap {{
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 0.65rem;
+        margin-bottom: -0.35rem;
+        padding-right: 0.15rem;
+    }}
+    .st-key-btn_adquirir_plan_cursos .stButton > button {{
+        background: linear-gradient(135deg, {VELOX_AZUL_MARCA} 0%, #2d3a52 55%, {VELOX_CIAN_MARCA} 100%) !important;
+        color: #ffffff !important;
+        border: none !important;
+        border-radius: 14px !important;
+        box-shadow: 0 8px 22px rgba(26, 35, 50, 0.22) !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.01em !important;
+        padding: 0.58rem 1.05rem !important;
+        transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+    }}
+    .st-key-btn_adquirir_plan_cursos .stButton > button:hover {{
+        transform: translateY(-1px) !important;
+        box-shadow: 0 10px 26px rgba(0, 180, 216, 0.35) !important;
+        color: #ffffff !important;
+    }}
+    .velox-plan-step {{
+        background: linear-gradient(135deg, #f8fafc 0%, #eef6ff 100%);
+        border: 1px solid #dbeafe;
+        border-left: 4px solid {VELOX_CIAN_MARCA};
+        border-radius: 14px;
+        padding: 0.85rem 1rem;
+        margin: 0.35rem 0 0.85rem 0;
+        color: #1A2332;
+        font-size: 0.92rem;
+        line-height: 1.45;
+    }}
+    .velox-plan-step__title {{
+        font-weight: 700;
+        font-size: 0.98rem;
+        margin-bottom: 0.35rem;
+        color: {VELOX_AZUL_MARCA};
+    }}
+    .velox-plan-resumen {{
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 0.9rem 1rem;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+        margin-bottom: 0.75rem;
+    }}
+    .velox-plan-resumen__total {{
+        font-size: 1.35rem;
+        font-weight: 800;
+        color: {VELOX_AZUL_MARCA};
+        margin-top: 0.35rem;
+    }}
+    .velox-plan-qr-box {{
+        background: #ffffff;
+        border: 1px dashed #cbd5e1;
+        border-radius: 14px;
+        padding: 0.75rem;
+        text-align: center;
+    }}
+</style>
+"""
+
+
+def _en_vista_inicio_home() -> bool:
+    return (
+        st.session_state.get("menu_principal") == "🏠 Inicio"
+        and st.session_state.get("seccion_activa") == "inicio"
+    )
+
+
+def _opciones_cursos_plan() -> Dict[str, str]:
+    return {sid: info.get("nombre", sid) for sid, info in SECCIONES.items()}
+
+
+def _abrir_dialog_plan_cursos():
+    st.session_state["dialog_plan_cursos"] = True
+
+
+@st.dialog("💎 Adquirir Plan de Cursos", width="large")
+def _dialog_adquirir_plan_cursos():
+    email_usuario = (st.session_state.get("usuario") or "").strip()
+    nombre_usuario = st.session_state.get("nombre", "Usuario")
+
+    st.markdown(
+        """
+        <div class="velox-plan-step">
+            <div class="velox-plan-step__title">Accede a cursos premium veloX</div>
+            Elige tu plan, selecciona los cursos y envía tu comprobante Yape o Plin.
+            Un administrador validará el pago y activará tu acceso.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.caption(f"Solicitud para: **{nombre_usuario}** · {email_usuario}")
+
+    st.markdown('<div class="velox-plan-step"><div class="velox-plan-step__title">Paso 1 · Selección del plan</div></div>', unsafe_allow_html=True)
+    plan_elegido = st.radio(
+        "Plan",
+        options=list(PLANES_COMPRA_CURSOS.keys()),
+        format_func=lambda k: (
+            f"{PLANES_COMPRA_CURSOS[k]['titulo']} — S/ {PLANES_COMPRA_CURSOS[k]['precio']:.2f}"
+            + (f" ({PLANES_COMPRA_CURSOS[k]['detalle'].split('·')[-1].strip()})" if k == "2_cursos" else "")
+        ),
+        key="plan_compra_plan_id",
+        label_visibility="collapsed",
+    )
+    plan_info = PLANES_COMPRA_CURSOS[plan_elegido]
+    if st.session_state.get("_plan_compra_prev") != plan_elegido:
+        st.session_state["_plan_compra_prev"] = plan_elegido
+        st.session_state.pop("plan_compra_cursos_sel", None)
+
+    cols_plan = st.columns(2)
+    for idx, plan_key in enumerate(PLANES_COMPRA_CURSOS.keys()):
+        info = PLANES_COMPRA_CURSOS[plan_key]
+        activo = plan_key == plan_elegido
+        borde = VELOX_CIAN_MARCA if activo else "#e2e8f0"
+        fondo = "linear-gradient(180deg, #ecfeff 0%, #ffffff 100%)" if activo else "#ffffff"
+        with cols_plan[idx]:
+            st.markdown(
+                f"""
+                <div style="border:2px solid {borde}; border-radius:16px; padding:0.85rem 0.95rem;
+                            background:{fondo}; box-shadow:{'0 8px 20px rgba(0,180,216,0.15)' if activo else 'none'};">
+                    <div style="font-weight:800; color:#1A2332; font-size:0.98rem;">{info['titulo']}</div>
+                    <div style="font-size:1.35rem; font-weight:800; color:{VELOX_AZUL_MARCA}; margin:0.35rem 0;">
+                        S/ {info['precio']:.2f}
+                    </div>
+                    <div style="color:#64748b; font-size:0.85rem;">{info['detalle']}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    st.markdown('<div class="velox-plan-step"><div class="velox-plan-step__title">Paso 2 · Selección de cursos</div></div>', unsafe_allow_html=True)
+    limite_cursos = plan_info["max_cursos"]
+    st.caption(
+        f"Selecciona **exactamente {limite_cursos}** curso(s). "
+        f"({'1 curso' if limite_cursos == 1 else '2 cursos distintos'})."
+    )
+    cursos_sel = st.multiselect(
+        "Cursos disponibles",
+        options=list(_opciones_cursos_plan().keys()),
+        format_func=lambda sid: _opciones_cursos_plan().get(sid, sid),
+        max_selections=limite_cursos,
+        key="plan_compra_cursos_sel",
+        label_visibility="collapsed",
+        placeholder="Elige tus cursos...",
+    )
+    seleccion_valida = len(cursos_sel) == limite_cursos
+    if cursos_sel and not seleccion_valida:
+        st.warning(
+            f"Debes seleccionar exactamente {limite_cursos} curso(s) para el plan elegido."
+        )
+    elif not cursos_sel:
+        st.info(f"Selecciona {limite_cursos} curso(s) para continuar.")
+
+    st.markdown('<div class="velox-plan-step"><div class="velox-plan-step__title">Paso 3 · Pago y comprobante</div></div>', unsafe_allow_html=True)
+    nombres_cursos = [_opciones_cursos_plan().get(c, c) for c in cursos_sel]
+    st.markdown(
+        f"""
+        <div class="velox-plan-resumen">
+            <div><strong>Plan:</strong> {plan_info['plan_label']}</div>
+            <div><strong>Cursos:</strong> {", ".join(nombres_cursos) if nombres_cursos else "—"}</div>
+            <div class="velox-plan-resumen__total">Total a pagar: S/ {plan_info['precio']:.2f}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col_qr, col_inst = st.columns([1, 1.05])
+    with col_qr:
+        st.markdown('<div class="velox-plan-qr-box">', unsafe_allow_html=True)
+        if os.path.exists(YAPE_QR_PATH):
+            st.image(YAPE_QR_PATH, caption="Escanea con Yape o Plin", use_container_width=True)
+        else:
+            st.warning(f"No se encontró el QR en `{YAPE_QR_PATH}`")
+        st.markdown("</div>", unsafe_allow_html=True)
+    with col_inst:
+        st.markdown(
+            """
+            **Instrucciones de pago**
+            1. Realiza la transferencia por **Yape** o **Plin** por el monto exacto del plan.
+            2. Toma captura o descarga el comprobante (JPG, PNG o PDF).
+            3. Adjunta el archivo y confirma el envío.
+            """
+        )
+        st.caption("Conserva tu comprobante hasta que el administrador confirme la activación.")
+
+    comprobante = st.file_uploader(
+        "Adjunta tu comprobante de pago",
+        type=["jpg", "jpeg", "png", "pdf"],
+        key="plan_compra_comprobante",
+        label_visibility="collapsed",
+    )
+
+    puede_enviar = seleccion_valida and comprobante is not None
+    if not comprobante:
+        st.caption("Adjunta tu comprobante para habilitar el envío.")
+
+    col_enviar, col_cerrar = st.columns([2, 1])
+    with col_enviar:
+        if st.button(
+            "Confirmar y Enviar Comprobante",
+            type="primary",
+            use_container_width=True,
+            key="btn_plan_compra_confirmar",
+            disabled=not puede_enviar,
+        ):
+            with _velox_spinner("Subiendo comprobante y registrando solicitud..."):
+                ok, msg = payment_manager.registrar_comprobante_plan_cursos(
+                    email_usuario,
+                    plan_elegido,
+                    cursos_sel,
+                    comprobante_file=comprobante,
+                )
+            if ok:
+                st.session_state.pop("dialog_plan_cursos", None)
+                st.session_state["plan_compra_exito_msg"] = msg
+                st.session_state.pop("plan_compra_cursos_sel", None)
+                st.session_state.pop("plan_compra_comprobante", None)
+                _invalidar_cache_datos()
+                st.rerun()
+            else:
+                st.error(msg)
+    with col_cerrar:
+        if st.button("Cerrar", use_container_width=True, key="btn_plan_compra_cerrar"):
+            st.session_state.pop("dialog_plan_cursos", None)
+            st.rerun()
+
+
 def render_app_top_bar():
-    """Barra superior post-login: campana de notificaciones alineada a la derecha."""
-    _, col_bell = st.columns([11, 1])
-    with col_bell:
-        render_campana_notificaciones()
+    """Barra superior post-login: CTA de plan (Inicio) y campana de notificaciones."""
+    st.markdown(PLAN_COMPRA_HEADER_CSS, unsafe_allow_html=True)
+    mostrar_cta_plan = _en_vista_inicio_home() and not _es_staff()
+
+    if mostrar_cta_plan:
+        col_spacer, col_cta, col_bell = st.columns([6.2, 3.3, 0.9])
+        with col_cta:
+            st.markdown('<div class="velox-plan-topbar-wrap">', unsafe_allow_html=True)
+            st.button(
+                "💎 Adquirir Plan de Cursos",
+                key="btn_adquirir_plan_cursos",
+                use_container_width=True,
+                on_click=_abrir_dialog_plan_cursos,
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+        with col_bell:
+            render_campana_notificaciones()
+    else:
+        _, col_bell = st.columns([11, 1])
+        with col_bell:
+            render_campana_notificaciones()
+
+    plan_exito = st.session_state.pop("plan_compra_exito_msg", None)
+    if plan_exito:
+        st.success(plan_exito)
+
+    if st.session_state.get("dialog_plan_cursos"):
+        _dialog_adquirir_plan_cursos()
 
 
 def mostrar_modulo_dashboard_interactivo():

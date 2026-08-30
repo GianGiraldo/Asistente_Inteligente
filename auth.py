@@ -9,6 +9,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import streamlit as st
 
+try:
+    from streamlit.errors import StreamlitSecretNotFoundError
+except ImportError:
+    StreamlitSecretNotFoundError = type("StreamlitSecretNotFoundError", (Exception,), {})
+
 from payment_manager import PaymentManager
 from supabase_client import get_supabase
 
@@ -223,11 +228,22 @@ class AuthManager:
 
     @staticmethod
     def _valor_seccion(seccion: str, clave: str) -> str:
+        seccion_norm = (seccion or "").strip()
+        clave_norm = (clave or "").strip()
+
+        if seccion_norm == "supabase" and clave_norm in ("url", "key"):
+            env_name = "SUPABASE_URL" if clave_norm == "url" else "SUPABASE_KEY"
+            env_valor = (os.getenv(env_name) or "").strip()
+            if env_valor:
+                return env_valor
+
         try:
-            bloque = st.secrets[seccion]
-            valor = bloque[clave] if hasattr(bloque, "__getitem__") else getattr(bloque, clave, None)
+            bloque = st.secrets[seccion_norm]
+            valor = bloque[clave_norm] if hasattr(bloque, "__getitem__") else getattr(bloque, clave_norm, None)
             return str(valor or "").strip()
-        except (KeyError, TypeError, AttributeError):
+        except (KeyError, TypeError, AttributeError, StreamlitSecretNotFoundError):
+            return ""
+        except Exception:
             return ""
 
     def _obtener_credenciales_google(self) -> Tuple[str, str]:

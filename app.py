@@ -1149,12 +1149,13 @@ def _close_portal_scroll():
 
 
 def render_activation_banner():
-    if st.session_state.get("autenticado") and not st.session_state.get("acceso_pagado"):
+    if st.session_state.get("autenticado") and not st.session_state.get("acceso_pagado") and not _es_staff():
         nombre = st.session_state.get("nombre", "Usuario")
         st.markdown(
             f'<div class="velox-activation-banner">'
-            f"<strong>{nombre}</strong>, completa tu activación en "
-            f"<em>Registro (pago)</em> para ingresar al hub veloX."
+            f"<strong>{nombre}</strong>, explora el catálogo veloX. "
+            f"Las secciones bloqueadas se desbloquean desde el botón "
+            f"<em>Comprar acceso</em> dentro de cada módulo."
             f"</div>",
             unsafe_allow_html=True,
         )
@@ -1230,13 +1231,11 @@ def render_portal_id_bar():
         st.markdown("</div>", unsafe_allow_html=True)
     else:
         st.markdown(
-            '<div class="velox-id-bar velox-id-bar--register">Registro y activación</div>',
+            '<div class="velox-id-bar velox-id-bar--register">Crear cuenta veloX</div>',
             unsafe_allow_html=True,
         )
         st.markdown('<div class="velox-back-login">', unsafe_allow_html=True)
         if st.button("← Volver al inicio de sesión", key="nav_volver_login"):
-            _reset_registro_flujo()
-            auth_manager.cerrar_sesion(silent=True)
             st.session_state.welcome_active_tab = WELCOME_TAB_LOGIN
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
@@ -1394,13 +1393,14 @@ def render_tab_login_portal(oauth_url: Optional[str] = None):
             st.error(msg)
 
     if st.button("Registrarme", key="btn_registrarme_portal", use_container_width=True):
-        _iniciar_registro_flujo()
         st.session_state.welcome_active_tab = WELCOME_TAB_REGISTER
-        st.session_state["oauth_intent"] = "register"
         st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
+
+    render_divider_or("o continúa con Google")
+    render_google_oauth_button("Iniciar sesión con Google", oauth_url=oauth_url)
 
 
 def render_tab_setup_password_velox():
@@ -1449,7 +1449,7 @@ def render_tab_setup_password_velox():
                 st.session_state.get("velox_setup_password_confirm", ""),
             )
         if exito:
-            st.session_state.welcome_active_tab = WELCOME_TAB_LOGIN
+            st.session_state.pop("velox_setup_email", None)
             st.success(msg)
             st.rerun()
         else:
@@ -1497,12 +1497,12 @@ def _sincronizar_token_culqi_query() -> bool:
     return True
 
 
-def _procesar_culqi_si_hay_token():
+def _procesar_culqi_si_hay_token(seccion_id: str = ""):
     token = (st.session_state.get("culqi_oauth_token") or "").strip()
     if not token:
         return
     if not st.session_state.get("autenticado"):
-        st.warning("Verifica tu cuenta con Google antes de pagar con tarjeta.")
+        st.warning("Inicia sesión antes de pagar con tarjeta.")
         return
     with _velox_spinner("Procesando cargo Culqi y activando acceso..."):
         exito, msg = payment_manager.procesar_pago_culqi_oauth(
@@ -1513,16 +1513,20 @@ def _procesar_culqi_si_hay_token():
     if exito:
         auth_manager.refrescar_estado_acceso()
         st.session_state.pop("culqi_oauth_token", None)
-        if st.session_state.get("registro_en_progreso"):
-            _marcar_pago_registro_completado("culqi")
-            st.rerun()
+        if seccion_id:
+            st.session_state.pop("seccion_paywall", None)
         st.success(f"✅ {msg}")
         st.rerun()
     else:
         st.error(f"❌ {msg}")
 
 
-def _render_culqi_checkout_section():
+def _render_culqi_checkout_section(seccion_id: str = "", key_prefix: str = "culqi"):
+    sec_info = SECCIONES.get(seccion_id, {})
+    seccion_nombre = sec_info.get("nombre", seccion_id) if seccion_id else ""
+    if seccion_nombre:
+        st.caption(f"Curso / sección: **{seccion_nombre}**")
+
     st.markdown('<p class="velox-section-title">Pago seguro con tarjeta</p>', unsafe_allow_html=True)
     st.markdown(
         '<p class="velox-section-caption">Activación inmediata tras confirmación Culqi.</p>',
@@ -1530,7 +1534,7 @@ def _render_culqi_checkout_section():
     )
 
     if _sincronizar_token_culqi_query():
-        _procesar_culqi_si_hay_token()
+        _procesar_culqi_si_hay_token(seccion_id)
 
     _permitir_navegacion_iframe_componentes()
 
@@ -1547,12 +1551,13 @@ def _render_culqi_checkout_section():
             scrolling=False,
         )
 
-        token_actual = (st.session_state.get("culqi_oauth_token") or "").strip()
+        token_key = f"{key_prefix}_culqi_oauth_token"
+        token_actual = (st.session_state.get("culqi_oauth_token") or st.session_state.get(token_key) or "").strip()
         if not token_actual:
             st.text_input(
                 "Token Culqi (solo si la confirmación automática falla)",
                 placeholder="tok_test_…",
-                key="culqi_oauth_token",
+                key=token_key,
                 label_visibility="collapsed",
             )
             st.caption(
@@ -1560,21 +1565,26 @@ def _render_culqi_checkout_section():
                 "Si no ocurre, pega aquí el token y pulsa confirmar."
             )
         else:
+            st.session_state["culqi_oauth_token"] = token_actual
             st.success(f"Token Culqi recibido: `{token_actual[:16]}…`")
 
         if st.button(
             "Confirmar pago Culqi y activar acceso",
             type="primary",
             use_container_width=True,
-            key="btn_confirmar_culqi",
-            disabled=not (st.session_state.get("culqi_oauth_token") or "").strip(),
+            key=f"{key_prefix}_btn_confirmar_culqi",
+            disabled=not (st.session_state.get("culqi_oauth_token") or st.session_state.get(token_key) or "").strip(),
         ):
-            _procesar_culqi_si_hay_token()
+            if st.session_state.get(token_key):
+                st.session_state["culqi_oauth_token"] = st.session_state[token_key]
+            _procesar_culqi_si_hay_token(seccion_id)
 
 
-def _render_yape_plim_section():
+def _render_yape_plim_section(seccion_id: str = "", key_prefix: str = "yape"):
     email = st.session_state.get("usuario", "")
     nombre = st.session_state.get("nombre", "")
+    sec_info = SECCIONES.get(seccion_id, {})
+    seccion_nombre = sec_info.get("nombre", seccion_id) if seccion_id else ""
 
     col_pago, col_form = st.columns([1, 1.12], gap="large")
 
@@ -1600,28 +1610,29 @@ def _render_yape_plim_section():
                 '<p class="velox-section-title">Datos de verificación</p>',
                 unsafe_allow_html=True,
             )
-            if nombre:
-                st.text_input("Nombre (desde Google)", value=nombre, disabled=True)
+            if seccion_nombre:
+                st.caption(f"Curso / sección: **{seccion_nombre}**")
+            st.text_input("Nombre", value=nombre, disabled=True, key=f"{key_prefix}_nombre_display")
 
             comprobante = st.file_uploader(
                 "📸 Adjunta la captura o foto de tu comprobante de pago",
                 type=["jpg", "jpeg"],
-                key="yape_comprobante_upload",
+                key=f"{key_prefix}_comprobante_upload",
             )
 
             celular = st.text_input(
                 "Celular de la operación",
                 placeholder="999888777",
                 max_chars=9,
-                key="yape_oauth_celular",
+                key=f"{key_prefix}_celular",
             )
 
             puede_enviar = comprobante is not None and bool(str(celular or "").strip())
             if st.button(
-                "🚀 Enviar verificación y registrarme",
+                "🚀 Enviar comprobante y solicitar desbloqueo",
                 use_container_width=True,
                 type="primary",
-                key="btn_enviar_yape",
+                key=f"{key_prefix}_btn_enviar",
                 disabled=not puede_enviar,
             ):
                 try:
@@ -1635,9 +1646,8 @@ def _render_yape_plim_section():
                     )
                     progress.progress(100, text="Listo")
                     if exito:
-                        for k in YAPE_OAUTH_KEYS:
-                            st.session_state.pop(k, None)
-                        _marcar_pago_registro_completado("yape")
+                        st.session_state.pop("seccion_paywall", None)
+                        st.success(f"✅ {msg}")
                         st.rerun()
                     else:
                         st.error(f"❌ {msg}")
@@ -1723,137 +1733,69 @@ def _render_registro_confirmacion_final():
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-def render_tab_adquirir_acceso(oauth_url: Optional[str] = None):
-    _ = oauth_url
-    if not st.session_state.get("registro_en_progreso"):
-        _iniciar_registro_flujo()
-
+def render_tab_registro_velox(oauth_url: Optional[str] = None):
+    """Registro simple: correo + contraseña o Google OAuth."""
+    st.session_state["oauth_intent"] = "register"
     _open_portal_scroll()
     st.markdown(
-        """
-        <div style="background-color: #1A2332; color: #FFFFFF; text-align: center; padding: 12px 24px; border-radius: 10px; font-weight: bold; font-size: 1.1rem; margin-top: 15px; margin-bottom: 20px; box-shadow: 0px 4px 6px rgba(0,0,0,0.05);">
-            Completa paso 1, paso 2 y paso 3 ¡Rapido y Seguro!
-        </div>
-        """,
+        '<p class="velox-section-caption" style="text-align:center;margin-bottom:1rem;">'
+        "Crea tu cuenta veloX. Podrás explorar el catálogo y desbloquear secciones desde la plataforma."
+        "</p>",
         unsafe_allow_html=True,
     )
-
-    if st.session_state.get("registro_listo_confirmacion"):
-        _render_registro_confirmacion_final()
-        _close_portal_scroll()
-        return
-
-    if st.session_state.get("registro_pago_ok"):
-        _render_registro_paso_password()
-        _close_portal_scroll()
-        return
-
-    logo_blanco_src = _velox_logo_data_uri(VELOX_LOGO_BLANCO_PATH)
-    logo_blanco_html = (
-        f'<img src="{logo_blanco_src}" width="65" alt="veloX" '
-        f'style="display: block; border-radius: 4px;">'
-        if logo_blanco_src
-        else ""
-    )
-    st.markdown(
-        f"""
-        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 15px; background-color: rgba(255, 255, 255, 0.85); padding: 12px 20px; border-radius: 8px; border: 1px solid #E0E0E0;">
-            <div style="font-size: 1.15rem; font-weight: bold; color: #1A2332;">
-                PASO 1 · CORREO ELECTRÓNICO
-            </div>
-            <div>
-                {logo_blanco_html}
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.markdown('<p class="velox-section-title">Correo electrónico</p>', unsafe_allow_html=True)
-
-    paso1_ok = bool(st.session_state.get("registro_email_ok"))
-
-    if not paso1_ok:
-        st.markdown(
-            '<p class="velox-section-caption">Ingresa tu correo electrónico para continuar con el registro.</p>',
-            unsafe_allow_html=True,
-        )
-        st.markdown('<div class="velox-portal-form">', unsafe_allow_html=True)
-        st.text_input(
-            "Correo electrónico",
-            key="registro_email",
-            label_visibility="collapsed",
-            placeholder="Correo electrónico",
-        )
-        st.markdown('<div class="velox-btn-primary">', unsafe_allow_html=True)
-        if st.button("Continuar", key="btn_registro_continuar_email", use_container_width=True):
-            email_ingresado = (st.session_state.get("registro_email") or "").strip()
-            with _velox_spinner("Validando correo..."):
-                ok, msg, ir_login = auth_manager.continuar_registro_manual(email_ingresado)
-            if ir_login:
-                st.error(msg)
-                _reset_registro_flujo()
-                auth_manager.cerrar_sesion(silent=True)
-                st.session_state.welcome_active_tab = WELCOME_TAB_LOGIN
-                if email_ingresado:
-                    st.session_state.login_email = email_ingresado.strip().lower()
-                st.rerun()
-            elif ok:
-                st.rerun()
-            else:
-                st.error(msg)
-        st.markdown("</div>", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-        _close_portal_scroll()
-        return
-
-    email = st.session_state.get("usuario", "")
-    st.markdown(
-        f'<div class="velox-identity-badge">✅ Correo registrado: '
-        f"<strong>{email}</strong></div>",
-        unsafe_allow_html=True,
-    )
-
-    col_spacer, col_logout = st.columns([5, 1])
-    with col_logout:
-        st.markdown('<div class="velox-logout-link">', unsafe_allow_html=True)
-        if st.button("Salir", key="btn_logout_adquirir", use_container_width=True):
-            _reset_registro_flujo()
-            auth_manager.cerrar_sesion()
-            st.session_state.welcome_active_tab = WELCOME_TAB_LOGIN
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    st.markdown("---")
-    st.markdown(
-        """
-        <div style="background-color: rgba(255, 255, 255, 0.85); padding: 10px 15px; border-radius: 6px; font-size: 1.15rem; font-weight: bold; color: #1A2332; display: inline-block; margin-bottom: 10px; border: 1px solid #E0E0E0;">
-            PASO 2 · PAGO DEL SERVICIO
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        '<p class="velox-section-caption">Elige cómo deseas activar tu acceso veloX.</p>',
-        unsafe_allow_html=True,
-    )
-
-    if "gateway_metodo_pago" not in st.session_state:
-        st.session_state["gateway_metodo_pago"] = "yape"
-
-    metodo = st.radio(
-        "Método de pago",
-        options=["yape", "culqi"],
-        format_func=lambda x: "📱 Yape / Plim" if x == "yape" else "💳 Tarjeta (Culqi)",
-        horizontal=True,
-        key="gateway_metodo_pago",
+    st.markdown('<div class="velox-portal-form">', unsafe_allow_html=True)
+    st.text_input(
+        "Correo electrónico",
+        key="registro_email",
         label_visibility="collapsed",
+        placeholder="Correo electrónico (Gmail recomendado)",
     )
+    st.text_input(
+        "Contraseña",
+        type="password",
+        key="registro_password_nueva",
+        label_visibility="collapsed",
+        placeholder="Contraseña (mín. 6 caracteres)",
+    )
+    st.text_input(
+        "Confirmar contraseña",
+        type="password",
+        key="registro_password_confirmar",
+        label_visibility="collapsed",
+        placeholder="Confirmar contraseña",
+    )
+    st.markdown('<div class="velox-btn-primary">', unsafe_allow_html=True)
+    if st.button("Crear cuenta", key="btn_crear_cuenta_velox", use_container_width=True):
+        with _velox_spinner("Creando tu cuenta..."):
+            ok, msg = auth_manager.registrar_usuario_velox(
+                st.session_state.get("registro_email", ""),
+                st.session_state.get("registro_password_nueva", ""),
+                st.session_state.get("registro_password_confirmar", ""),
+            )
+        if ok:
+            st.success(msg)
+            st.rerun()
+        else:
+            st.error(msg)
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-    if metodo == "yape":
-        _render_yape_plim_section()
-    else:
-        _render_culqi_checkout_section()
+    render_divider_or("o regístrate con Google")
+    render_google_oauth_button("Continuar con Google", oauth_url=oauth_url)
     _close_portal_scroll()
+
+
+def render_pantalla_configurar_password():
+    """Pantalla obligatoria tras OAuth si la cuenta aún no tiene contraseña veloX."""
+    inject_welcome_layout()
+    inject_velox_text_input_styles()
+    inject_login_portal_brand_styles()
+    col1, col2, col3 = st.columns([1, 1.5, 1])
+    with col2:
+        render_velox_brand_header()
+        with st.container(border=True):
+            render_tab_setup_password_velox()
+    render_footer()
 
 
 def render_pantalla_solo_recuperacion():
@@ -1892,7 +1834,7 @@ def render_welcome_gateway():
             elif st.session_state.welcome_active_tab == WELCOME_TAB_SETUP_PASSWORD:
                 render_tab_setup_password_velox()
             else:
-                render_tab_adquirir_acceso(oauth_url=oauth_url)
+                render_tab_registro_velox(oauth_url=oauth_url)
 
 
 def login_screen():
@@ -2632,39 +2574,47 @@ def _abrir_paywall_seccion(seccion_id: str):
     st.session_state["seccion_paywall"] = seccion_id
 
 
-@st.dialog("🔒 Desbloquear sección")
+@st.dialog("🔒 Comprar acceso")
 def _dialog_paywall_seccion():
     seccion_id = st.session_state.get("seccion_paywall", "")
     sec_info = SECCIONES.get(seccion_id, {})
     nombre = sec_info.get("nombre", seccion_id)
+    nombre_usuario = st.session_state.get("nombre", "Usuario")
+    key_prefix = f"paywall_{seccion_id or 'general'}"
 
     st.markdown(
-        """
+        f"""
         <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
                     border: 1px solid #bae6fd; border-left: 4px solid #0284c7;
-                    padding: 1.25rem 1.35rem; border-radius: 12px; margin-bottom: 1.25rem;
-                    color: #0f172a; line-height: 1.65; font-size: 0.95rem;">
-            👋 <b>¡Bienvenido a esta sección!</b> Para acceder a ella necesitas comunicarte
-            con el administrador al siguiente enlace vía WhatsApp.<br><br>
-            🔥 <b>¡Aprovecha esta oportunidad! ¡No la dejes pasar!</b><br>
-            Con gusto te atenderé 😀...
+                    padding: 1rem 1.15rem; border-radius: 12px; margin-bottom: 1rem;
+                    color: #0f172a; line-height: 1.55; font-size: 0.92rem;">
+            Desbloquea <b>{nombre}</b> completando el pago. Tu comprobante será revisado
+            por el administrador veloX.
         </div>
         """,
         unsafe_allow_html=True,
     )
+    st.text_input("Nombre", value=nombre_usuario, disabled=True, key=f"{key_prefix}_header_nombre")
+    st.caption(f"Sección seleccionada: **{nombre}**")
 
-    st.link_button(
-        "💬 Contactar al Administrador por WhatsApp",
-        _url_whatsapp_admin(nombre),
-        use_container_width=True,
-        type="primary",
-    )
-    st.caption(
-        f"Se abrirá tu chat con Pier Giraldo Asesor · "
-        f"[{WHATSAPP_ADMIN_LINK}]({WHATSAPP_ADMIN_LINK})"
+    if f"{key_prefix}_metodo_pago" not in st.session_state:
+        st.session_state[f"{key_prefix}_metodo_pago"] = "yape"
+
+    metodo = st.radio(
+        "Método de pago",
+        options=["yape", "culqi"],
+        format_func=lambda x: "📱 Yape / Plim" if x == "yape" else "💳 Tarjeta (Culqi)",
+        horizontal=True,
+        key=f"{key_prefix}_metodo_pago",
+        label_visibility="collapsed",
     )
 
-    if st.button("Cerrar", key="paywall_cerrar"):
+    if metodo == "yape":
+        _render_yape_plim_section(seccion_id=seccion_id, key_prefix=key_prefix)
+    else:
+        _render_culqi_checkout_section(seccion_id=seccion_id, key_prefix=key_prefix)
+
+    if st.button("Cerrar", key=f"{key_prefix}_cerrar"):
         st.session_state.pop("seccion_paywall", None)
         st.rerun()
 
@@ -2882,7 +2832,7 @@ def render_catalogo_secciones_freemium(
                     unsafe_allow_html=True,
                 )
                 st.button(
-                    "Desbloquear acceso",
+                    "Comprar acceso",
                     key=f"{key_prefix}_lock_{seccion_id}",
                     use_container_width=True,
                     type="secondary",
@@ -4204,11 +4154,7 @@ if not st.session_state.get("autenticado"):
 
 auth_manager.sincronizar_vista_auth()
 
-_usuario_con_acceso = (
-    st.session_state.get("autenticado")
-    and (st.session_state.get("acceso_pagado") or _es_staff())
-    and not _registro_bloquea_acceso_app()
-)
+_usuario_con_acceso = st.session_state.get("autenticado")
 
 if _en_vista_recuperacion_password():
     render_pantalla_solo_recuperacion()
@@ -4218,12 +4164,20 @@ if not _usuario_con_acceso:
     login_screen()
     st.stop()
 
+if auth_manager.usuario_requiere_configurar_password():
+    render_pantalla_configurar_password()
+    st.stop()
+
+if _sincronizar_token_culqi_query():
+    _procesar_culqi_si_hay_token(st.session_state.get("seccion_paywall", ""))
+
 else:
     # ==================== HEADER (solo después del login) ====================
     inject_post_login_shell_layout()
     inject_sidebar_collapse_control()
     render_velox_top_banner()
     render_app_top_bar()
+    render_activation_banner()
 
     # ==================== SIDEBAR ====================
     with st.sidebar:

@@ -612,21 +612,10 @@ class AuthManager:
                 }
             )
             self._aplicar_permisos_a_sesion(db_user)
-            if not acceso and not self.es_staff(db_user.get("rol")):
-                intent = st.session_state.get("oauth_intent", "register")
-                if intent == "login":
-                    st.session_state["welcome_active_tab"] = 0
-                    st.session_state["oauth_login_denied_msg"] = (
-                        "⏳ Tu acceso aún no está activo. Completa el registro y pago, "
-                        "o espera la aprobación del administrador."
-                    )
-                else:
-                    st.session_state["welcome_active_tab"] = 1
-            else:
-                st.session_state.pop("oauth_login_denied_msg", None)
-                if st.session_state.get("oauth_intent") == "register":
-                    st.session_state["welcome_active_tab"] = 1
-                    st.session_state["registro_en_progreso"] = True
+            st.session_state.pop("oauth_login_denied_msg", None)
+            st.session_state.pop("registro_en_progreso", None)
+            if self.requiere_configurar_password_velox(db_user):
+                st.session_state["velox_setup_email"] = email
             return True, "Sesión iniciada"
         except Exception as e:
             return False, f"Error aplicando sesión: {self._format_error(e)}"
@@ -692,19 +681,29 @@ class AuthManager:
         return activo and pago_ok
 
     def continuar_registro_manual(self, email: str) -> Tuple[bool, str, bool]:
-        """
-        Paso 1 del registro: valida correo, crea usuario si es nuevo y prepara la sesión.
-        Retorna (exito, mensaje, redirigir_a_login).
-        """
+        """Legacy: redirige al registro con contraseña unificado."""
+        _ = email
+        return False, "Usa el formulario de registro con correo y contraseña.", False
+
+    def registrar_usuario_velox(
+        self, email: str, password: str, confirmar_password: str
+    ) -> Tuple[bool, str]:
+        """Registro inicial: crea usuario en Supabase con correo y contraseña (sin pago)."""
         email_norm = (email or "").strip().lower()
         if not email_norm:
-            return False, "El correo electrónico es obligatorio.", False
+            return False, "El correo electrónico es obligatorio."
         if not self.validar_formato_email(email_norm):
-            return False, "Ingresa un correo electrónico válido (ej. usuario@dominio.com).", False
+            return False, "Ingresa un correo electrónico válido (ej. usuario@dominio.com)."
+        if not password or not confirmar_password:
+            return False, "La contraseña es obligatoria."
+        if password != confirmar_password:
+            return False, "Las contraseñas no coinciden."
+        if len(password) < 6:
+            return False, "La contraseña debe tener al menos 6 caracteres."
 
         user = self._obtener_usuario_db(email_norm)
-        if user and self.usuario_tiene_cuenta_completa(user):
-            return False, "Este correo ya está registrado. Por favor, inicia sesión.", True
+        if user and not self.requiere_configurar_password_velox(user):
+            return False, "Este correo ya está registrado. Por favor, inicia sesión."
 
         if not user:
             user = self._crear_registro_usuario_inicial(
@@ -712,26 +711,27 @@ class AuthManager:
                 auth_provider="email",
             )
 
-        nombre = user.get("nombre") or self._nombre_desde_email(email_norm)
-        acceso = self.payments.usuario_tiene_acceso(user)
-        st.session_state.update(
-            {
-                "autenticado": True,
-                "usuario": email_norm,
-                "nombre": nombre,
-                "rol": user.get("rol", "usuario"),
-                "secciones": user.get("secciones") or ["excel"],
-                "avatar_url": None,
-                "acceso_pagado": acceso,
-                "login_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "menu_principal": "🏠 Inicio",
-                "seccion_activa": "inicio",
-            }
-        )
-        self._aplicar_permisos_a_sesion(user)
-        st.session_state["registro_en_progreso"] = True
-        st.session_state["registro_email_ok"] = True
-        return True, "Correo registrado. Continúa con el pago.", False
+        ok_save, msg_save = self._persistir_password_velox(email_norm, password, user)
+        if not ok_save:
+            return False, msg_save
+
+        self._registrar_password_supabase_auth(email_norm, password)
+        user_actualizado = self._obtener_usuario_db(email_norm) or user
+        ok, msg = self._aplicar_usuario_db(user_actualizado)
+        if ok:
+            st.session_state.pop("registro_en_progreso", None)
+            st.session_state.pop("velox_setup_email", None)
+        return ok, "Cuenta creada correctamente. Bienvenido a veloX." if ok else msg
+
+    def usuario_requiere_configurar_password(self) -> bool:
+        """True si la sesión activa aún debe definir contraseña veloX."""
+        if not st.session_state.get("autenticado"):
+            return False
+        email = (st.session_state.get("usuario") or st.session_state.get("velox_setup_email") or "").strip().lower()
+        if not email:
+            return False
+        user = self._obtener_usuario_db(email)
+        return bool(user and self.requiere_configurar_password_velox(user))
 
     def _crear_registro_usuario_inicial(
         self,
@@ -760,7 +760,7 @@ class AuthManager:
             "password_salt": salt,
             "nombre": nombre_final,
             "rol": "master" if es_master else "usuario",
-            "secciones": list(SECCIONES_DEFAULT()),
+            "secciones": list(SECCIONES_DEFAULT()) if es_master else [],
             "creado": datetime.now().isoformat(),
             "activo": es_master,
             "pago_confirmado": es_master,
@@ -917,10 +917,6 @@ class AuthManager:
             if not user:
                 return False, "No encontramos tu cuenta. Verifica el correo o contacta soporte."
 
-            puede, msg = self._usuario_puede_ingresar_clasico(user)
-            if not puede:
-                return False, msg
-
             if not self.requiere_configurar_password_velox(user):
                 return False, "Tu contraseña veloX ya está configurada. Inicia sesión con ella."
 
@@ -1032,10 +1028,6 @@ class AuthManager:
 
             if not user:
                 return False, "Correo o contraseña incorrectos"
-
-            puede, msg = self._usuario_puede_ingresar_clasico(user)
-            if not puede:
-                return False, msg
 
             if self.requiere_configurar_password_velox(user):
                 st.session_state["velox_setup_email"] = email_norm
@@ -1475,9 +1467,9 @@ class AuthManager:
                 if user.get("secciones_asignadas"):
                     return user["secciones_asignadas"]
                 return user.get("secciones", [])
-            return ["excel"]
+            return []
         except Exception:
-            return ["excel"]
+            return []
 
     def asignar_secciones_usuario(self, email: str, secciones_asignadas: List[str], master_email: str) -> Tuple[bool, str]:
         try:
@@ -1578,4 +1570,4 @@ class AuthManager:
 
 
 def SECCIONES_DEFAULT():
-    return ["excel"]
+    return []

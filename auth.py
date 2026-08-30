@@ -1703,16 +1703,7 @@ class AuthManager:
             st.toast("Sesión cerrada correctamente", icon="👋")
 
     def obtener_secciones_usuario(self, email: str) -> List[str]:
-        try:
-            result = self.supabase.table("users").select("secciones, secciones_asignadas").eq("email", email).execute()
-            if result.data:
-                user = result.data[0]
-                if user.get("secciones_asignadas"):
-                    return user["secciones_asignadas"]
-                return user.get("secciones", [])
-            return []
-        except Exception:
-            return []
+        return self.payments.obtener_secciones_acceso_usuario(email)
 
     def asignar_secciones_usuario(self, email: str, secciones_asignadas: List[str], master_email: str) -> Tuple[bool, str]:
         try:

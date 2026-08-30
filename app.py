@@ -1173,8 +1173,8 @@ def render_activation_banner():
         st.markdown(
             f'<div class="velox-activation-banner">'
             f"<strong>{nombre}</strong>, explora el catálogo veloX. "
-            f"Las secciones bloqueadas se desbloquean desde el botón "
-            f"<em>Comprar acceso</em> dentro de cada módulo."
+            f"Las secciones bloqueadas se desbloquean con el botón "
+            f"<em>💎 Adquirir Plan de Cursos</em> en la cabecera o en cada tarjeta."
             f"</div>",
             unsafe_allow_html=True,
         )
@@ -2778,53 +2778,10 @@ def _url_whatsapp_admin(seccion_nombre: str = "") -> str:
     return WHATSAPP_ADMIN_LINK
 
 
-def _abrir_paywall_seccion(seccion_id: str):
-    st.session_state["seccion_paywall"] = seccion_id
-
-
-@st.dialog("🔒 Comprar acceso")
-def _dialog_paywall_seccion():
-    seccion_id = st.session_state.get("seccion_paywall", "")
-    sec_info = SECCIONES.get(seccion_id, {})
-    nombre = sec_info.get("nombre", seccion_id)
-    nombre_usuario = st.session_state.get("nombre", "Usuario")
-    key_prefix = f"paywall_{seccion_id or 'general'}"
-
-    st.markdown(
-        f"""
-        <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-                    border: 1px solid #bae6fd; border-left: 4px solid #0284c7;
-                    padding: 1rem 1.15rem; border-radius: 12px; margin-bottom: 1rem;
-                    color: #0f172a; line-height: 1.55; font-size: 0.92rem;">
-            Desbloquea <b>{nombre}</b> completando el pago. Tu comprobante será revisado
-            por el administrador veloX.
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.text_input("Nombre", value=nombre_usuario, disabled=True, key=f"{key_prefix}_header_nombre")
-    st.caption(f"Sección seleccionada: **{nombre}**")
-
-    if f"{key_prefix}_metodo_pago" not in st.session_state:
-        st.session_state[f"{key_prefix}_metodo_pago"] = "yape"
-
-    metodo = st.radio(
-        "Método de pago",
-        options=["yape", "culqi"],
-        format_func=lambda x: "📱 Yape / Plim" if x == "yape" else "💳 Tarjeta (Culqi)",
-        horizontal=True,
-        key=f"{key_prefix}_metodo_pago",
-        label_visibility="collapsed",
-    )
-
-    if metodo == "yape":
-        _render_yape_plim_section(seccion_id=seccion_id, key_prefix=key_prefix)
-    else:
-        _render_culqi_checkout_section(seccion_id=seccion_id, key_prefix=key_prefix)
-
-    if st.button("Cerrar", key=f"{key_prefix}_cerrar"):
-        st.session_state.pop("seccion_paywall", None)
-        st.rerun()
+def _abrir_dialog_plan_cursos_desde_catalogo(_seccion_id: str = ""):
+    """Abre el modal centralizado de planes (flujo unificado desde tarjetas del catálogo)."""
+    _ = _seccion_id
+    st.session_state["dialog_plan_cursos"] = True
 
 
 VELOX_CATALOG_LAYOUT_CSS = """
@@ -3040,18 +2997,15 @@ def render_catalogo_secciones_freemium(
                     unsafe_allow_html=True,
                 )
                 st.button(
-                    "Comprar acceso",
+                    "Adquirir Curso",
                     key=f"{key_prefix}_lock_{seccion_id}",
                     use_container_width=True,
                     type="secondary",
-                    on_click=_abrir_paywall_seccion,
-                    kwargs={"seccion_id": seccion_id},
+                    on_click=_abrir_dialog_plan_cursos_desde_catalogo,
+                    kwargs={"_seccion_id": seccion_id},
                 )
 
             st.markdown("</div>", unsafe_allow_html=True)
-
-    if st.session_state.get("seccion_paywall"):
-        _dialog_paywall_seccion()
 
 
 def _menu_sidebar_items():
@@ -4053,19 +4007,30 @@ PLAN_COMPRA_HEADER_CSS = f"""
         padding-right: 0.15rem;
     }}
     .st-key-btn_adquirir_plan_cursos .stButton > button {{
-        background: linear-gradient(135deg, {VELOX_PLAN_AZUL_OSCURO} 0%, {VELOX_PLAN_AZUL_PASTEL} 100%) !important;
-        color: #ffffff !important;
+        background: #2563EB !important;
+        background-color: #2563EB !important;
+        color: #FFFFFF !important;
         border: none !important;
         border-radius: 8px !important;
-        box-shadow: 0 6px 16px rgba(26, 54, 93, 0.25) !important;
-        font-weight: 700 !important;
-        padding: 0.55rem 1rem !important;
-        transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+        box-shadow: 0 6px 18px rgba(37, 99, 235, 0.35) !important;
+        font-weight: bold !important;
+        font-size: 1rem !important;
+        padding: 0.68rem 1.2rem !important;
+        letter-spacing: 0.01em !important;
+        transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease !important;
+    }}
+    .st-key-btn_adquirir_plan_cursos .stButton > button p,
+    .st-key-btn_adquirir_plan_cursos .stButton > button span {{
+        color: #FFFFFF !important;
+        font-weight: bold !important;
+        font-size: 1rem !important;
     }}
     .st-key-btn_adquirir_plan_cursos .stButton > button:hover {{
         transform: translateY(-1px) !important;
-        box-shadow: 0 8px 20px rgba(49, 151, 149, 0.35) !important;
-        color: #ffffff !important;
+        background: #1E40AF !important;
+        background-color: #1E40AF !important;
+        box-shadow: 0 8px 22px rgba(30, 64, 175, 0.4) !important;
+        color: #FFFFFF !important;
     }}
 </style>
 """
@@ -4581,12 +4546,14 @@ def render_vista_seccion_inicio(seccion_id):
 
     if seccion_id not in secciones_usuario:
         st.warning("🔒 Esta sección requiere acceso activo.")
-        if st.button("💬 Contactar al administrador", key=f"paywall_from_view_{seccion_id}"):
-            _abrir_paywall_seccion(seccion_id)
-            st.rerun()
+        st.button(
+            "💎 Adquirir Curso",
+            key=f"adquirir_curso_view_{seccion_id}",
+            type="primary",
+            on_click=_abrir_dialog_plan_cursos_desde_catalogo,
+            kwargs={"_seccion_id": seccion_id},
+        )
         st.button("⬅️ Volver al Inicio", key="btn_volver_inicio_denegado", on_click=volver_al_inicio)
-        if st.session_state.get("seccion_paywall"):
-            _dialog_paywall_seccion()
         return
 
     st.button("⬅️ Volver al Inicio", key="btn_volver_inicio", on_click=volver_al_inicio)
@@ -4678,7 +4645,7 @@ if auth_manager.usuario_requiere_configurar_password():
     st.stop()
 
 if _sincronizar_token_culqi_query():
-    _procesar_culqi_si_hay_token(st.session_state.get("seccion_paywall", ""))
+    _procesar_culqi_si_hay_token("")
 
 else:
     # ==================== HEADER (solo después del login) ====================

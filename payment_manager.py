@@ -30,6 +30,14 @@ CURSOS_PLAN_VALIDOS = frozenset({
     "logistico",
     "excel",
 })
+# Mapeo claves Supabase (cursos_solicitados) → ids internos de SECCIONES en app.py
+CURSO_PLAN_A_SECCION_APP = {
+    "contabilidad": "contabilidad",
+    "power_bi": "laboral",
+    "comercio_exterior": "financiero",
+    "logistico": "logistico",
+    "excel": "excel",
+}
 EXTENSIONES_COMPROBANTE = ("jpg", "jpeg", "png", "pdf")
 CULQI_SCRIPT_URLS = (
     "https://checkout.culqi.com/js/v4",
@@ -627,7 +635,15 @@ class PaymentManager:
                 return False, "El pago ya fue procesado o no existe"
 
             email = (comprobante.get("usuario_email") or "").strip().lower()
-            ok_act, msg_act = self._activar_usuario_pago(email)
+            cursos_aprobados = self._normalizar_lista_cursos(
+                comprobante.get("cursos_solicitados")
+            )
+            if cursos_aprobados:
+                ok_act, msg_act = self._aplicar_cursos_aprobados_a_usuario(
+                    email, cursos_aprobados
+                )
+            else:
+                ok_act, msg_act = self._activar_usuario_pago(email)
             if not ok_act:
                 return False, msg_act
 
@@ -643,6 +659,18 @@ class PaymentManager:
                 self.supabase.table(TABLA_COMPROBANTES).update(
                     {"estado": ESTADO_APROBADO}
                 ).eq("id", comprobante["id"]).execute()
+            if cursos_aprobados:
+                secciones = [
+                    s
+                    for s in (
+                        self._mapear_curso_plan_a_seccion(c) for c in cursos_aprobados
+                    )
+                    if s
+                ]
+                return (
+                    True,
+                    f"Pago aprobado. Cursos activados para {email}: {', '.join(secciones)}",
+                )
             return True, f"Pago aprobado. Acceso activado para {email}"
         except Exception as e:
             return False, f"Error al aprobar pago: {_format_error(e)}"
@@ -715,6 +743,107 @@ class PaymentManager:
         if not ok:
             return False, msg
         return True, msg
+
+    def _mapear_curso_plan_a_seccion(self, curso_id: str) -> Optional[str]:
+        curso_norm = (curso_id or "").strip().lower()
+        if curso_norm in CURSO_PLAN_A_SECCION_APP:
+            return CURSO_PLAN_A_SECCION_APP[curso_norm]
+        if curso_norm in CURSO_PLAN_A_SECCION_APP.values():
+            return curso_norm
+        return None
+
+    @staticmethod
+    def _normalizar_lista_cursos(valor: Any) -> List[str]:
+        if valor is None:
+            return []
+        if isinstance(valor, str):
+            texto = valor.strip()
+            if not texto:
+                return []
+            try:
+                parsed = json.loads(texto)
+                if isinstance(parsed, list):
+                    return [str(x).strip().lower() for x in parsed if str(x).strip()]
+            except json.JSONDecodeError:
+                return [texto.lower()]
+            return []
+        if isinstance(valor, list):
+            return [str(x).strip().lower() for x in valor if str(x).strip()]
+        return []
+
+    def _secciones_desde_comprobantes_aprobados(self, email: str) -> List[str]:
+        email_norm = (email or "").strip().lower()
+        if not email_norm:
+            return []
+        try:
+            result = (
+                self.supabase.table(TABLA_COMPROBANTES)
+                .select("cursos_solicitados")
+                .eq("usuario_email", email_norm)
+                .eq("estado", ESTADO_APROBADO)
+                .execute()
+            )
+            secciones: List[str] = []
+            for row in result.data or []:
+                for curso in self._normalizar_lista_cursos(row.get("cursos_solicitados")):
+                    sec = self._mapear_curso_plan_a_seccion(curso)
+                    if sec and sec not in secciones:
+                        secciones.append(sec)
+            return secciones
+        except Exception as e:
+            print(f"Error leyendo comprobantes aprobados: {_format_error(e)}")
+            return []
+
+    def obtener_secciones_acceso_usuario(self, email: str) -> List[str]:
+        """Secciones efectivas: users.secciones_asignadas/secciones + cursos de comprobantes aprobados."""
+        email_norm = (email or "").strip().lower()
+        if not email_norm:
+            return []
+        user = self._obtener_usuario(email_norm)
+        base: List[str] = []
+        if user:
+            raw = user.get("secciones_asignadas") or user.get("secciones") or []
+            base = [str(s).strip() for s in raw if str(s).strip()]
+        extra = self._secciones_desde_comprobantes_aprobados(email_norm)
+        return list(dict.fromkeys(base + extra))
+
+    def _aplicar_cursos_aprobados_a_usuario(
+        self, email: str, cursos_plan: List[str]
+    ) -> Tuple[bool, str]:
+        email_norm = (email or "").strip().lower()
+        secciones_nuevas: List[str] = []
+        for curso in cursos_plan or []:
+            sec = self._mapear_curso_plan_a_seccion(curso)
+            if sec and sec not in secciones_nuevas:
+                secciones_nuevas.append(sec)
+
+        if not secciones_nuevas:
+            return self._activar_usuario_pago(email_norm)
+
+        user = self._obtener_usuario(email_norm)
+        if not user:
+            return False, "Usuario no encontrado"
+
+        actuales = list(user.get("secciones_asignadas") or user.get("secciones") or [])
+        merged = list(dict.fromkeys(actuales + secciones_nuevas))
+        update_data: Dict[str, Any] = {
+            "secciones_asignadas": merged,
+            "secciones": merged,
+            "activo": True,
+            "pago_confirmado": True,
+        }
+        try:
+            result = (
+                self.supabase.table(TABLA_USUARIOS)
+                .update(update_data)
+                .eq("email", email_norm)
+                .execute()
+            )
+            if result.data:
+                return True, "ok"
+            return False, "No se pudo actualizar las secciones del usuario"
+        except Exception as e:
+            return False, f"Error actualizando secciones: {_format_error(e)}"
 
     def usuario_tiene_acceso(self, user: Dict[str, Any]) -> bool:
         rol = (user.get("rol") or "").lower()

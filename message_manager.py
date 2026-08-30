@@ -59,6 +59,7 @@ class MessageManager:
             "fecha_respuesta": now,
             "nombre_usuario": (nombre_usuario or email_norm.split("@")[0]).strip(),
             "seccion": "administracion",
+            "leido": False,
         }
         candidatos = [
             base,
@@ -131,6 +132,16 @@ class MessageManager:
             print(f"Error obteniendo historial completo de consultas: {e}")
             return []
 
+    @staticmethod
+    def _es_consulta_no_leida(consulta: Dict[str, Any]) -> bool:
+        """True si el usuario aún no abrió una respuesta/notificación en Consultas."""
+        if consulta.get("leido") is True:
+            return False
+        if consulta.get("respuesta"):
+            return True
+        estado = (consulta.get("estado") or "").strip().lower()
+        return estado in ("atendido", "observado", "respondida", "respondido")
+
     def _es_consulta_pendiente(self, consulta: dict) -> bool:
         """True solo si la consulta aún no fue contestada."""
         if consulta.get("respuesta"):
@@ -149,6 +160,59 @@ class MessageManager:
             return False
         return True
 
+    def contar_consultas_no_leidas(self, email: str) -> int:
+        """Cantidad de consultas/respuestas no leídas del usuario (leido = false)."""
+        email_norm = (email or "").strip().lower()
+        if not email_norm:
+            return 0
+        try:
+            for col in ("usuario_email", "email"):
+                try:
+                    result = (
+                        self.supabase.table(self.tabla)
+                        .select("id", count="exact")
+                        .eq(col, email_norm)
+                        .eq("leido", False)
+                        .execute()
+                    )
+                    if result.count is not None:
+                        return int(result.count)
+                except Exception:
+                    continue
+        except Exception as e:
+            print(f"Error contando consultas no leídas (SQL): {e}")
+        mensajes = self.obtener_mensajes_usuario(email_norm)
+        return len([m for m in mensajes if self._es_consulta_no_leida(m)])
+
+    def marcar_consultas_leidas(self, email: str) -> None:
+        """Marca como leídas todas las consultas pendientes de lectura del usuario."""
+        email_norm = (email or "").strip().lower()
+        if not email_norm:
+            return
+        try:
+            for col in ("usuario_email", "email"):
+                try:
+                    self.supabase.table(self.tabla).update({"leido": True}).eq(
+                        col, email_norm
+                    ).eq("leido", False).execute()
+                except Exception:
+                    continue
+            return
+        except Exception as e:
+            print(f"Error marcando consultas leídas (SQL): {e}")
+        for consulta in self.obtener_mensajes_usuario(email_norm):
+            if not self._es_consulta_no_leida(consulta):
+                continue
+            cid = consulta.get("id")
+            if not cid:
+                continue
+            try:
+                self.supabase.table(self.tabla).update({"leido": True}).eq(
+                    "id", cid
+                ).execute()
+            except Exception as row_err:
+                print(f"Error marcando consulta {cid} como leída: {row_err}")
+
     def enviar_mensaje(self, email, nombre, seccion, mensaje):
         """Registra una nueva consulta de usuario en Supabase."""
         try:
@@ -164,6 +228,7 @@ class MessageManager:
                 "respondido_por": None,
                 "fecha_respuesta": None,
                 "estado": "pendiente",
+                "leido": True,
             }
             result = self.supabase.table(self.tabla).insert(data).execute()
             if result.data:
@@ -217,6 +282,7 @@ class MessageManager:
                 "respondido_por": master_email,
                 "fecha_respuesta": datetime.now().isoformat(),
                 "estado": "respondida",
+                "leido": False,
             }
             try:
                 result = (
@@ -225,10 +291,12 @@ class MessageManager:
                     .eq("id", mensaje_id)
                     .execute()
                 )
-            except Exception as estado_err:
-                if "estado" not in str(estado_err).lower() and "column" not in str(estado_err).lower():
+            except Exception as col_err:
+                err_text = str(col_err).lower()
+                if "estado" not in err_text and "leido" not in err_text and "column" not in err_text:
                     raise
                 update.pop("estado", None)
+                update.pop("leido", None)
                 result = (
                     self.supabase.table(self.tabla)
                     .update(update)

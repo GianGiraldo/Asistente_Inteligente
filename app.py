@@ -476,11 +476,12 @@ SIDEBAR_NAV_CAPSULE_CSS = """
     [data-testid="stSidebar"] .st-key-sidebar_menu_panel {
         background-color: #ffffff !important;
         border-radius: 16px !important;
-        overflow: hidden !important;
+        overflow: visible !important;
         padding: 6px 8px !important;
         margin: 6px 0 10px !important;
         box-shadow: 0 2px 12px rgba(15, 23, 42, 0.1) !important;
         border: 1px solid rgba(226, 232, 240, 0.95) !important;
+        position: relative !important;
     }
     [data-testid="stSidebar"] .st-key-sidebar_menu_panel [data-testid="stElementContainer"],
     [data-testid="stSidebar"] .st-key-sidebar_menu_panel [data-testid="stVerticalBlock"] {
@@ -3047,6 +3048,169 @@ def _menu_sidebar_items():
     return items
 
 
+def _indice_menu_consultas(menu_labels):
+    for i, label in enumerate(menu_labels):
+        if label == "Consultas":
+            return i
+    return -1
+
+
+def inject_sidebar_consultas_badge(count: int, consultas_index: int = -1):
+    """Insignia flotante sobre la opción Consultas del option_menu lateral."""
+    if count <= 0 or consultas_index < 0:
+        return
+    badge_text = str(count) if count < 100 else "99+"
+    components.html(
+        f"""
+<script>
+(function () {{
+  var count = {int(count)};
+  var badgeText = {json.dumps(badge_text)};
+  var consultasIndex = {int(consultas_index)};
+
+  function parentDoc() {{
+    try {{
+      return window.parent.document;
+    }} catch (e) {{
+      return document;
+    }}
+  }}
+
+  function badgeCss() {{
+    return `
+      .nav-link {{
+        position: relative !important;
+      }}
+      .velox-consultas-badge {{
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        z-index: 10;
+        background-color: #F59E0B;
+        color: #0F172A;
+        font-weight: 800;
+        font-size: 11px;
+        border-radius: 9999px;
+        padding: 2px 7px;
+        min-width: 20px;
+        height: 20px;
+        text-align: center;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 3px solid #FFFFFF;
+        box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.15);
+        line-height: 1;
+        pointer-events: none;
+        box-sizing: border-box;
+      }}
+    `;
+  }}
+
+  function injectIntoMenuDoc(menuDoc) {{
+    if (!menuDoc) return false;
+    if (!menuDoc.getElementById("velox-consultas-badge-css")) {{
+      var style = menuDoc.createElement("style");
+      style.id = "velox-consultas-badge-css";
+      style.textContent = badgeCss();
+      menuDoc.head.appendChild(style);
+    }}
+    var links = menuDoc.querySelectorAll(".nav-link, a.nav-link");
+    var applied = false;
+    links.forEach(function (link, idx) {{
+      var text = (link.textContent || "").trim();
+      var isConsultas = text.indexOf("Consultas") !== -1 || idx === consultasIndex;
+      if (!isConsultas) return;
+      applied = true;
+      link.style.position = "relative";
+      var badge = link.querySelector(".velox-consultas-badge");
+      if (!badge) {{
+        badge = menuDoc.createElement("span");
+        badge.className = "velox-consultas-badge";
+        link.appendChild(badge);
+      }}
+      badge.textContent = badgeText;
+    }});
+    return applied;
+  }}
+
+  function injectOverlayFallback(panel) {{
+    if (!panel) return;
+    var overlay = panel.querySelector(".velox-consultas-badge-overlay");
+    if (!overlay) {{
+      overlay = parentDoc().createElement("span");
+      overlay.className = "velox-consultas-badge-overlay";
+      overlay.style.cssText = [
+        "position:absolute",
+        "z-index:10",
+        "background-color:#F59E0B",
+        "color:#0F172A",
+        "font-weight:800",
+        "font-size:11px",
+        "border-radius:9999px",
+        "padding:2px 7px",
+        "min-width:20px",
+        "height:20px",
+        "display:inline-flex",
+        "align-items:center",
+        "justify-content:center",
+        "border:3px solid #FFFFFF",
+        "box-shadow:0px 2px 4px rgba(0,0,0,0.15)",
+        "pointer-events:none",
+        "box-sizing:border-box",
+      ].join(";");
+      panel.appendChild(overlay);
+    }}
+    var iframe = panel.querySelector("iframe");
+    var iframeHeight = iframe ? iframe.offsetHeight : panel.offsetHeight;
+    var itemHeight = Math.max(44, Math.floor(iframeHeight / Math.max(consultasIndex + 2, 4)));
+    var top = 6 + consultasIndex * (itemHeight + 6) - 6;
+    overlay.style.top = top + "px";
+    overlay.style.right = "2px";
+    overlay.textContent = badgeText;
+  }}
+
+  function applyBadge() {{
+    var doc = parentDoc();
+    var panel = doc.querySelector('[data-testid="stSidebar"] .st-key-sidebar_menu_panel');
+    if (!panel) return;
+    panel.style.position = "relative";
+    panel.style.overflow = "visible";
+    var menuIframe = panel.querySelector("iframe");
+    if (menuIframe) {{
+      try {{
+        var menuDoc = menuIframe.contentDocument || menuIframe.contentWindow.document;
+        if (injectIntoMenuDoc(menuDoc)) {{
+          var old = panel.querySelector(".velox-consultas-badge-overlay");
+          if (old) old.remove();
+          return;
+        }}
+      }} catch (e) {{}}
+    }}
+    injectOverlayFallback(panel);
+  }}
+
+  applyBadge();
+  [120, 350, 800, 1500].forEach(function (ms) {{
+    setTimeout(applyBadge, ms);
+  }});
+  try {{
+    var doc = parentDoc();
+    var panel = doc.querySelector('[data-testid="stSidebar"] .st-key-sidebar_menu_panel');
+    if (panel && window.parent.MutationObserver) {{
+      new window.parent.MutationObserver(applyBadge).observe(panel, {{
+        childList: true,
+        subtree: true,
+      }});
+    }}
+  }} catch (e) {{}}
+}})();
+</script>
+""",
+        height=0,
+    )
+
+
 def render_lista_usuarios_solo_lectura():
     """Vista de usuarios sin edición de roles (Administrador)."""
     usuarios = cached_listar_usuarios(data_cache_version=_velox_data_cache_version())
@@ -4910,6 +5074,19 @@ else:
                 styles=SIDEBAR_MENU_STYLES,
                 key="sidebar_option_menu",
             )
+
+        usuario_sidebar = st.session_state.get("usuario", "")
+        consultas_activo = (
+            st.session_state.get("menu_principal") == AuthManager.MODULO_CONSULTAS
+            or label_to_value.get(seleccion_label) == AuthManager.MODULO_CONSULTAS
+        )
+        if consultas_activo:
+            message_manager.marcar_consultas_leidas(usuario_sidebar)
+
+        consultas_idx = _indice_menu_consultas(menu_labels)
+        if consultas_idx >= 0 and AuthManager.MODULO_CONSULTAS in menu_values:
+            consultas_no_leidas = message_manager.contar_consultas_no_leidas(usuario_sidebar)
+            inject_sidebar_consultas_badge(consultas_no_leidas, consultas_idx)
 
         seleccion = label_to_value[seleccion_label]
         if seleccion != st.session_state["menu_principal"]:

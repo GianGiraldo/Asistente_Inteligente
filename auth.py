@@ -6,6 +6,7 @@ import re
 import secrets
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urlparse
 
 import streamlit as st
 
@@ -237,6 +238,12 @@ class AuthManager:
             if env_valor:
                 return env_valor
 
+        if seccion_norm == "app" and clave_norm in ("base_url", "redirect_url"):
+            for env_name in ("VELOX_BASE_URL", "APP_BASE_URL", "STREAMLIT_APP_BASE_URL", "PUBLIC_APP_URL"):
+                env_valor = (os.getenv(env_name) or "").strip()
+                if env_valor:
+                    return env_valor
+
         try:
             bloque = st.secrets[seccion_norm]
             valor = bloque[clave_norm] if hasattr(bloque, "__getitem__") else getattr(bloque, clave_norm, None)
@@ -266,8 +273,21 @@ class AuthManager:
         return u.startswith("http://localhost") or u.startswith("http://127.0.0.1")
 
     @staticmethod
+    def _host_de_url(url: str) -> str:
+        try:
+            return (urlparse(url).netloc or "").strip().lower()
+        except Exception:
+            return ""
+
+    @staticmethod
+    def _mismo_host(url_a: str, url_b: str) -> bool:
+        host_a = AuthManager._host_de_url(url_a)
+        host_b = AuthManager._host_de_url(url_b)
+        return bool(host_a and host_b and host_a == host_b)
+
+    @staticmethod
     def _base_url_desde_entorno() -> str:
-        for var in ("VELOX_BASE_URL", "STREAMLIT_APP_BASE_URL", "APP_BASE_URL"):
+        for var in ("VELOX_BASE_URL", "APP_BASE_URL", "STREAMLIT_APP_BASE_URL", "PUBLIC_APP_URL"):
             valor = (os.getenv(var) or "").strip()
             if valor:
                 return AuthManager._normalizar_url_base(valor)
@@ -310,36 +330,30 @@ class AuthManager:
     def resolver_base_url_app(self) -> str:
         """
         URL base pública de la app (redirect_to de Supabase OAuth).
-        Jerarquía: secrets → variables de entorno → headers Streamlit → localhost.
+        Jerarquía: variables de entorno → host del despliegue actual → secrets [app] → localhost.
+        En producción se ignoran secrets que apunten a un dominio distinto al host actual
+        (p. ej. veloxperu.streamlit.app cuando la app corre en Cloud Run).
         """
         en_produccion = self._host_remoto_produccion()
-
-        try:
-            app_secrets = st.secrets.get("app", {})
-        except Exception:
-            app_secrets = {}
-
-        for key in ("base_url", "redirect_url"):
-            raw = ""
-            try:
-                if hasattr(app_secrets, "get"):
-                    raw = app_secrets.get(key) or ""
-                else:
-                    raw = getattr(app_secrets, key, "") or ""
-            except (KeyError, TypeError, AttributeError):
-                raw = self._valor_seccion("app", key)
-            url = self._normalizar_url_base(str(raw or ""))
-            if not url:
-                continue
-            if en_produccion and self._url_es_localhost(url):
-                continue
-            return url
+        ctx_url = self._base_url_desde_contexto_streamlit()
 
         env_url = self._base_url_desde_entorno()
         if env_url and not (en_produccion and self._url_es_localhost(env_url)):
             return env_url
 
-        ctx_url = self._base_url_desde_contexto_streamlit()
+        if ctx_url and not (en_produccion and self._url_es_localhost(ctx_url)):
+            return ctx_url
+
+        for key in ("base_url", "redirect_url"):
+            url = self._normalizar_url_base(self._valor_seccion("app", key))
+            if not url:
+                continue
+            if en_produccion and self._url_es_localhost(url):
+                continue
+            if en_produccion and ctx_url and not self._mismo_host(url, ctx_url):
+                continue
+            return url
+
         if ctx_url:
             return ctx_url
 
@@ -386,26 +400,26 @@ class AuthManager:
 
     def _validar_precondiciones_oauth(self) -> Tuple[bool, str]:
         if not self._valor_seccion("supabase", "url"):
-            return False, "Falta [supabase].url en .streamlit/secrets.toml (o Secrets de Streamlit Cloud)."
+            return False, "Falta supabase.url (SUPABASE_URL o secrets)."
         if not self._valor_seccion("supabase", "key"):
-            return False, "Falta [supabase].key en .streamlit/secrets.toml (o Secrets de Streamlit Cloud)."
+            return False, "Falta supabase.key (SUPABASE_KEY o secrets)."
         redirect_to = self.obtener_redirect_url()
         if not redirect_to.startswith("http"):
             return (
                 False,
-                "URL base inválida. Define [app].base_url en secrets o VELOX_BASE_URL en el entorno.",
+                "URL base inválida. Define VELOX_BASE_URL / APP_BASE_URL o [app].base_url en secrets.",
             )
         if "supabase.co/auth/v1/callback" in redirect_to:
             return (
                 False,
                 "redirect_to apunta al callback de Supabase; debe ser la URL pública de tu app "
-                "(p. ej. https://veloxperu.streamlit.app). "
-                "En Google Cloud registra el callback de Supabase, no la URL de Streamlit.",
+                "(p. ej. https://velox-727827073430.us-central1.run.app). "
+                "En Google Cloud registra el callback de Supabase, no la URL de la app.",
             )
         if self._host_remoto_produccion() and self._url_es_localhost(redirect_to):
             return (
                 False,
-                "redirect_to es localhost en producción. Define [app].base_url en Streamlit Cloud Secrets.",
+                "redirect_to es localhost en producción. Define VELOX_BASE_URL o [app].base_url.",
             )
         return True, redirect_to
 

@@ -1,6 +1,8 @@
 # message_manager.py
 from datetime import datetime
 import uuid
+from typing import Any, Dict, List, Optional, Tuple
+
 from supabase_client import get_supabase
 
 
@@ -9,6 +11,126 @@ class MessageManager:
         self.supabase = get_supabase()
         self.tabla = "consultas"
 
+    @staticmethod
+    def _email_de_consulta(consulta: Dict[str, Any]) -> str:
+        return (
+            (consulta.get("usuario_email") or consulta.get("email") or "")
+            .strip()
+            .lower()
+        )
+
+    @staticmethod
+    def _texto_asunto(consulta: Dict[str, Any]) -> str:
+        asunto = (consulta.get("asunto") or "").strip()
+        if asunto:
+            return asunto
+        seccion = (consulta.get("seccion") or "").strip()
+        if seccion and seccion not in ("administracion", "general"):
+            return f"Consulta · {seccion}"
+        return "Consulta"
+
+    def registrar_notificacion_comprobante(
+        self,
+        usuario_email: str,
+        asunto: str,
+        mensaje: str,
+        respuesta: str,
+        estado: str,
+        master_email: str = "",
+        nombre_usuario: str = "",
+    ) -> Tuple[bool, str]:
+        """Registra notificación admin (aprobación/rechazo de comprobante) en consultas."""
+        email_norm = (usuario_email or "").strip().lower()
+        if not email_norm:
+            return False, "Email de usuario inválido"
+
+        now = datetime.now().isoformat()
+        base: Dict[str, Any] = {
+            "id": str(uuid.uuid4()),
+            "usuario_email": email_norm,
+            "email": email_norm,
+            "asunto": (asunto or "").strip(),
+            "mensaje": (mensaje or "").strip(),
+            "respuesta": (respuesta or "").strip(),
+            "estado": (estado or "Atendido").strip(),
+            "fecha": now,
+            "respondido": True,
+            "respondido_por": (master_email or "").strip() or None,
+            "fecha_respuesta": now,
+            "nombre_usuario": (nombre_usuario or email_norm.split("@")[0]).strip(),
+            "seccion": "administracion",
+        }
+        candidatos = [
+            base,
+            {k: v for k, v in base.items() if k not in ("usuario_email", "asunto")},
+        ]
+        ultimo_error = ""
+        for data in candidatos:
+            try:
+                result = self.supabase.table(self.tabla).insert(data).execute()
+                if result.data:
+                    return True, "Notificación registrada en consultas"
+                return False, "No se pudo registrar la notificación"
+            except Exception as e:
+                ultimo_error = str(e)
+                if any(x in ultimo_error.lower() for x in ("column", "pgrst", "schema")):
+                    continue
+                print(f"Error registrando notificación comprobante: {e}")
+                return False, ultimo_error
+        print(f"Error registrando notificación comprobante: {ultimo_error}")
+        return False, ultimo_error or "No se pudo registrar en consultas"
+
+    def registrar_aprobacion_comprobante(
+        self, usuario_email: str, master_email: str = "", nombre_usuario: str = ""
+    ) -> Tuple[bool, str]:
+        return self.registrar_notificacion_comprobante(
+            usuario_email=usuario_email,
+            asunto="¡Pago Aprobado y Acceso Activado!",
+            mensaje=(
+                "Hemos validado tu comprobante. Tus cursos solicitados han sido "
+                "activados correctamente en la plataforma."
+            ),
+            respuesta="Notificación enviada por administración.",
+            estado="Atendido",
+            master_email=master_email,
+            nombre_usuario=nombre_usuario,
+        )
+
+    def registrar_rechazo_comprobante(
+        self,
+        usuario_email: str,
+        observacion: str,
+        master_email: str = "",
+        nombre_usuario: str = "",
+    ) -> Tuple[bool, str]:
+        texto_obs = (observacion or "").strip() or (
+            "Tu comprobante no pudo ser validado. Revisa el monto, la captura "
+            "y vuelve a enviar una solicitud si corresponde."
+        )
+        return self.registrar_notificacion_comprobante(
+            usuario_email=usuario_email,
+            asunto="Observación en tu comprobante de pago",
+            mensaje=texto_obs,
+            respuesta="Notificación enviada por administración.",
+            estado="Observado",
+            master_email=master_email,
+            nombre_usuario=nombre_usuario,
+        )
+
+    def obtener_historial_completo(self) -> List[Dict[str, Any]]:
+        """Historial total de consultas (solo panel Master / trazabilidad)."""
+        try:
+            result = (
+                self.supabase.table(self.tabla)
+                .select("*")
+                .order("fecha", desc=True)
+                .execute()
+            )
+            return result.data or []
+        except Exception as e:
+            print(f"Error obteniendo historial completo de consultas: {e}")
+            return []
+
     def _es_consulta_pendiente(self, consulta: dict) -> bool:
         """True solo si la consulta aún no fue contestada."""
         if consulta.get("respuesta"):
@@ -16,7 +138,14 @@ class MessageManager:
         if consulta.get("respondido") is True:
             return False
         estado = (consulta.get("estado") or "").strip().lower()
-        if estado in ("respondida", "respondido", "cerrada", "closed"):
+        if estado in (
+            "respondida",
+            "respondido",
+            "cerrada",
+            "closed",
+            "atendido",
+            "observado",
+        ):
             return False
         return True
 
@@ -175,16 +304,22 @@ class MessageManager:
         return self.obtener_consultas_pendientes()
 
     def obtener_mensajes_usuario(self, email):
-        """Obtiene el historial de consultas de un usuario."""
+        """Obtiene el historial de consultas de un usuario (email o usuario_email)."""
+        email_norm = (email or "").strip().lower()
+        if not email_norm:
+            return []
         try:
             result = (
                 self.supabase.table(self.tabla)
                 .select("*")
-                .eq("email", email)
                 .order("fecha", desc=True)
                 .execute()
             )
-            return result.data or []
+            return [
+                c
+                for c in (result.data or [])
+                if self._email_de_consulta(c) == email_norm
+            ]
         except Exception as e:
             print(f"Error obteniendo consultas del usuario: {e}")
             return []

@@ -3483,6 +3483,78 @@ def render_gestion_cobranzas_master():
     """Alias retrocompatible → panel exclusivo Master."""
     render_gestion_comprobantes_admin()
 
+def _formatear_fecha_consulta(fecha_raw) -> str:
+    return _formatear_fecha_notif(fecha_raw) if fecha_raw else "Sin fecha"
+
+
+def _nombre_seccion_consulta(msg: dict) -> str:
+    seccion = (msg.get("seccion") or "").strip()
+    if seccion in ("administracion", "general", ""):
+        return "Administración veloX"
+    return SECCIONES.get(seccion, {}).get("nombre", seccion.capitalize())
+
+
+def _render_tarjeta_consulta(msg: dict, mostrar_email: bool = False) -> None:
+    asunto = MessageManager._texto_asunto(msg)
+    fecha_str = _formatear_fecha_consulta(msg.get("fecha"))
+    estado_raw = (msg.get("estado") or "").strip()
+    respuesta = (msg.get("respuesta") or "").strip()
+    es_pendiente = not respuesta and estado_raw.lower() not in (
+        "atendido",
+        "observado",
+        "respondida",
+        "respondido",
+    )
+    if es_pendiente:
+        badge = "⏳ Pendiente"
+        badge_style = "background:#fff3cd;color:#856404;"
+    elif estado_raw.lower() == "observado":
+        badge = "⚠️ Observado"
+        badge_style = "background:#fef3c7;color:#92400e;"
+    else:
+        badge = "✅ Atendido"
+        badge_style = "background:#dcfce7;color:#166534;"
+
+    email_line = ""
+    if mostrar_email:
+        email_line = f" · `{MessageManager._email_de_consulta(msg)}`"
+
+    st.markdown(
+        f"""
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.75rem;margin-bottom:0.35rem;">
+            <div><strong>{asunto}</strong><br>
+            <small style="color:#64748b;">📅 {fecha_str}{email_line}</small></div>
+            <span style="{badge_style}padding:4px 10px;border-radius:12px;font-size:0.78rem;white-space:nowrap;">{badge}</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f'<div style="background:#f8fafc;border-radius:8px;padding:10px 12px;'
+        f'border-left:4px solid #2B6CB0;margin:6px 0 8px 0;">{msg.get("mensaje", "")}</div>',
+        unsafe_allow_html=True,
+    )
+    if respuesta:
+        st.markdown(f"**Respuesta:** {respuesta}")
+    elif es_pendiente:
+        st.info("**Respuesta:** Pendiente de respuesta por el administrador.")
+
+
+def render_historial_consultas_master_completo():
+    """Trazabilidad total de tickets consultas (Master principal)."""
+    st.markdown("### 🗂️ Historial completo de consultas")
+    st.caption("Registro de consultas de usuarios y notificaciones automáticas de pagos/comprobantes.")
+    historial = message_manager.obtener_historial_completo()
+    if not historial:
+        st.info("No hay registros en la tabla consultas.")
+        return
+    for msg in historial:
+        with st.container(border=True):
+            _render_tarjeta_consulta(msg, mostrar_email=True)
+            seccion_nombre = _nombre_seccion_consulta(msg)
+            st.caption(f"Origen: {seccion_nombre}")
+
+
 def _parsear_metadata_notif(metadata):
     if isinstance(metadata, dict):
         return metadata
@@ -5182,6 +5254,11 @@ else:
             st.header("📬 Gestión de Consultas")
             st.caption("Revisa y responde las consultas enviadas por los usuarios de la plataforma.")
 
+            if _es_master_admin_comprobantes():
+                with st.expander("🗂️ Historial completo de tickets (trazabilidad)", expanded=False):
+                    render_historial_consultas_master_completo()
+                st.markdown("---")
+
             # Consultas pendientes (no respondidas)
             pendientes = message_manager.obtener_mensajes_para_master(respondidos=False)
             st.markdown(f"### ⏳ Consultas pendientes ({len(pendientes)})")
@@ -5190,16 +5267,15 @@ else:
                 st.info("No hay consultas pendientes por responder.")
             else:
                 for msg in pendientes:
-                    seccion_nombre = SECCIONES.get(msg["seccion"], {}).get("nombre", msg["seccion"].capitalize())
-                    fecha = msg.get("fecha", "")
-                    fecha_str = fecha[:16].replace("T", " ") if fecha else "Sin fecha"
+                    seccion_nombre = _nombre_seccion_consulta(msg)
+                    fecha_str = _formatear_fecha_consulta(msg.get("fecha"))
                     with st.container(border=True):
                         col_info, col_badge = st.columns([4, 1])
                         with col_info:
                             st.markdown(
-                                f"**👤 {msg['nombre_usuario']}** · `{msg['email']}`  \n"
-                                f"**📂 Sección:** {seccion_nombre}  \n"
-                                f"**📅** {fecha_str}"
+                                f"**👤 {msg.get('nombre_usuario', 'Usuario')}** · "
+                                f"`{MessageManager._email_de_consulta(msg)}`  \n"
+                                f"**📂 {seccion_nombre}** · **📅** {fecha_str}"
                             )
                         with col_badge:
                             st.markdown(
@@ -5238,17 +5314,8 @@ else:
                     st.info("Aún no hay consultas respondidas.")
                 else:
                     for msg in respondidas:
-                        seccion_nombre = SECCIONES.get(msg["seccion"], {}).get("nombre", msg["seccion"].capitalize())
-                        fecha_resp = msg.get("fecha_respuesta", "")
-                        fecha_resp_str = fecha_resp[:16].replace("T", " ") if fecha_resp else ""
-                        st.markdown(
-                            f"**👤 {msg['nombre_usuario']}** · **📂 {seccion_nombre}**  \n"
-                            f"**Consulta:** {msg['mensaje']}  \n"
-                            f"**Respuesta:** {msg.get('respuesta', '')}  \n"
-                            f"<small>Respondida el {fecha_resp_str}</small>",
-                            unsafe_allow_html=True,
-                        )
-                        st.divider()
+                        with st.container(border=True):
+                            _render_tarjeta_consulta(msg, mostrar_email=True)
         else:
             # Usuario normal: enviar consulta
             st.header("📬 Mis Consultas")
@@ -5287,19 +5354,13 @@ else:
             st.markdown("### 📋 Historial de consultas")
             historial = message_manager.obtener_mensajes_usuario(st.session_state['usuario'])
             if not historial:
-                st.info("Aún no has enviado consultas.")
+                st.info("Aún no tienes consultas ni notificaciones registradas.")
             else:
                 for msg in historial:
-                    seccion_nombre = SECCIONES.get(msg["seccion"], {}).get("nombre", msg["seccion"].capitalize())
-                    respuesta = msg.get("respuesta")
-                    estado = "✅ Respondida" if respuesta else "⏳ Pendiente"
                     with st.container(border=True):
-                        st.markdown(f"**📂 {seccion_nombre}** · {estado}")
-                        st.markdown(f"**Consulta:** {msg['mensaje']}")
-                        if respuesta:
-                            st.success(f"**Respuesta:** {respuesta}")
-                        else:
-                            st.info("**Respuesta:** Pendiente de respuesta por el administrador.")
+                        _render_tarjeta_consulta(msg)
+                        seccion_nombre = _nombre_seccion_consulta(msg)
+                        st.caption(f"Origen: {seccion_nombre}")
 
     elif menu_actual == "👤 Mi Perfil":
         if _es_master():

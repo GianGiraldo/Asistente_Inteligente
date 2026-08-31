@@ -10,6 +10,7 @@ class MessageManager:
     def __init__(self):
         self.supabase = get_supabase()
         self.tabla = "consultas"
+        self.tabla_comprobantes = "comprobantes"
 
     @staticmethod
     def _email_de_consulta(consulta: Dict[str, Any]) -> str:
@@ -90,6 +91,8 @@ class MessageManager:
                 "leido",
                 "asunto",
                 "usuario_email",
+                "comprobante_id",
+                "created_at",
                 "estado",
                 "respondido_por",
                 "fecha_respuesta",
@@ -132,6 +135,8 @@ class MessageManager:
         respuesta_master: str,
         master_email: str = "",
         nombre_usuario: str = "",
+        comprobante_id: Optional[str] = None,
+        leido: bool = False,
     ) -> Tuple[bool, str]:
         """INSERT en consultas tras aprobar/rechazar comprobante (badge + historial alumno)."""
         email_norm = (usuario_email or "").strip().lower()
@@ -146,7 +151,7 @@ class MessageManager:
         respuesta = (respuesta_master or "").strip()
         if not respuesta:
             respuesta = (
-                "Tu comprobante fue validado correctamente."
+                "Tu pago ha sido verificado y aprobado con éxito."
                 if estado_txt == "APROBADO"
                 else "Rechazado por el administrador."
             )
@@ -156,19 +161,25 @@ class MessageManager:
             "id": str(uuid.uuid4()),
             "email": email_norm,
             "usuario_email": email_norm,
-            "asunto": f"Solicitud de acceso: {estado_txt}",
-            "mensaje": f"Solicitud para el curso {cursos_txt} - Estado: {estado_txt}",
+            "asunto": f"Estado de Solicitud: {estado_txt}",
+            "mensaje": (
+                f"Revisión de comprobante de pago para el plan/curso seleccionado. "
+                f"(Cursos: {cursos_txt})"
+            ),
             "respuesta": respuesta,
             "estado": "Atendido" if estado_txt == "APROBADO" else "Observado",
             "fecha": now,
+            "created_at": now,
             "respondido": True,
             "respondido_por": (master_email or "").strip() or None,
             "fecha_respuesta": now,
             "nombre_usuario": (nombre_usuario or email_norm.split("@")[0]).strip(),
             "seccion": "cobranzas",
-            "leido": False,
+            "leido": leido,
             "leido_master": True,
         }
+        if comprobante_id:
+            base["comprobante_id"] = str(comprobante_id).strip()
 
         ultimo_error = ""
         for data in self._candidatos_insert_consulta(base):
@@ -192,10 +203,10 @@ class MessageManager:
         nombre_usuario: str = "",
         observacion: str = "",
         cursos_solicitados: str = "",
+        comprobante_id: Optional[str] = None,
     ) -> Tuple[bool, str]:
         texto_resp = (observacion or "").strip() or (
-            "Tu comprobante fue validado correctamente. "
-            "Tus cursos solicitados ya están activos en la plataforma."
+            "Tu pago ha sido verificado y aprobado con éxito."
         )
         return self.insertar_notificacion_cobranza(
             usuario_email=usuario_email,
@@ -204,6 +215,7 @@ class MessageManager:
             respuesta_master=texto_resp,
             master_email=master_email,
             nombre_usuario=nombre_usuario,
+            comprobante_id=comprobante_id,
         )
 
     def registrar_rechazo_comprobante(
@@ -213,6 +225,7 @@ class MessageManager:
         master_email: str = "",
         nombre_usuario: str = "",
         cursos_solicitados: str = "",
+        comprobante_id: Optional[str] = None,
     ) -> Tuple[bool, str]:
         return self.insertar_notificacion_cobranza(
             usuario_email=usuario_email,
@@ -221,6 +234,7 @@ class MessageManager:
             respuesta_master=observacion,
             master_email=master_email,
             nombre_usuario=nombre_usuario,
+            comprobante_id=comprobante_id,
         )
 
     def obtener_historial_completo(self) -> List[Dict[str, Any]]:
@@ -328,28 +342,52 @@ class MessageManager:
                 print(f"Error marcando consulta master {cid}: {row_err}")
 
     def contar_consultas_no_leidas(self, email: str) -> int:
-        """Cantidad de respuestas/notificaciones no leídas del usuario (leido = false)."""
+        """Cantidad de respuestas/notificaciones no leídas (consultas + fallback comprobantes)."""
         email_norm = (email or "").strip().lower()
         if not email_norm:
             return 0
+        return len(
+            [
+                m
+                for m in self.obtener_mensajes_usuario(email_norm)
+                if self._es_consulta_no_leida(m)
+            ]
+        )
+
+    def _sincronizar_comprobantes_leidos_en_consultas(self, email_norm: str) -> None:
+        """Persiste filas leídas para comprobantes sin registro previo en consultas."""
         try:
-            for col in ("usuario_email", "email"):
-                try:
-                    result = (
-                        self.supabase.table(self.tabla)
-                        .select("id", count="exact")
-                        .eq(col, email_norm)
-                        .eq("leido", False)
-                        .execute()
-                    )
-                    if result.count is not None:
-                        return int(result.count)
-                except Exception:
-                    continue
-        except Exception as e:
-            print(f"Error contando consultas no leídas (SQL): {e}")
-        mensajes = self.obtener_mensajes_usuario(email_norm)
-        return len([m for m in mensajes if self._es_consulta_no_leida(m)])
+            por_email = (
+                self.supabase.table(self.tabla)
+                .select("*")
+                .eq("email", email_norm)
+                .execute()
+            )
+            consultas = list(por_email.data or [])
+        except Exception:
+            consultas = []
+
+        for comprobante in self._obtener_comprobantes_revisados_usuario(email_norm):
+            if self._consulta_cubre_comprobante(comprobante, consultas):
+                continue
+            estado = (comprobante.get("estado") or "").strip().upper()
+            if estado not in ("APROBADO", "RECHAZADO"):
+                continue
+            respuesta = (comprobante.get("motivo_rechazo") or "").strip()
+            if not respuesta:
+                respuesta = (
+                    "Tu pago ha sido verificado y aprobado con éxito."
+                    if estado == "APROBADO"
+                    else "Rechazado por el administrador."
+                )
+            self.insertar_notificacion_cobranza(
+                usuario_email=email_norm,
+                estado_acceso=estado,
+                cursos_solicitados="sin especificar",
+                respuesta_master=respuesta,
+                comprobante_id=comprobante.get("id"),
+                leido=True,
+            )
 
     def marcar_consultas_leidas(self, email: str) -> None:
         """Marca como leídas todas las consultas pendientes de lectura del usuario."""
@@ -364,14 +402,16 @@ class MessageManager:
                     ).eq("leido", False).execute()
                 except Exception:
                     continue
-            return
         except Exception as e:
             print(f"Error marcando consultas leídas (SQL): {e}")
+
+        self._sincronizar_comprobantes_leidos_en_consultas(email_norm)
+
         for consulta in self.obtener_mensajes_usuario(email_norm):
             if not self._es_consulta_no_leida(consulta):
                 continue
             cid = consulta.get("id")
-            if not cid:
+            if not cid or str(cid).startswith("fallback-comprobante-"):
                 continue
             try:
                 self.supabase.table(self.tabla).update({"leido": True}).eq(
@@ -546,8 +586,103 @@ class MessageManager:
             return self.obtener_consultas_respondidas()
         return self.obtener_consultas_pendientes()
 
+    def _obtener_comprobantes_revisados_usuario(self, email_norm: str) -> List[Dict[str, Any]]:
+        """Salvaguarda: comprobantes aprobados/rechazados del alumno."""
+        try:
+            result = (
+                self.supabase.table(self.tabla_comprobantes)
+                .select("*")
+                .eq("usuario_email", email_norm)
+                .in_("estado", ["aprobado", "rechazado"])
+                .order("fecha_revision", desc=True)
+                .execute()
+            )
+            return result.data or []
+        except Exception as e:
+            print(f"Error obteniendo comprobantes revisados del usuario: {e}")
+            return []
+
+    @staticmethod
+    def _comprobante_a_consulta_fallback(comprobante: Dict[str, Any]) -> Dict[str, Any]:
+        """Convierte un comprobante revisado en tarjeta compatible con Consultas."""
+        estado = (comprobante.get("estado") or "").strip().lower()
+        estado_txt = estado.upper() if estado else "REVISADO"
+        email = (
+            (comprobante.get("usuario_email") or comprobante.get("email") or "")
+            .strip()
+            .lower()
+        )
+        respuesta = (comprobante.get("motivo_rechazo") or "").strip()
+        if not respuesta:
+            respuesta = (
+                "Tu pago ha sido verificado y aprobado con éxito."
+                if estado == "aprobado"
+                else "Rechazado por el administrador."
+            )
+        fecha = (
+            comprobante.get("fecha_revision")
+            or comprobante.get("creado")
+            or datetime.now().isoformat()
+        )
+        return {
+            "id": f"fallback-comprobante-{comprobante.get('id')}",
+            "comprobante_id": comprobante.get("id"),
+            "email": email,
+            "usuario_email": email,
+            "asunto": f"Estado de Solicitud: {estado_txt}",
+            "mensaje": "Revisión de comprobante de pago para el plan/curso seleccionado.",
+            "respuesta": respuesta,
+            "seccion": "cobranzas",
+            "respondido": True,
+            "leido": False,
+            "leido_master": True,
+            "estado": "Atendido" if estado == "aprobado" else "Observado",
+            "fecha": fecha,
+            "_origen_fallback": "comprobantes",
+        }
+
+    def _consulta_cubre_comprobante(
+        self, comprobante: Dict[str, Any], consultas: List[Dict[str, Any]]
+    ) -> bool:
+        """True si ya existe una fila en consultas equivalente al comprobante."""
+        cid = comprobante.get("id")
+        estado_txt = (comprobante.get("estado") or "").strip().upper()
+        respuesta_comp = (comprobante.get("motivo_rechazo") or "").strip()
+        for consulta in consultas:
+            if cid and consulta.get("comprobante_id") == cid:
+                return True
+            if (consulta.get("seccion") or "").strip().lower() != "cobranzas":
+                continue
+            asunto = (consulta.get("asunto") or "").upper()
+            if estado_txt and estado_txt in asunto:
+                respuesta_cons = (consulta.get("respuesta") or "").strip()
+                if not respuesta_comp or respuesta_cons == respuesta_comp:
+                    return True
+        return False
+
+    def _fusionar_consultas_con_comprobantes(
+        self, consultas: List[Dict[str, Any]], email_norm: str
+    ) -> List[Dict[str, Any]]:
+        """Unifica consultas + comprobantes revisados (fallback defensivo)."""
+        fusion: Dict[str, Dict[str, Any]] = {}
+        for row in consultas:
+            rid = str(row.get("id") or id(row))
+            fusion[rid] = row
+
+        for comprobante in self._obtener_comprobantes_revisados_usuario(email_norm):
+            if self._consulta_cubre_comprobante(comprobante, consultas):
+                continue
+            virtual = self._comprobante_a_consulta_fallback(comprobante)
+            fusion[str(virtual["id"])] = virtual
+
+        return sorted(
+            fusion.values(),
+            key=lambda c: c.get("fecha") or c.get("created_at") or "",
+            reverse=True,
+        )
+
     def obtener_mensajes_usuario(self, email):
-        """Historial del alumno: consultas de soporte y notificaciones de cobranzas."""
+        """Historial unificado: consultas + cobranzas (consultas + fallback comprobantes)."""
         email_norm = (email or "").strip().lower()
         if not email_norm:
             return []
@@ -582,28 +717,26 @@ class MessageManager:
         except Exception:
             pass
 
-        if filas:
-            return sorted(
-                filas.values(),
-                key=lambda c: c.get("fecha") or "",
-                reverse=True,
-            )
+        consultas = list(filas.values()) if filas else []
 
-        try:
-            result = (
-                self.supabase.table(self.tabla)
-                .select("*")
-                .order("fecha", desc=True)
-                .execute()
-            )
-            return [
-                c
-                for c in (result.data or [])
-                if self._email_de_consulta(c) == email_norm
-            ]
-        except Exception as e:
-            print(f"Error obteniendo consultas del usuario: {e}")
-            return []
+        if not consultas:
+            try:
+                result = (
+                    self.supabase.table(self.tabla)
+                    .select("*")
+                    .order("fecha", desc=True)
+                    .execute()
+                )
+                consultas = [
+                    c
+                    for c in (result.data or [])
+                    if self._email_de_consulta(c) == email_norm
+                ]
+            except Exception as e:
+                print(f"Error obteniendo consultas del usuario: {e}")
+                consultas = []
+
+        return self._fusionar_consultas_con_comprobantes(consultas, email_norm)
 
     def contar_no_leidos(self, email):
         """Cuenta consultas del usuario que aún no tienen respuesta."""

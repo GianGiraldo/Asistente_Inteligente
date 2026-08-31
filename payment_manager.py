@@ -667,14 +667,18 @@ class PaymentManager:
             if not ok_act:
                 return False, msg_act
 
+            update_payload: Dict[str, Any] = {
+                "estado": ESTADO_APROBADO,
+                "revisado_por": master_email,
+                "fecha_revision": datetime.now().isoformat(),
+            }
+            obs = (observacion or "").strip()
+            if obs:
+                update_payload["motivo_rechazo"] = obs
             try:
-                self.supabase.table(TABLA_COMPROBANTES).update(
-                    {
-                        "estado": ESTADO_APROBADO,
-                        "revisado_por": master_email,
-                        "fecha_revision": datetime.now().isoformat(),
-                    }
-                ).eq("id", comprobante["id"]).execute()
+                self.supabase.table(TABLA_COMPROBANTES).update(update_payload).eq(
+                    "id", comprobante["id"]
+                ).execute()
             except Exception:
                 self.supabase.table(TABLA_COMPROBANTES).update(
                     {"estado": ESTADO_APROBADO}
@@ -684,7 +688,10 @@ class PaymentManager:
                 email, master_email, comprobante, observacion=observacion
             )
             if not ok_consulta:
-                return False, f"Pago aprobado en comprobantes, pero falló aviso al alumno: {msg_consulta}"
+                print(
+                    "Aviso: INSERT consultas vía Python falló; el trigger SQL en "
+                    f"comprobantes debe crear el aviso al alumno. Detalle: {msg_consulta}"
+                )
 
             if cursos_aprobados:
                 secciones = [
@@ -740,7 +747,10 @@ class PaymentManager:
                 email, motivo_l, master_email, comprobante
             )
             if not ok_consulta:
-                return False, f"Pago rechazado en comprobantes, pero falló aviso al alumno: {msg_consulta}"
+                print(
+                    "Aviso: INSERT consultas vía Python falló; el trigger SQL en "
+                    f"comprobantes debe crear el aviso al alumno. Detalle: {msg_consulta}"
+                )
             return True, "Pago rechazado correctamente"
         except Exception as e:
             return False, f"Error al rechazar pago: {_format_error(e)}"
@@ -789,6 +799,7 @@ class PaymentManager:
                 nombre_usuario=nombre,
                 observacion=observacion,
                 cursos_solicitados=self._texto_cursos_comprobante(comprobante),
+                comprobante_id=(comprobante or {}).get("id"),
             )
         except Exception as e:
             err = _format_error(e)
@@ -813,6 +824,7 @@ class PaymentManager:
                 master_email=master_email,
                 nombre_usuario=nombre,
                 cursos_solicitados=self._texto_cursos_comprobante(comprobante),
+                comprobante_id=(comprobante or {}).get("id"),
             )
         except Exception as e:
             err = _format_error(e)

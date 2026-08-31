@@ -3183,12 +3183,23 @@ def _init_sidebar_counts_si_falta() -> None:
     usuario = (st.session_state.get("usuario") or "").strip().lower()
     if not usuario:
         return
+    cache_v = _velox_data_cache_version()
     if (
-        "unread_consultas_count" not in st.session_state
-        or "pending_cobranzas_count" not in st.session_state
+        "pending_cobranzas_count" not in st.session_state
         or st.session_state.get("_sidebar_counts_user") != usuario
     ):
         _refresh_sidebar_counts(force=True)
+    else:
+        if _es_staff() and _puede_modulo(AuthManager.MODULO_CONSULTAS):
+            st.session_state["unread_consultas_count"] = cached_contar_consultas_soporte_master(
+                data_cache_version=cache_v
+            )
+        else:
+            st.session_state["unread_consultas_count"] = cached_contar_consultas_no_leidas(
+                usuario,
+                data_cache_version=cache_v,
+            )
+        st.session_state["unread_count"] = st.session_state["unread_consultas_count"]
 
 
 def _refresh_sidebar_counts(force: bool = False) -> None:
@@ -3700,6 +3711,13 @@ def _fragment_panel_comprobantes_pendientes():
             with col_sp:
                 col_ok, col_no = st.columns(2)
                 with col_ok:
+                    obs_aprobar_key = f"obs_aprobacion_{pago_id}"
+                    st.text_input(
+                        "Observación de aprobación (opcional)",
+                        key=obs_aprobar_key,
+                        placeholder="Ej. acceso activado correctamente",
+                        label_visibility="collapsed",
+                    )
                     st.markdown('<div class="st-key-btn_aprobar_comprobante">', unsafe_allow_html=True)
                     if st.button(
                         "Aprobar Acceso",
@@ -3708,8 +3726,11 @@ def _fragment_panel_comprobantes_pendientes():
                         disabled=st.session_state.get("pago_procesando") == pago_id,
                     ):
                         st.session_state["pago_procesando"] = pago_id
+                        observacion = st.session_state.get(obs_aprobar_key, "")
                         ok, msg = payment_manager.aprobar_pago(
-                            pago_id, st.session_state["usuario"]
+                            pago_id,
+                            st.session_state["usuario"],
+                            observacion=observacion,
                         )
                         st.session_state.pop("pago_procesando", None)
                         if ok:
@@ -3763,7 +3784,9 @@ def _formatear_fecha_consulta(fecha_raw) -> str:
 
 
 def _nombre_seccion_consulta(msg: dict) -> str:
-    seccion = (msg.get("seccion") or "").strip()
+    seccion = (msg.get("seccion") or "").strip().lower()
+    if seccion == "cobranzas":
+        return "Cobranzas / Pagos"
     if seccion in ("administracion", "general", ""):
         return "Administración veloX"
     return SECCIONES.get(seccion, {}).get("nombre", seccion.capitalize())
@@ -3774,13 +3797,21 @@ def _render_tarjeta_consulta(msg: dict, mostrar_email: bool = False) -> None:
     fecha_str = _formatear_fecha_consulta(msg.get("fecha"))
     estado_raw = (msg.get("estado") or "").strip()
     respuesta = (msg.get("respuesta") or "").strip()
+    asunto_upper = asunto.upper()
+    es_cobranzas = (msg.get("seccion") or "").strip().lower() == "cobranzas"
     es_pendiente = not respuesta and estado_raw.lower() not in (
         "atendido",
         "observado",
         "respondida",
         "respondido",
     )
-    if es_pendiente:
+    if es_cobranzas and "RECHAZADO" in asunto_upper:
+        badge = "❌ Solicitud Rechazada"
+        badge_style = "background:#fee2e2;color:#991b1b;"
+    elif es_cobranzas and "APROBADO" in asunto_upper:
+        badge = "✅ Solicitud Aprobada"
+        badge_style = "background:#dcfce7;color:#166534;"
+    elif es_pendiente:
         badge = "⏳ Pendiente"
         badge_style = "background:#fff3cd;color:#856404;"
     elif estado_raw.lower() == "observado":
@@ -3810,7 +3841,12 @@ def _render_tarjeta_consulta(msg: dict, mostrar_email: bool = False) -> None:
         unsafe_allow_html=True,
     )
     if respuesta:
-        st.markdown(f"**Respuesta:** {respuesta}")
+        etiqueta_resp = (
+            "**Detalle del administrador:**"
+            if es_cobranzas
+            else "**Respuesta:**"
+        )
+        st.markdown(f"{etiqueta_resp} {respuesta}")
     elif es_pendiente:
         st.info("**Respuesta:** Pendiente de respuesta por el administrador.")
 

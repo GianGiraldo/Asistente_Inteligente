@@ -38,6 +38,7 @@ class MessageManager:
         estado: str,
         master_email: str = "",
         nombre_usuario: str = "",
+        seccion: str = "cobranzas",
     ) -> Tuple[bool, str]:
         """Registra notificación admin (aprobación/rechazo de comprobante) en consultas."""
         email_norm = (usuario_email or "").strip().lower()
@@ -58,7 +59,7 @@ class MessageManager:
             "respondido_por": (master_email or "").strip() or None,
             "fecha_respuesta": now,
             "nombre_usuario": (nombre_usuario or email_norm.split("@")[0]).strip(),
-            "seccion": "administracion",
+            "seccion": (seccion or "cobranzas").strip(),
             "leido": False,
             "leido_master": True,
         }
@@ -83,19 +84,25 @@ class MessageManager:
         return False, ultimo_error or "No se pudo registrar en consultas"
 
     def registrar_aprobacion_comprobante(
-        self, usuario_email: str, master_email: str = "", nombre_usuario: str = ""
+        self,
+        usuario_email: str,
+        master_email: str = "",
+        nombre_usuario: str = "",
+        observacion: str = "",
     ) -> Tuple[bool, str]:
+        texto_resp = (observacion or "").strip() or (
+            "Tu comprobante fue validado correctamente. "
+            "Tus cursos solicitados ya están activos en la plataforma."
+        )
         return self.registrar_notificacion_comprobante(
             usuario_email=usuario_email,
-            asunto="¡Pago Aprobado y Acceso Activado!",
-            mensaje=(
-                "Hemos validado tu comprobante. Tus cursos solicitados han sido "
-                "activados correctamente en la plataforma."
-            ),
-            respuesta="Notificación enviada por administración.",
+            asunto="Resultado de solicitud de acceso: APROBADO",
+            mensaje="Tu solicitud de compra/acceso fue revisada por administración.",
+            respuesta=texto_resp,
             estado="Atendido",
             master_email=master_email,
             nombre_usuario=nombre_usuario,
+            seccion="cobranzas",
         )
 
     def registrar_rechazo_comprobante(
@@ -105,18 +112,19 @@ class MessageManager:
         master_email: str = "",
         nombre_usuario: str = "",
     ) -> Tuple[bool, str]:
-        texto_obs = (observacion or "").strip() or (
+        texto_resp = (observacion or "").strip() or (
             "Tu comprobante no pudo ser validado. Revisa el monto, la captura "
             "y vuelve a enviar una solicitud si corresponde."
         )
         return self.registrar_notificacion_comprobante(
             usuario_email=usuario_email,
-            asunto="Observación en tu comprobante de pago",
-            mensaje=texto_obs,
-            respuesta="Notificación enviada por administración.",
+            asunto="Resultado de solicitud de acceso: RECHAZADO",
+            mensaje="Tu solicitud de compra/acceso fue revisada por administración.",
+            respuesta=texto_resp,
             estado="Observado",
             master_email=master_email,
             nombre_usuario=nombre_usuario,
+            seccion="cobranzas",
         )
 
     def obtener_historial_completo(self) -> List[Dict[str, Any]]:
@@ -164,7 +172,7 @@ class MessageManager:
     @staticmethod
     def _es_consulta_soporte_usuario(consulta: Dict[str, Any]) -> bool:
         seccion = (consulta.get("seccion") or "").strip().lower()
-        return seccion not in ("administracion", "general", "")
+        return seccion not in ("administracion", "general", "cobranzas", "")
 
     def _es_soporte_no_leido_master(self, consulta: Dict[str, Any]) -> bool:
         if not self._es_consulta_soporte_usuario(consulta):

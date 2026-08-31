@@ -645,7 +645,9 @@ class PaymentManager:
                 continue
         return len(self.listar_pagos_pendientes())
 
-    def aprobar_pago(self, pago_id: str, master_email: str) -> Tuple[bool, str]:
+    def aprobar_pago(
+        self, pago_id: str, master_email: str, observacion: str = ""
+    ) -> Tuple[bool, str]:
         """Aprueba comprobante; pago_id = UUID del registro en tabla comprobantes."""
         try:
             comprobante = self._obtener_comprobante_por_id((pago_id or "").strip())
@@ -679,7 +681,7 @@ class PaymentManager:
                 ).eq("id", comprobante["id"]).execute()
 
             self._registrar_consulta_aprobacion_comprobante(
-                email, master_email, comprobante
+                email, master_email, comprobante, observacion=observacion
             )
 
             if cursos_aprobados:
@@ -744,6 +746,7 @@ class PaymentManager:
         email: str,
         master_email: str,
         comprobante: Optional[Dict[str, Any]] = None,
+        observacion: str = "",
     ) -> None:
         try:
             from message_manager import MessageManager
@@ -751,7 +754,10 @@ class PaymentManager:
             user = self._obtener_usuario(email)
             nombre = (user or {}).get("nombre") or email.split("@")[0]
             ok, msg = MessageManager().registrar_aprobacion_comprobante(
-                email, master_email=master_email, nombre_usuario=nombre
+                email,
+                master_email=master_email,
+                nombre_usuario=nombre,
+                observacion=observacion,
             )
             if not ok:
                 print(f"Aviso consulta aprobación ({email}): {msg}")

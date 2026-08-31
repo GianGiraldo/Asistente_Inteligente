@@ -126,6 +126,7 @@ from storage_manager import StorageManager
 from ui_theme import (
     inject_global_theme,
     inject_section_catalog_css,
+    inject_section_detail_banner_css,
     inject_sidebar_theme,
     inject_welcome_layout,
     MAIN_CONTENT_AREA_CSS,
@@ -2726,6 +2727,29 @@ def _contar_documentos_seccion(seccion_id: str) -> int:
         return 0
 
 
+def _nombre_seccion_sin_icono(seccion_info: dict) -> str:
+    """Título tipográfico limpio sin emoji/icono del catálogo."""
+    nombre = (seccion_info.get("nombre") or "").strip()
+    icono = (seccion_info.get("icono") or "").strip()
+    if icono and nombre.startswith(icono):
+        return nombre[len(icono):].strip()
+    return nombre
+
+
+def _render_banner_seccion_detalle(seccion_info: dict) -> None:
+    """Banner centrado del detalle de sección (Mis Documentos e Inicio interno)."""
+    inject_section_detail_banner_css()
+    titulo = html_module.escape(_nombre_seccion_sin_icono(seccion_info))
+    descripcion = html_module.escape(seccion_info.get("descripcion") or "")
+    st.markdown(
+        f'<div class="velox-section-detail-banner">'
+        f'<h2 class="velox-section-detail-banner__title">{titulo}</h2>'
+        f'<p class="velox-section-detail-banner__desc">{descripcion}</p>'
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+
 def _texto_solicitud_whatsapp(seccion_nombre: str) -> str:
     limpio = seccion_nombre or "veloX"
     for prefijo in ("📊 ", "📈 ", "📉 ", "🌐 ", "🚚 ", "👥 ", "💰 "):
@@ -2951,9 +2975,7 @@ def render_catalogo_secciones_freemium(
     for i, (seccion_id, sec_info) in enumerate(SECCIONES.items()):
         tiene_acceso = seccion_id in autorizadas
         num_docs = _contar_documentos_seccion(seccion_id)
-        nombre_limpio = sec_info["nombre"]
-        if nombre_limpio.startswith(sec_info["icono"]):
-            nombre_limpio = nombre_limpio[len(sec_info["icono"]):].strip()
+        nombre_limpio = _nombre_seccion_sin_icono(sec_info)
 
         with cols[i % 3]:
             st.markdown('<div class="velox-section-grid">', unsafe_allow_html=True)
@@ -5071,12 +5093,7 @@ def render_vista_seccion_inicio(seccion_id):
         return
 
     st.button("⬅️ Volver al Inicio", key="btn_volver_inicio", on_click=volver_al_inicio)
-    st.header(seccion_info["nombre"])
-    st.markdown(f"""
-    <div style="background: {seccion_info['color']}10; padding: 1rem; border-radius: 10px; margin-bottom: 1rem;">
-        <p style="margin:0;">{seccion_info['descripcion']}</p>
-    </div>
-    """, unsafe_allow_html=True)
+    _render_banner_seccion_detalle(seccion_info)
 
     _render_documentos_seccion_inicio(
         seccion_id,
@@ -5316,12 +5333,7 @@ else:
             )[0]
             seccion_info = SECCIONES[seccion_seleccionada]
 
-            st.markdown(f"""
-            <div style="background: {seccion_info['color']}10; padding: 1rem; border-radius: 10px; margin-bottom: 1rem;">
-                <h3>{seccion_info['nombre']}</h3>
-                <p>{seccion_info['descripcion']}</p>
-            </div>
-            """, unsafe_allow_html=True)
+            _render_banner_seccion_detalle(seccion_info)
 
             if st.button("🔙 Volver al Dashboard", key="btn_volver_dashboard"):
                 st.rerun()

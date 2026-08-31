@@ -1,0 +1,88 @@
+<svg width="560" height="330" viewBox="0 0 560 330" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGradE" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#EAFBF0"/>
+      <stop offset="45%" stop-color="#DBF5E4"/>
+      <stop offset="100%" stop-color="#C2ECD3"/>
+    </linearGradient>
+    <linearGradient id="waveGradE1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#A6E3BE" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#7CD4A2" stop-opacity="0.32"/>
+    </linearGradient>
+    <linearGradient id="waveGradE2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4FC085" stop-opacity="0.26"/>
+      <stop offset="100%" stop-color="#2FAB6C" stop-opacity="0.14"/>
+    </linearGradient>
+    <linearGradient id="sheetGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#F0FAF3"/>
+    </linearGradient>
+    <radialGradient id="dotFadeE" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#1E9E5A" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#1E9E5A" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="cardClipE">
+      <rect x="0" y="0" width="560" height="330" rx="18"/>
+    </clipPath>
+    <pattern id="dotGridE" width="16" height="16" patternUnits="userSpaceOnUse">
+      <circle cx="1.4" cy="1.4" r="1.4" fill="#1E9E5A" fill-opacity="0.28"/>
+    </pattern>
+  </defs>
+
+  <g clip-path="url(#cardClipE)">
+    <rect x="0" y="0" width="560" height="330" fill="url(#bgGradE)"/>
+
+    <path d="M 200 -20 C 280 40, 260 120, 340 140 C 420 160, 460 90, 560 110 L 560 -20 Z" fill="url(#waveGradE1)"/>
+    <path d="M 300 330 C 380 260, 420 300, 500 250 C 540 225, 555 260, 560 240 L 560 330 Z" fill="url(#waveGradE2)"/>
+
+    <rect x="330" y="10" width="220" height="140" fill="url(#dotGridE)"/>
+    <circle cx="470" cy="55" r="70" fill="url(#dotFadeE)"/>
+
+    <g transform="translate(60,150)">
+      <ellipse cx="120" cy="150" rx="170" ry="14" fill="#0E5C33" fill-opacity="0.08"/>
+
+      <g transform="rotate(-2 130 90)">
+        <rect x="60" y="10" width="150" height="160" rx="6" fill="url(#sheetGrad)" stroke="#C9EAD5" stroke-width="1"/>
+        <rect x="60" y="10" width="150" height="26" rx="6" fill="#1E9E5A"/>
+        <rect x="60" y="26" width="150" height="10" fill="#1E9E5A"/>
+        <text x="72" y="27" font-family="Arial, sans-serif" font-size="12" fill="#FFFFFF" font-weight="bold">Informe Q3</text>
+        <g stroke="#DCF0E3" stroke-width="1">
+          <line x1="60" y1="56" x2="210" y2="56"/>
+          <line x1="60" y1="76" x2="210" y2="76"/>
+          <line x1="60" y1="96" x2="210" y2="96"/>
+          <line x1="60" y1="116" x2="210" y2="116"/>
+          <line x1="60" y1="136" x2="210" y2="136"/>
+          <line x1="60" y1="156" x2="210" y2="156"/>
+          <line x1="100" y1="36" x2="100" y2="170"/>
+          <line x1="150" y1="36" x2="150" y2="170"/>
+        </g>
+        <text x="68" y="70" font-family="Arial, sans-serif" font-size="9" fill="#5E8F72">Ene</text>
+        <text x="108" y="70" font-family="Arial, sans-serif" font-size="9" fill="#5E8F72">4,850</text>
+        <text x="68" y="90" font-family="Arial, sans-serif" font-size="9" fill="#5E8F72">Feb</text>
+        <text x="108" y="90" font-family="Arial, sans-serif" font-size="9" fill="#5E8F72">3,900</text>
+        <text x="68" y="110" font-family="Arial, sans-serif" font-size="9" fill="#5E8F72">Mar</text>
+        <text x="108" y="110" font-family="Arial, sans-serif" font-size="9" fill="#5E8F72">3,290</text>
+        <text x="68" y="130" font-family="Arial, sans-serif" font-size="9" fill="#5E8F72">Abr</text>
+        <text x="108" y="130" font-family="Arial, sans-serif" font-size="9" fill="#5E8F72">2,550</text>
+      </g>
+
+      <g transform="translate(0,50)">
+        <ellipse cx="40" cy="118" rx="42" ry="8" fill="#0E5C33" fill-opacity="0.08"/>
+        <rect x="4" y="60" width="14" height="52" rx="2" fill="#7CD4A2"/>
+        <rect x="22" y="40" width="14" height="72" rx="2" fill="#4FC085"/>
+        <rect x="40" y="20" width="14" height="92" rx="2" fill="#1E9E5A"/>
+        <rect x="58" y="48" width="14" height="64" rx="2" fill="#2FAB6C"/>
+      </g>
+
+      <g transform="translate(-4,190)">
+        <circle cx="34" cy="34" r="34" fill="#DCF0E3"/>
+        <path d="M 34 34 L 34 0 A 34 34 0 0 1 62 50 Z" fill="#1E9E5A"/>
+        <path d="M 34 34 L 62 50 A 34 34 0 0 1 34 68 A 34 34 0 0 1 6 44 Z" fill="#4FC085"/>
+        <path d="M 34 34 L 6 44 A 34 34 0 0 1 34 0 Z" fill="#7CD4A2"/>
+      </g>
+    </g>
+
+    <circle cx="500" cy="240" r="4" fill="#1E9E5A" fill-opacity="0.4"/>
+    <circle cx="45" cy="60" r="3" fill="#1E9E5A" fill-opacity="0.3"/>
+  </g>
+</svg>

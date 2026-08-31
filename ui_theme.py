@@ -909,20 +909,48 @@ EXECUTIVE_CSS = """
     .velox-section-grid { margin-bottom: 0.15rem; }
     .velox-section-card {
         border-radius: 16px;
-        padding: 1.15rem 1.2rem;
+        padding: 0;
         min-height: 220px;
         margin-bottom: 0.65rem;
         position: relative;
         overflow: hidden;
         display: flex;
         flex-direction: column;
-        justify-content: space-between;
+        justify-content: flex-end;
         box-sizing: border-box;
+        background-color: #0f172a;
         transition: transform 0.18s ease, box-shadow 0.18s ease;
     }
+    .velox-section-card--banner {
+        background-size: cover !important;
+        background-position: center !important;
+        background-repeat: no-repeat !important;
+    }
+    .velox-section-card__overlay {
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+        z-index: 0;
+    }
+    .velox-section-card--active .velox-section-card__overlay {
+        background: linear-gradient(180deg, rgba(15, 23, 42, 0.35) 0%, rgba(15, 23, 42, 0.72) 100%);
+    }
+    .velox-section-card--locked .velox-section-card__overlay {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.72) 0%, rgba(241, 245, 249, 0.88) 100%);
+    }
+    .velox-section-card__inner {
+        position: relative;
+        z-index: 1;
+        padding: 1.15rem 1.2rem;
+        min-height: 220px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        box-sizing: border-box;
+    }
     .velox-section-card--active {
-        background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%) !important;
-        border: 1px solid #334155 !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
         color: #FFFFFF !important;
         box-shadow: 0 8px 26px rgba(15, 23, 42, 0.24);
     }
@@ -930,12 +958,12 @@ EXECUTIVE_CSS = """
     .velox-section-card--active .velox-section-card__desc,
     .velox-section-card--active .velox-section-card__meta {
         color: #FFFFFF !important;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
     }
     .velox-section-card--locked .velox-section-card__title { color: #1e293b !important; }
     .velox-section-card--locked .velox-section-card__desc,
     .velox-section-card--locked .velox-section-card__meta { color: #475569 !important; }
     .velox-section-card--locked {
-        background: #FFFFFF !important;
         border: 1px dashed #94a3b8 !important;
         color: #475569 !important;
         box-shadow: 0 2px 10px rgba(15, 23, 42, 0.07);
@@ -952,9 +980,10 @@ EXECUTIVE_CSS = """
         font-size: 1.45rem;
         font-weight: 800;
         letter-spacing: 0.14em;
-        color: rgba(100, 116, 139, 0.2);
+        color: rgba(100, 116, 139, 0.22);
         pointer-events: none;
         user-select: none;
+        z-index: 1;
     }
     .velox-section-card__title {
         font-weight: 700;
@@ -977,44 +1006,32 @@ EXECUTIVE_CSS = """
         font-weight: 600;
         opacity: 0.88;
     }
-    .velox-section-grid .stButton > button {
-        border-radius: 14px !important;
+    .velox-section-grid .stButton > button,
+    .velox-section-grid .stButton > button[kind="primary"],
+    .velox-section-grid .stButton > button[kind="secondary"],
+    .velox-section-grid .stButton > button[data-testid="baseButton-primary"],
+    .velox-section-grid .stButton > button[data-testid="baseButton-secondary"] {
+        border-radius: 20px !important;
         font-weight: 600 !important;
         min-height: 2.65rem !important;
+        background: linear-gradient(90deg, #1A56DB 0%, #06B6D4 100%) !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        box-shadow: 0 4px 14px rgba(26, 86, 219, 0.28) !important;
+        transition: transform 0.18s ease, box-shadow 0.22s ease, filter 0.22s ease !important;
     }
-    .velox-section-grid .stButton > button[kind="primary"],
-    .velox-section-grid .stButton > button[data-testid="baseButton-primary"] {
-        background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%) !important;
+    .velox-section-grid .stButton > button:hover {
+        filter: brightness(1.06) !important;
+        transform: translateY(-1px) !important;
+        box-shadow: 0 6px 18px rgba(6, 182, 212, 0.32) !important;
+    }
+    .velox-section-grid .stButton > button p,
+    .velox-section-grid .stButton > button span,
+    .velox-section-grid .stButton > button[data-testid="baseButton-primary"] p,
+    .velox-section-grid .stButton > button[data-testid="baseButton-secondary"] p {
         color: #FFFFFF !important;
         font-weight: 600 !important;
-        border: 1px solid #334155 !important;
-        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.2) !important;
-    }
-    .velox-section-grid .stButton > button[kind="primary"] p,
-    .velox-section-grid .stButton > button[kind="primary"] span,
-    .velox-section-grid .stButton > button[kind="primary"] [data-testid="stMarkdownContainer"],
-    .velox-section-grid .stButton > button[kind="primary"] [data-testid="stMarkdownContainer"] p,
-    .velox-section-grid .stButton > button[data-testid="baseButton-primary"] p,
-    .velox-section-grid .stButton > button[data-testid="baseButton-primary"] span,
-    .velox-section-grid .stButton > button[data-testid="baseButton-primary"] [data-testid="stMarkdownContainer"],
-    .velox-section-grid .stButton > button[data-testid="baseButton-primary"] [data-testid="stMarkdownContainer"] p,
-    .velox-section-grid .stButton > button[kind="secondary"] p,
-    .velox-section-grid .stButton > button[kind="secondary"] span,
-    .velox-section-grid .stButton > button[kind="secondary"] [data-testid="stMarkdownContainer"],
-    .velox-section-grid .stButton > button[kind="secondary"] [data-testid="stMarkdownContainer"] p,
-    .velox-section-grid .stButton > button[data-testid="baseButton-secondary"] p,
-    .velox-section-grid .stButton > button[data-testid="baseButton-secondary"] span,
-    .velox-section-grid .stButton > button[data-testid="baseButton-secondary"] [data-testid="stMarkdownContainer"],
-    .velox-section-grid .stButton > button[data-testid="baseButton-secondary"] [data-testid="stMarkdownContainer"] p {
-        color: #FFFFFF !important;
-        font-weight: 700 !important;
-        text-shadow: 0px 1px 2px rgba(0, 0, 0, 0.2) !important;
-    }
-    .velox-section-grid .stButton > button[kind="secondary"],
-    .velox-section-grid .stButton > button[data-testid="baseButton-secondary"] {
-        background: rgba(241, 245, 249, 0.85) !important;
-        color: #334155 !important;
-        border: 1px dashed #94a3b8 !important;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15) !important;
     }
 </style>
 """
@@ -1789,7 +1806,7 @@ SECTION_CATALOG_CSS = """
     }
     .velox-section-card {
         border-radius: 16px;
-        padding: 1.15rem 1.2rem;
+        padding: 0;
         min-height: 220px;
         height: 100%;
         margin-bottom: 0.65rem;
@@ -1797,7 +1814,45 @@ SECTION_CATALOG_CSS = """
         overflow: hidden;
         display: flex;
         flex-direction: column;
+        justify-content: flex-end;
+        box-sizing: border-box;
+        background-color: #0f172a;
+    }
+    .velox-section-card--banner {
+        background-size: cover !important;
+        background-position: center !important;
+        background-repeat: no-repeat !important;
+    }
+    .velox-section-card__overlay {
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+        z-index: 0;
+    }
+    .velox-section-card--active .velox-section-card__overlay {
+        background: linear-gradient(
+            180deg,
+            rgba(15, 23, 42, 0.35) 0%,
+            rgba(15, 23, 42, 0.72) 100%
+        );
+    }
+    .velox-section-card--locked .velox-section-card__overlay {
+        background: linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.72) 0%,
+            rgba(241, 245, 249, 0.88) 100%
+        );
+    }
+    .velox-section-card__inner {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
         justify-content: space-between;
+        flex: 1 1 auto;
+        min-height: 220px;
+        padding: 1.15rem 1.2rem;
         box-sizing: border-box;
     }
     .velox-section-card__body {
@@ -1815,10 +1870,13 @@ SECTION_CATALOG_CSS = """
         margin-top: 0.75rem;
     }
     .velox-section-card--active {
-        background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%) !important;
-        border: 1px solid #334155 !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
         color: #FFFFFF !important;
         box-shadow: 0 8px 26px rgba(15, 23, 42, 0.24);
+    }
+    .velox-section-card--active:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 32px rgba(15, 23, 42, 0.32);
     }
     .velox-section-card--active .velox-section-card__title,
     .velox-section-card--active .velox-section-card__desc,
@@ -1826,9 +1884,9 @@ SECTION_CATALOG_CSS = """
     [data-testid="stMain"] [data-testid="stMarkdownContainer"] .velox-section-card--active,
     [data-testid="stMain"] [data-testid="stMarkdownContainer"] .velox-section-card--active * {
         color: #FFFFFF !important;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
     }
     .velox-section-card--locked {
-        background: #FFFFFF !important;
         border: 1px dashed #94a3b8 !important;
         color: #475569 !important;
         opacity: 1;
@@ -1837,10 +1895,12 @@ SECTION_CATALOG_CSS = """
     }
     .velox-section-card--locked .velox-section-card__title {
         color: #1e293b !important;
+        text-shadow: none !important;
     }
     .velox-section-card--locked .velox-section-card__desc,
     .velox-section-card--locked .velox-section-card__meta {
         color: #475569 !important;
+        text-shadow: none !important;
     }
     .velox-section-card__watermark {
         position: absolute;
@@ -1850,8 +1910,9 @@ SECTION_CATALOG_CSS = """
         font-size: 1.45rem;
         font-weight: 800;
         letter-spacing: 0.14em;
-        color: rgba(100, 116, 139, 0.2);
+        color: rgba(100, 116, 139, 0.22);
         pointer-events: none;
+        z-index: 1;
     }
     .velox-section-card__title { font-weight: 700; font-size: 1rem; margin-bottom: 0.35rem; }
     .velox-section-card--active .velox-section-card__title { color: #FFFFFF !important; }
@@ -1860,32 +1921,32 @@ SECTION_CATALOG_CSS = """
     .velox-section-card--active .velox-section-card__desc,
     .velox-section-card--active .velox-section-card__meta { color: #FFFFFF !important; }
     .velox-section-card__meta { font-size: 0.78rem; font-weight: 600; color: inherit; }
-    .velox-section-grid .stButton > button {
-        border-radius: 14px !important;
+    .velox-section-grid .stButton > button,
+    .velox-section-grid .stButton > button[kind="primary"],
+    .velox-section-grid .stButton > button[kind="secondary"],
+    .velox-section-grid .stButton > button[data-testid="baseButton-primary"],
+    .velox-section-grid .stButton > button[data-testid="baseButton-secondary"] {
+        border-radius: 20px !important;
         font-weight: 600 !important;
-    }
-    .velox-section-grid .stButton > button[kind="primary"] {
-        background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%) !important;
+        min-height: 2.65rem !important;
+        background: linear-gradient(90deg, #1A56DB 0%, #06B6D4 100%) !important;
         color: #FFFFFF !important;
-        font-weight: 700 !important;
-        border: 1px solid #334155 !important;
+        border: none !important;
+        box-shadow: 0 4px 14px rgba(26, 86, 219, 0.28) !important;
+        transition: transform 0.18s ease, box-shadow 0.22s ease, filter 0.22s ease !important;
     }
-    .velox-section-grid .stButton > button[kind="primary"] p,
-    .velox-section-grid .stButton > button[kind="primary"] span,
-    .velox-section-grid .stButton > button[kind="primary"] [data-testid="stMarkdownContainer"],
-    .velox-section-grid .stButton > button[kind="primary"] [data-testid="stMarkdownContainer"] p,
-    .velox-section-grid .stButton > button[kind="secondary"] p,
-    .velox-section-grid .stButton > button[kind="secondary"] span,
-    .velox-section-grid .stButton > button[kind="secondary"] [data-testid="stMarkdownContainer"],
-    .velox-section-grid .stButton > button[kind="secondary"] [data-testid="stMarkdownContainer"] p {
+    .velox-section-grid .stButton > button:hover {
+        filter: brightness(1.06) !important;
+        transform: translateY(-1px) !important;
+        box-shadow: 0 6px 18px rgba(6, 182, 212, 0.32) !important;
+    }
+    .velox-section-grid .stButton > button p,
+    .velox-section-grid .stButton > button span,
+    .velox-section-grid .stButton > button [data-testid="stMarkdownContainer"],
+    .velox-section-grid .stButton > button [data-testid="stMarkdownContainer"] p {
         color: #FFFFFF !important;
-        font-weight: 700 !important;
-        text-shadow: 0px 1px 2px rgba(0, 0, 0, 0.2) !important;
-    }
-    .velox-section-grid .stButton > button[kind="secondary"] {
-        background: rgba(241, 245, 249, 0.9) !important;
-        color: #334155 !important;
-        border: 1px dashed #94a3b8 !important;
+        font-weight: 600 !important;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15) !important;
     }
 </style>
 """

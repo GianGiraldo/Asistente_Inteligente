@@ -521,6 +521,14 @@ SECCIONES = {
     }
 }
 
+SECCION_BANNER_PATHS = {
+    "contabilidad": "assets/banner_contabilidad.svg",
+    "laboral": "assets/banner_power_bi.svg",
+    "financiero": "assets/banner_comercio_exterior.svg",
+    "logistico": "assets/banner_logistica.svg",
+    "excel": "assets/banner_excel.svg",
+}
+
 MENU_SIDEBAR_MASTER = [
     ("Inicio", "house", "🏠 Inicio"),
     ("Mis Documentos", "folder", "📁 Mis Documentos"),
@@ -2727,6 +2735,56 @@ def _contar_documentos_seccion(seccion_id: str) -> int:
         return 0
 
 
+@st.cache_resource(show_spinner=False)
+def _seccion_banner_data_uri(seccion_id: str) -> Optional[str]:
+    """Data URI del banner SVG de una sección para fondos de tarjeta."""
+    path = SECCION_BANNER_PATHS.get(seccion_id, "")
+    if not path or not os.path.exists(path):
+        return None
+    with open(path, "rb") as img_file:
+        encoded = base64.b64encode(img_file.read()).decode("ascii")
+    return f"data:image/svg+xml;base64,{encoded}"
+
+
+def _html_tarjeta_catalogo_seccion(
+    seccion_id: str,
+    sec_info: dict,
+    nombre_limpio: str,
+    num_docs: int,
+    *,
+    tiene_acceso: bool,
+) -> str:
+    """HTML de tarjeta del catálogo con banner SVG y overlay de legibilidad."""
+    banner_uri = _seccion_banner_data_uri(seccion_id)
+    banner_style = f"background-image: url('{banner_uri}');" if banner_uri else ""
+    descripcion = html_module.escape(sec_info.get("descripcion") or "")
+    icono = html_module.escape(sec_info.get("icono") or "")
+    nombre_seguro = html_module.escape(nombre_limpio)
+    estado = "active" if tiene_acceso else "locked"
+
+    if tiene_acceso:
+        titulo_html = f'<div class="velox-section-card__title">{icono} {nombre_seguro}</div>'
+        meta = f"✅ {num_docs} documentos disponibles"
+        watermark = ""
+    else:
+        titulo_html = (
+            f'<div class="velox-section-card__title">🔒 {icono} {nombre_seguro}</div>'
+        )
+        meta = f"Previsualización · {num_docs} recursos en catálogo"
+        watermark = '<div class="velox-section-card__watermark">PREVIEW</div>'
+
+    return (
+        f'<div class="velox-section-card velox-section-card--{estado} velox-section-card--banner" '
+        f'style="{banner_style}">'
+        f'<div class="velox-section-card__overlay"></div>'
+        f"{watermark}"
+        f'<div class="velox-section-card__inner">'
+        f'<div class="velox-section-card__body">{titulo_html}'
+        f'<div class="velox-section-card__desc">{descripcion}</div></div>'
+        f'<div class="velox-section-card__meta">{meta}</div></div></div>'
+    )
+
+
 def _nombre_seccion_sin_icono(seccion_info: dict) -> str:
     """Título tipográfico limpio sin emoji/icono del catálogo."""
     nombre = (seccion_info.get("nombre") or "").strip()
@@ -2877,13 +2935,29 @@ VELOX_CATALOG_LAYOUT_CSS = """
         text-shadow: none !important;
     }
 
-    /* 1. Catálogo: botones oscuros legibles (primary + secondary del grid) */
+    /* 1. Catálogo: botones pill con degradado azul-turquesa */
     [data-testid="stMain"] [data-testid="stHorizontalBlock"]:has(.velox-section-grid) .stButton > button,
+    [data-testid="stMain"] [data-testid="stHorizontalBlock"]:has(.velox-section-grid) .stButton > button[kind="primary"],
+    [data-testid="stMain"] [data-testid="stHorizontalBlock"]:has(.velox-section-grid) .stButton > button[kind="secondary"],
+    [data-testid="stMain"] [data-testid="element-container"]:has(.velox-section-grid) ~ [data-testid="element-container"] .stButton > button {
+        background: linear-gradient(90deg, #1A56DB 0%, #06B6D4 100%) !important;
+        color: #FFFFFF !important;
+        font-weight: 600 !important;
+        border-radius: 20px !important;
+        border: none !important;
+        box-shadow: 0 4px 14px rgba(26, 86, 219, 0.28) !important;
+        transition: transform 0.18s ease, box-shadow 0.22s ease, filter 0.22s ease !important;
+    }
+    [data-testid="stMain"] [data-testid="stHorizontalBlock"]:has(.velox-section-grid) .stButton > button:hover,
+    [data-testid="stMain"] [data-testid="element-container"]:has(.velox-section-grid) ~ [data-testid="element-container"] .stButton > button:hover {
+        filter: brightness(1.06) !important;
+        transform: translateY(-1px) !important;
+        box-shadow: 0 6px 18px rgba(6, 182, 212, 0.32) !important;
+    }
     [data-testid="stMain"] [data-testid="stHorizontalBlock"]:has(.velox-section-grid) .stButton > button *,
-    [data-testid="stMain"] [data-testid="element-container"]:has(.velox-section-grid) ~ [data-testid="element-container"] .stButton > button,
     [data-testid="stMain"] [data-testid="element-container"]:has(.velox-section-grid) ~ [data-testid="element-container"] .stButton > button * {
         color: #FFFFFF !important;
-        font-weight: 700 !important;
+        font-weight: 600 !important;
     }
 
     /* Refuerzo: anula stMarkdownContainer p dentro de botones del catálogo */
@@ -2892,7 +2966,7 @@ VELOX_CATALOG_LAYOUT_CSS = """
     [data-testid="stMain"] [data-testid="element-container"]:has(.velox-section-grid) ~ [data-testid="element-container"] button [data-testid="stMarkdownContainer"] p,
     [data-testid="stMain"] [data-testid="element-container"]:has(.velox-section-grid) ~ [data-testid="element-container"] button [data-testid="stMarkdownContainer"] span {
         color: #FFFFFF !important;
-        font-weight: 700 !important;
+        font-weight: 600 !important;
     }
 
     /* 3. Pestañas st.tabs (Gestión de Usuarios y similares) */
@@ -2981,18 +3055,9 @@ def render_catalogo_secciones_freemium(
             st.markdown('<div class="velox-section-grid">', unsafe_allow_html=True)
 
             if tiene_acceso:
-                st.markdown(
-                    f"""
-                    <div class="velox-section-card velox-section-card--active">
-                        <div class="velox-section-card__body">
-                            <div class="velox-section-card__title">{sec_info['icono']} {nombre_limpio}</div>
-                            <div class="velox-section-card__desc">{sec_info['descripcion']}</div>
-                        </div>
-                        <div class="velox-section-card__meta">✅ {num_docs} documentos disponibles</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+                st.markdown(_html_tarjeta_catalogo_seccion(
+                    seccion_id, sec_info, nombre_limpio, num_docs, tiene_acceso=True,
+                ), unsafe_allow_html=True)
                 st.button(
                     "Ingresar",
                     key=f"{key_prefix}_go_{seccion_id}",
@@ -3002,19 +3067,9 @@ def render_catalogo_secciones_freemium(
                     kwargs={"seccion_id": seccion_id},
                 )
             else:
-                st.markdown(
-                    f"""
-                    <div class="velox-section-card velox-section-card--locked">
-                        <div class="velox-section-card__watermark">PREVIEW</div>
-                        <div class="velox-section-card__body">
-                            <div class="velox-section-card__title">🔒 {sec_info['icono']} {nombre_limpio}</div>
-                            <div class="velox-section-card__desc">{sec_info['descripcion']}</div>
-                        </div>
-                        <div class="velox-section-card__meta">Previsualización · {num_docs} recursos en catálogo</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+                st.markdown(_html_tarjeta_catalogo_seccion(
+                    seccion_id, sec_info, nombre_limpio, num_docs, tiene_acceso=False,
+                ), unsafe_allow_html=True)
                 st.button(
                     "Adquirir Curso",
                     key=f"{key_prefix}_lock_{seccion_id}",

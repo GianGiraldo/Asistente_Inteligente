@@ -1,0 +1,105 @@
+<svg width="560" height="330" viewBox="0 0 560 330" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#EEF0FC"/>
+      <stop offset="45%" stop-color="#E4E1FA"/>
+      <stop offset="100%" stop-color="#D6CFF5"/>
+    </linearGradient>
+    <linearGradient id="waveGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#C9BFF0" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#B7A9EA" stop-opacity="0.35"/>
+    </linearGradient>
+    <linearGradient id="waveGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#A594E8" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#8B7EF0" stop-opacity="0.18"/>
+    </linearGradient>
+    <linearGradient id="laptopBody" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3B3565"/>
+      <stop offset="100%" stop-color="#241F45"/>
+    </linearGradient>
+    <linearGradient id="screenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#F3F1FC"/>
+    </linearGradient>
+    <linearGradient id="pieGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#A99CEF"/>
+      <stop offset="100%" stop-color="#8674E6"/>
+    </linearGradient>
+    <radialGradient id="dotFade" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#8B7EF0" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#8B7EF0" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="cardClip">
+      <rect x="0" y="0" width="560" height="330" rx="18"/>
+    </clipPath>
+    <pattern id="dotGrid" width="16" height="16" patternUnits="userSpaceOnUse">
+      <circle cx="1.4" cy="1.4" r="1.4" fill="#7C6FE0" fill-opacity="0.28"/>
+    </pattern>
+  </defs>
+
+  <g clip-path="url(#cardClip)">
+    <rect x="0" y="0" width="560" height="330" fill="url(#bgGrad)"/>
+
+    <path d="M 200 -20 C 280 40, 260 120, 340 140 C 420 160, 460 90, 560 110 L 560 -20 Z" fill="url(#waveGrad1)"/>
+    <path d="M 300 330 C 380 260, 420 300, 500 250 C 540 225, 555 260, 560 240 L 560 330 Z" fill="url(#waveGrad2)"/>
+    <path d="M 0 330 C 60 300, 120 320, 170 300 C 210 285, 220 330, 260 330 Z" fill="#B7A9EA" fill-opacity="0.22"/>
+
+    <rect x="330" y="10" width="220" height="140" fill="url(#dotGrid)"/>
+    <circle cx="470" cy="55" r="70" fill="url(#dotFade)"/>
+
+    <circle cx="465" cy="45" r="5.5" fill="#8B7EF0" fill-opacity="0.35"/>
+    <rect x="505" y="30" width="14" height="14" rx="4" fill="#8B7EF0" fill-opacity="0.30" transform="rotate(20 512 37)"/>
+    <path d="M 340 60 L 352 60 M 346 54 L 346 66" stroke="#8B7EF0" stroke-opacity="0.35" stroke-width="2" stroke-linecap="round"/>
+
+    <g transform="translate(58,168)">
+      <ellipse cx="60" cy="118" rx="72" ry="10" fill="#6C5CE7" fill-opacity="0.12"/>
+      <g transform="rotate(-6 60 60)">
+        <path d="M 6 88 L 6 20 A 6 6 0 0 1 12 14 L 108 14 A 6 6 0 0 1 114 20 L 114 88 Z" fill="url(#pieGrad)"/>
+        <path d="M 60 51 L 60 8 A 43 43 0 0 1 100 33 Z" fill="#D9D2F7" fill-opacity="0.85"/>
+        <path d="M 60 51 L 100 33 A 43 43 0 0 1 95 78 Z" fill="#FFFFFF" fill-opacity="0.55"/>
+        <ellipse cx="60" cy="51" rx="54" ry="43" fill="none" stroke="#5B4FCF" stroke-opacity="0.18" stroke-width="1"/>
+      </g>
+    </g>
+
+    <g transform="translate(210,168)" opacity="0.95">
+      <rect x="0" y="66" width="16" height="34" rx="3" fill="#9C8FEE"/>
+      <rect x="22" y="46" width="16" height="54" rx="3" fill="#7C6FE0"/>
+      <rect x="44" y="26" width="16" height="74" rx="3" fill="#5B4FCF"/>
+    </g>
+
+    <g transform="translate(255,120)">
+      <rect x="0" y="0" width="270" height="176" rx="10" fill="url(#laptopBody)"/>
+      <rect x="8" y="8" width="254" height="150" rx="3" fill="url(#screenGrad)"/>
+
+      <rect x="20" y="20" width="106" height="60" rx="6" fill="#FFFFFF" stroke="#E4E0F9" stroke-width="1"/>
+      <polyline points="26,68 42,50 58,58 74,36 90,44 106,28 120,34" fill="none" stroke="#7C6FE0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="120" cy="34" r="2.5" fill="#5B4FCF"/>
+
+      <rect x="134" y="20" width="112" height="60" rx="6" fill="#FFFFFF" stroke="#E4E0F9" stroke-width="1"/>
+      <rect x="144" y="52" width="10" height="20" rx="2" fill="#C9BFF0"/>
+      <rect x="160" y="42" width="10" height="30" rx="2" fill="#9C8FEE"/>
+      <rect x="176" y="34" width="10" height="38" rx="2" fill="#7C6FE0"/>
+      <rect x="192" y="46" width="10" height="26" rx="2" fill="#9C8FEE"/>
+      <rect x="208" y="30" width="10" height="42" rx="2" fill="#5B4FCF"/>
+      <rect x="224" y="52" width="10" height="20" rx="2" fill="#C9BFF0"/>
+
+      <rect x="20" y="88" width="72" height="58" rx="6" fill="#FFFFFF" stroke="#E4E0F9" stroke-width="1"/>
+      <circle cx="56" cy="112" r="20" fill="#E4E0F9"/>
+      <path d="M 56 112 L 56 92 A 20 20 0 0 1 74 122 Z" fill="#7C6FE0"/>
+      <path d="M 56 112 L 74 122 A 20 20 0 0 1 44 128 Z" fill="#5B4FCF"/>
+
+      <rect x="100" y="88" width="146" height="58" rx="6" fill="#FFFFFF" stroke="#E4E0F9" stroke-width="1"/>
+      <rect x="110" y="98" width="70" height="6" rx="3" fill="#E4E0F9"/>
+      <rect x="110" y="110" width="126" height="6" rx="3" fill="#EDEAFB"/>
+      <rect x="110" y="122" width="100" height="6" rx="3" fill="#EDEAFB"/>
+      <rect x="110" y="134" width="55" height="6" rx="3" fill="#EDEAFB"/>
+
+      <rect x="0" y="158" width="270" height="8" rx="2" fill="#2C2650"/>
+      <path d="M -14 166 L 284 166 L 300 182 L -30 182 Z" fill="url(#laptopBody)"/>
+      <rect x="118" y="170" width="34" height="4" rx="2" fill="#4A4278"/>
+    </g>
+
+    <circle cx="500" cy="240" r="4" fill="#8B7EF0" fill-opacity="0.4"/>
+    <circle cx="45" cy="60" r="3" fill="#8B7EF0" fill-opacity="0.3"/>
+  </g>
+</svg>

@@ -218,10 +218,8 @@ VELOX_POST_LOGIN_SHELL_CSS = """
 
 def inject_post_login_shell_layout():
     """Ordena capas y columnas del shell autenticado (sidebar vs. contenido central)."""
-    if st.session_state.get("_velox_post_login_shell_css_injected"):
-        return
     st.markdown(VELOX_POST_LOGIN_SHELL_CSS, unsafe_allow_html=True)
-    st.session_state["_velox_post_login_shell_css_injected"] = True
+    inject_sidebar_theme()
 
 
 VELOX_TOP_AREA_COMPACT_CSS = """
@@ -2976,19 +2974,24 @@ VELOX_CATALOG_LAYOUT_CSS = """
         line-height: 1.5 !important;
     }
 
-    /* Tarjetas del catálogo: separación lateral e inferior */
+    /* Tarjetas del catálogo: separación lateral e inferior + columnas iguales */
     .velox-section-grid {
-        margin-bottom: 20px !important;
-        margin-left: 10px !important;
-        margin-right: 10px !important;
+        margin-bottom: 0.65rem !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        flex: 1 1 auto !important;
+        display: flex !important;
+        flex-direction: column !important;
+        width: 100% !important;
     }
     .velox-section-grid .velox-section-card {
         margin-left: 0 !important;
         margin-right: 0 !important;
         margin-bottom: 0.65rem !important;
+        min-height: 220px !important;
+        height: 100% !important;
     }
 
-    /* Restaurar gap entre columnas del grid del catálogo */
     [data-testid="stMain"] [data-testid="stHorizontalBlock"]:has(.velox-section-grid) {
         gap: 1rem !important;
         align-items: stretch !important;
@@ -2997,6 +3000,13 @@ VELOX_CATALOG_LAYOUT_CSS = """
     [data-testid="stMain"] [data-testid="stHorizontalBlock"]:has(.velox-section-grid) > div[data-testid="stColumn"] {
         padding-left: 0.25rem !important;
         padding-right: 0.25rem !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+    [data-testid="stMain"] [data-testid="stColumn"]:has(.velox-section-grid) > div:has(.stButton) {
+        margin-top: auto !important;
+        flex: 0 0 auto !important;
     }
     [data-testid="stMain"] [data-testid="element-container"]:has(.velox-catalogo-header),
     [data-testid="stMain"] [data-testid="element-container"]:has(.velox-section-grid) {
@@ -3137,8 +3147,10 @@ def render_catalogo_secciones_freemium(
                 st.markdown(
                     f"""
                     <div class="velox-section-card velox-section-card--active">
-                        <div class="velox-section-card__title">{sec_info['icono']} {nombre_limpio}</div>
-                        <div class="velox-section-card__desc">{sec_info['descripcion']}</div>
+                        <div class="velox-section-card__body">
+                            <div class="velox-section-card__title">{sec_info['icono']} {nombre_limpio}</div>
+                            <div class="velox-section-card__desc">{sec_info['descripcion']}</div>
+                        </div>
                         <div class="velox-section-card__meta">✅ {num_docs} documentos disponibles</div>
                     </div>
                     """,
@@ -3157,8 +3169,10 @@ def render_catalogo_secciones_freemium(
                     f"""
                     <div class="velox-section-card velox-section-card--locked">
                         <div class="velox-section-card__watermark">PREVIEW</div>
-                        <div class="velox-section-card__title">🔒 {sec_info['icono']} {nombre_limpio}</div>
-                        <div class="velox-section-card__desc">{sec_info['descripcion']}</div>
+                        <div class="velox-section-card__body">
+                            <div class="velox-section-card__title">🔒 {sec_info['icono']} {nombre_limpio}</div>
+                            <div class="velox-section-card__desc">{sec_info['descripcion']}</div>
+                        </div>
                         <div class="velox-section-card__meta">Previsualización · {num_docs} recursos en catálogo</div>
                     </div>
                     """,

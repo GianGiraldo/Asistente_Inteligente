@@ -460,6 +460,33 @@ class MessageManager:
             ]
         )
 
+    def _actualizar_leido_consultas_usuario(self, email_norm: str) -> None:
+        """UPDATE masivo: leido=true para filas del usuario con leido false o null."""
+        filtro_leido = "leido.is.null,leido.eq.false"
+        for col in ("email", "usuario_email"):
+            try:
+                (
+                    self.supabase.table(self.tabla)
+                    .update({"leido": True})
+                    .eq(col, email_norm)
+                    .or_(filtro_leido)
+                    .execute()
+                )
+            except Exception as bulk_err:
+                err = str(bulk_err).lower()
+                if "leido" in err or "column" in err or "pgrst" in err:
+                    try:
+                        (
+                            self.supabase.table(self.tabla)
+                            .update({"leido": True})
+                            .eq(col, email_norm)
+                            .execute()
+                        )
+                    except Exception:
+                        pass
+                else:
+                    print(f"Error marcando consultas leídas ({col}): {bulk_err}")
+
     def _sincronizar_comprobantes_leidos_en_consultas(self, email_norm: str) -> None:
         """Persiste filas leídas para comprobantes sin registro previo en consultas."""
         try:
@@ -472,13 +499,52 @@ class MessageManager:
             consultas = list(por_email.data or [])
         except Exception:
             consultas = []
+        try:
+            por_usuario = (
+                self.supabase.table(self.tabla)
+                .select("*")
+                .eq("usuario_email", email_norm)
+                .execute()
+            )
+            vistos = {str(c.get("id")) for c in consultas if c.get("id")}
+            for row in por_usuario.data or []:
+                rid = str(row.get("id") or "")
+                if rid and rid not in vistos:
+                    consultas.append(row)
+                    vistos.add(rid)
+        except Exception:
+            pass
 
         for comprobante in self._obtener_comprobantes_revisados_usuario(email_norm):
-            if self._consulta_cubre_comprobante(comprobante, consultas):
-                continue
-            estado = (comprobante.get("estado") or "").strip().upper()
+            comp_id = comprobante.get("id")
+            estado_raw = (comprobante.get("estado") or "").strip().lower()
+            estado = estado_raw.upper()
             if estado not in ("APROBADO", "RECHAZADO"):
                 continue
+
+            fila_existente = None
+            for consulta in consultas:
+                if comp_id and consulta.get("comprobante_id") == comp_id:
+                    fila_existente = consulta
+                    break
+                if self._consulta_cubre_comprobante(comprobante, [consulta]):
+                    fila_existente = consulta
+                    break
+
+            if fila_existente:
+                if fila_existente.get("leido") is True:
+                    continue
+                cid = fila_existente.get("id")
+                if not cid:
+                    continue
+                try:
+                    self.supabase.table(self.tabla).update({"leido": True}).eq(
+                        "id", cid
+                    ).execute()
+                except Exception as row_err:
+                    print(f"Error sincronizando leído comprobante {cid}: {row_err}")
+                continue
+
             respuesta = (comprobante.get("motivo_rechazo") or "").strip()
             if not respuesta:
                 respuesta = (
@@ -491,7 +557,7 @@ class MessageManager:
                 estado_acceso=estado,
                 cursos_solicitados="sin especificar",
                 respuesta_master=respuesta,
-                comprobante_id=comprobante.get("id"),
+                comprobante_id=comp_id,
                 leido=True,
             )
 
@@ -500,18 +566,6 @@ class MessageManager:
         email_norm = (email or "").strip().lower()
         if not email_norm:
             return
-        try:
-            for col in ("usuario_email", "email"):
-                try:
-                    self.supabase.table(self.tabla).update({"leido": True}).eq(
-                        col, email_norm
-                    ).eq("leido", False).execute()
-                except Exception:
-                    continue
-        except Exception as e:
-            print(f"Error marcando consultas leídas (SQL): {e}")
-
-        self._sincronizar_comprobantes_leidos_en_consultas(email_norm)
 
         for consulta in self.obtener_mensajes_usuario(email_norm):
             if not self._es_consulta_no_leida(consulta):
@@ -525,6 +579,9 @@ class MessageManager:
                 ).execute()
             except Exception as row_err:
                 print(f"Error marcando consulta {cid} como leída: {row_err}")
+
+        self._actualizar_leido_consultas_usuario(email_norm)
+        self._sincronizar_comprobantes_leidos_en_consultas(email_norm)
 
     def enviar_mensaje(self, email, nombre, seccion, mensaje):
         """Registra una nueva consulta de usuario en Supabase."""

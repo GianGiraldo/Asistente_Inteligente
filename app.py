@@ -269,6 +269,19 @@ def _velox_data_cache_version() -> int:
     return int(st.session_state.get(VELOX_DATA_CACHE_VERSION_KEY, 0))
 
 
+def _invalidar_cache_consultas() -> None:
+    """Refresca lecturas de consultas/notificaciones sin invalidar todo el catálogo."""
+    try:
+        cached_contar_consultas_no_leidas.clear()
+        cached_contar_consultas_soporte_master.clear()
+        cached_obtener_historial_consultas_usuario.clear()
+        cached_obtener_historial_consultas_completo.clear()
+        cached_obtener_consultas_pendientes_master.clear()
+        cached_obtener_consultas_respondidas_master.clear()
+    except Exception:
+        pass
+
+
 def _invalidar_cache_datos():
     """Fuerza recarga de lecturas cacheadas (documentos, usuarios, pagos)."""
     st.session_state[VELOX_DATA_CACHE_VERSION_KEY] = _velox_data_cache_version() + 1
@@ -3185,13 +3198,16 @@ def _init_sidebar_counts_si_falta() -> None:
     if not usuario:
         return
     cache_v = _velox_data_cache_version()
+    en_consultas = st.session_state.get("menu_principal") == AuthManager.MODULO_CONSULTAS
     if (
         "pending_cobranzas_count" not in st.session_state
         or st.session_state.get("_sidebar_counts_user") != usuario
     ):
         _refresh_sidebar_counts(force=True)
     else:
-        if _es_staff() and _puede_modulo(AuthManager.MODULO_CONSULTAS):
+        if en_consultas:
+            st.session_state["unread_consultas_count"] = 0
+        elif _es_staff() and _puede_modulo(AuthManager.MODULO_CONSULTAS):
             st.session_state["unread_consultas_count"] = cached_contar_consultas_soporte_master(
                 data_cache_version=cache_v
             )
@@ -3239,14 +3255,30 @@ def _decrementar_unread_consultas() -> None:
 
 def _limpiar_notificaciones_consultas_usuario(email: str) -> None:
     message_manager.marcar_consultas_leidas(email)
+    _invalidar_cache_consultas()
     st.session_state["unread_consultas_count"] = 0
     st.session_state["unread_count"] = 0
 
 
 def _limpiar_notificaciones_consultas_master() -> None:
     message_manager.marcar_consultas_leidas_master()
+    _invalidar_cache_consultas()
     st.session_state["unread_consultas_count"] = 0
     st.session_state["unread_count"] = 0
+
+
+def _marcar_consultas_leidas_al_entrar() -> None:
+    """Marca lectura en BD antes del sidebar para que el badge desaparezca al instante."""
+    if st.session_state.get("menu_principal") != AuthManager.MODULO_CONSULTAS:
+        return
+    if not st.session_state.get("autenticado"):
+        return
+    if _es_staff() and _puede_modulo(AuthManager.MODULO_CONSULTAS):
+        _limpiar_notificaciones_consultas_master()
+    else:
+        _limpiar_notificaciones_consultas_usuario(
+            st.session_state.get("usuario", "")
+        )
 
 
 def _render_sidebar_menu_badges(badge_map: Dict[str, int]) -> None:
@@ -5311,6 +5343,7 @@ else:
     render_velox_top_banner()
     render_app_top_bar()
     render_activation_banner()
+    _marcar_consultas_leidas_al_entrar()
     _init_sidebar_counts_si_falta()
 
     # ==================== SIDEBAR ====================
@@ -5681,14 +5714,6 @@ else:
             st.info("Versión 1.0")
 
     elif menu_actual == AuthManager.MODULO_CONSULTAS:
-        if int(st.session_state.get("unread_consultas_count") or 0) > 0:
-            if _es_staff() and _puede_modulo(AuthManager.MODULO_CONSULTAS):
-                _limpiar_notificaciones_consultas_master()
-            else:
-                _limpiar_notificaciones_consultas_usuario(
-                    st.session_state.get("usuario", "")
-                )
-
         if _es_staff() and _puede_modulo(AuthManager.MODULO_CONSULTAS):
             st.header("💬 Gestión de Consultas")
             st.caption(

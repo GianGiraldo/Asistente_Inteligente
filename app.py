@@ -576,206 +576,6 @@ SIDEBAR_MENU_STYLES = {
     },
 }
 
-SIDEBAR_NAV_CAPSULE_CSS = """
-<style>
-    /* Panel blanco exterior del menú de módulos (option_menu) */
-    [data-testid="stSidebar"] .st-key-sidebar_menu_panel {
-        background-color: #ffffff !important;
-        border-radius: 16px !important;
-        overflow: visible !important;
-        padding: 6px 8px !important;
-        margin: 6px 0 10px !important;
-        box-shadow: 0 2px 12px rgba(15, 23, 42, 0.1) !important;
-        border: 1px solid rgba(226, 232, 240, 0.95) !important;
-        position: relative !important;
-    }
-    [data-testid="stSidebar"] .st-key-sidebar_menu_panel [data-testid="stElementContainer"],
-    [data-testid="stSidebar"] .st-key-sidebar_menu_panel [data-testid="stVerticalBlock"] {
-        background: transparent !important;
-    }
-    [data-testid="stSidebar"] .st-key-sidebar_menu_panel iframe {
-        display: block !important;
-        width: 100% !important;
-        border: none !important;
-        border-radius: 14px !important;
-    }
-    /* Módulos del menú lateral — cápsulas redondeadas (solo sidebar) */
-    [data-testid="stSidebar"] .nav,
-    [data-testid="stSidebar"] .nav-pills,
-    [data-testid="stSidebar"] .navbar-nav {
-        background: transparent !important;
-        gap: 6px;
-    }
-    [data-testid="stSidebar"] .nav-item {
-        border-radius: 12px !important;
-        overflow: hidden;
-        margin: 0 0 6px 0 !important;
-    }
-    /* Inactivos: fondo gris claro delimitado sobre panel blanco */
-    [data-testid="stSidebar"] .nav-link:not(.nav-link-selected),
-    [data-testid="stSidebar"] a.nav-link:not(.nav-link-selected) {
-        display: flex !important;
-        align-items: center !important;
-        gap: 12px !important;
-        flex-wrap: nowrap !important;
-        white-space: nowrap !important;
-        border-radius: 12px !important;
-        transition: all 0.3s ease !important;
-        background-color: #F1F3F5 !important;
-        color: #1a2744 !important;
-        border: 1px solid #E4E7EB !important;
-        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06) !important;
-        font-weight: 600 !important;
-        margin: 0 0 6px 0 !important;
-        padding: 10px 12px !important;
-        min-height: 2.65rem;
-        line-height: 1.35 !important;
-        text-align: left !important;
-    }
-    [data-testid="stSidebar"] .nav-link:not(.nav-link-selected):hover,
-    [data-testid="stSidebar"] a.nav-link:not(.nav-link-selected):hover {
-        background-color: #E4E8EE !important;
-        color: #1a2744 !important;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1) !important;
-        border-color: #CBD5E1 !important;
-    }
-    [data-testid="stSidebar"] .nav-link-selected,
-    [data-testid="stSidebar"] a.nav-link-selected {
-        display: flex !important;
-        align-items: center !important;
-        gap: 12px !important;
-        flex-wrap: nowrap !important;
-        white-space: nowrap !important;
-        border-radius: 12px !important;
-        transition: all 0.3s ease !important;
-        background-color: #1a2744 !important;
-        color: #ffffff !important;
-        border: 1px solid rgba(255, 255, 255, 0.12) !important;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
-        font-weight: 700 !important;
-        margin: 0 0 6px 0 !important;
-        padding: 10px 12px !important;
-        text-align: left !important;
-    }
-    [data-testid="stSidebar"] .nav-link-selected:hover,
-    [data-testid="stSidebar"] a.nav-link-selected:hover {
-        background-color: #243556 !important;
-        color: #ffffff !important;
-        transform: translateY(-1px);
-        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28) !important;
-    }
-    [data-testid="stSidebar"] .nav-link .nav-icon,
-    [data-testid="stSidebar"] .nav-link svg,
-    [data-testid="stSidebar"] .nav-link-selected .nav-icon,
-    [data-testid="stSidebar"] .nav-link-selected svg {
-        display: inline-flex !important;
-        align-items: center !important;
-        flex-shrink: 0 !important;
-        margin-right: 0 !important;
-    }
-    [data-testid="stSidebar"] .nav-link .nav-icon,
-    [data-testid="stSidebar"] .nav-link svg {
-        color: #4a70a8 !important;
-        fill: #4a70a8 !important;
-    }
-    [data-testid="stSidebar"] .nav-link-selected .nav-icon,
-    [data-testid="stSidebar"] .nav-link-selected svg {
-        color: #ffffff !important;
-        fill: #ffffff !important;
-    }
-    [data-testid="stSidebar"] .nav-link p,
-    [data-testid="stSidebar"] .nav-link-selected p {
-        margin: 0 !important;
-        display: flex !important;
-        align-items: center !important;
-        text-align: left !important;
-        white-space: nowrap !important;
-        flex: 1 1 auto !important;
-        line-height: 1.2 !important;
-    }
-    /* Cerrar sesión y otros botones del sidebar (misma cápsula) */
-    [data-testid="stSidebar"] .stButton > button {
-        border-radius: 14px !important;
-        transition: all 0.3s ease !important;
-        display: inline-flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        min-height: 2.65rem !important;
-    }
-    [data-testid="stSidebar"] .stButton > button:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.14) !important;
-    }
-    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button {
-        width: 100% !important;
-        justify-content: flex-start !important;
-        text-align: left !important;
-        padding: 10px 12px !important;
-        font-weight: 600 !important;
-        background-color: #F1F3F5 !important;
-        color: #1a2744 !important;
-        border: 1px solid #E4E7EB !important;
-        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06) !important;
-        margin-bottom: 6px !important;
-    }
-    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button:hover {
-        background-color: #E4E8EE !important;
-        border-color: #CBD5E1 !important;
-    }
-    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[kind="primary"],
-    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[data-testid="stBaseButton-primary"] {
-        background-color: #1E293B !important;
-        color: #FFFFFF !important;
-        border: 1px solid rgba(255, 255, 255, 0.12) !important;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24) !important;
-        font-weight: 700 !important;
-    }
-    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[kind="primary"] p,
-    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[kind="primary"] span,
-    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[data-testid="stBaseButton-primary"] p,
-    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[data-testid="stBaseButton-primary"] span {
-        color: #FFFFFF !important;
-        font-weight: 700 !important;
-    }
-    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[kind="primary"]:hover,
-    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[data-testid="stBaseButton-primary"]:hover {
-        background-color: #334155 !important;
-        color: #FFFFFF !important;
-    }
-    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[kind="primary"]:hover p,
-    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[kind="primary"]:hover span,
-    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[data-testid="stBaseButton-primary"]:hover p,
-    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[data-testid="stBaseButton-primary"]:hover span {
-        color: #FFFFFF !important;
-    }
-    /* Logo y perfil compacto del sidebar */
-    [data-testid="stSidebar"] .sidebar-brand-logo {
-        display: block;
-        margin: 0 auto;
-        max-width: 112px;
-        width: 100%;
-        height: auto;
-    }
-    [data-testid="stSidebar"] .sidebar-profile--compact {
-        background: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
-        text-align: center !important;
-    }
-    [data-testid="stSidebar"] .sidebar-profile-email--hero {
-        color: #FFFFFF !important;
-        text-align: center !important;
-        font-weight: 600 !important;
-    }
-    [data-testid="stSidebar"] .sidebar-profile--compact [data-testid="stCaptionContainer"],
-    [data-testid="stSidebar"] .sidebar-profile--compact [data-testid="stCaptionContainer"] p {
-        color: rgba(255, 255, 255, 0.92) !important;
-        text-align: center !important;
-    }
-</style>
-"""
-
 # ==================== ESTILOS GLOBALES (solo estética, sin alterar layout) ====================
 st.markdown("""
 <style>
@@ -885,7 +685,6 @@ st.markdown("""
 
 st.markdown(MAIN_CONTENT_AREA_CSS, unsafe_allow_html=True)
 st.markdown(VELOX_ULTRA_COMPACT_LAYOUT_CSS, unsafe_allow_html=True)
-st.markdown(SIDEBAR_NAV_CAPSULE_CSS, unsafe_allow_html=True)
 
 VELOX_TEXT_INPUT_CSS = """
 <style>
@@ -1286,6 +1085,15 @@ def _velox_logo_data_uri(path: str = VELOX_LOGO_PATH) -> Optional[str]:
     with open(path, "rb") as img_file:
         encoded = base64.b64encode(img_file.read()).decode("ascii")
     return f"data:image/png;base64,{encoded}"
+
+
+def _sidebar_mascot_src() -> Optional[str]:
+    """Isotipo 3D veloX para el anillo circular del sidebar."""
+    for path in (VELOX_LOGO_PATH, VELOX_LOGO_SINFONDO_PATH, VELOX_LOGO_BLANCO_PATH):
+        src = _velox_logo_data_uri(path)
+        if src:
+            return src
+    return None
 
 
 def render_velox_brand_header():
@@ -2855,21 +2663,28 @@ def _puede_ver_panorama_recursos() -> bool:
 
 
 def render_sidebar_brand():
-    """Logo veloX centrado en la parte superior del sidebar."""
-    logo_src = _velox_logo_data_uri()
-    st.markdown('<div class="sidebar-brand">', unsafe_allow_html=True)
-    if logo_src:
-        st.markdown(
-            f'<img src="{logo_src}" alt="veloX" class="sidebar-brand-logo" />',
-            unsafe_allow_html=True,
-        )
-    elif os.path.exists(VELOX_LOGO_PATH):
-        _col_esp, _col_logo, _col_esp2 = st.columns([1, 2, 1])
-        with _col_logo:
-            st.image(VELOX_LOGO_PATH, width=112)
-    else:
-        st.markdown('<div class="sidebar-brand-fallback">⚡ veloX</div>', unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+    """Branding VELOX en la parte superior del sidebar."""
+    st.markdown(
+        '<div class="sidebar-brand">'
+        '<p class="sidebar-brand-title">VELO<span class="sidebar-brand-x">X</span></p>'
+        '<p class="sidebar-brand-subtitle">Asistente Inteligente</p>'
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def _render_sidebar_value_card() -> None:
+    """Tarjeta informativa inferior del sidebar."""
+    st.markdown(
+        '<div class="sidebar-value-card">'
+        '<div class="sidebar-value-card__icon">🎓</div>'
+        '<p class="sidebar-value-card__text">'
+        "Aprende, organiza y crece cada día. "
+        "<strong>Tu éxito comienza con conocimiento.</strong>"
+        "</p>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def _puede_modulo(modulo: str) -> bool:
@@ -3355,8 +3170,8 @@ def _render_sidebar_menu_badges(badge_map: Dict[str, int]) -> None:
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            border: 3px solid #FFFFFF;
-            box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.15);
+            border: 3px solid #051329;
+            box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.25);
             line-height: 1;
             pointer-events: none;
             box-sizing: border-box;
@@ -5400,23 +5215,34 @@ else:
         inject_sidebar_theme()
         render_sidebar_brand()
 
-        avatar = st.session_state.get("avatar_url")
         email_sidebar = (st.session_state.get("usuario") or "").strip()
         rol_sidebar = st.session_state.get("rol", "usuario")
         rol_badge = _etiqueta_rol_sidebar(rol_sidebar)
 
         st.markdown('<div class="sidebar-profile sidebar-profile--compact">', unsafe_allow_html=True)
-        if avatar:
+        mascot_src = _sidebar_mascot_src()
+        if mascot_src:
+            st.markdown(
+                f'<div class="sidebar-mascot-ring">'
+                f'<img src="{mascot_src}" alt="veloX" class="sidebar-mascot-img" />'
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+        elif os.path.exists(VELOX_LOGO_PATH):
             _av_esp, _av_mid, _av_esp2 = st.columns([1, 1, 1])
             with _av_mid:
-                st.image(avatar, width=64)
+                st.image(VELOX_LOGO_PATH, width=68)
         if email_sidebar:
             email_seguro = html_module.escape(email_sidebar)
             st.markdown(
                 f'<p class="sidebar-profile-email sidebar-profile-email--hero">{email_seguro}</p>',
                 unsafe_allow_html=True,
             )
-        st.caption(f"🔐 Gmail verificado · {rol_badge}")
+        credenciales_seguro = html_module.escape(f"✔ Gmail verificado · {rol_badge}")
+        st.markdown(
+            f'<p class="sidebar-profile-credentials">{credenciales_seguro}</p>',
+            unsafe_allow_html=True,
+        )
         st.markdown("</div>", unsafe_allow_html=True)
 
         menu_items = _menu_sidebar_items()
@@ -5430,6 +5256,8 @@ else:
                 st.session_state["menu_principal"] = menu_values[0]
 
         _render_sidebar_menu_botones(menu_items, st.session_state["menu_principal"])
+
+        _render_sidebar_value_card()
 
         st.divider()
         if st.button("Cerrar Sesión", icon="🚪", use_container_width=True, key="sidebar_logout"):

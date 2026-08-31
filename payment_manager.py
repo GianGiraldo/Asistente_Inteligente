@@ -680,9 +680,11 @@ class PaymentManager:
                     {"estado": ESTADO_APROBADO}
                 ).eq("id", comprobante["id"]).execute()
 
-            self._registrar_consulta_aprobacion_comprobante(
+            ok_consulta, msg_consulta = self._registrar_consulta_aprobacion_comprobante(
                 email, master_email, comprobante, observacion=observacion
             )
+            if not ok_consulta:
+                return False, f"Pago aprobado en comprobantes, pero falló aviso al alumno: {msg_consulta}"
 
             if cursos_aprobados:
                 secciones = [
@@ -734,12 +736,40 @@ class PaymentManager:
                 return False, "No se pudo registrar el rechazo"
 
             email = (comprobante.get("usuario_email") or "").strip().lower()
-            self._registrar_consulta_rechazo_comprobante(
+            ok_consulta, msg_consulta = self._registrar_consulta_rechazo_comprobante(
                 email, motivo_l, master_email, comprobante
             )
+            if not ok_consulta:
+                return False, f"Pago rechazado en comprobantes, pero falló aviso al alumno: {msg_consulta}"
             return True, "Pago rechazado correctamente"
         except Exception as e:
             return False, f"Error al rechazar pago: {_format_error(e)}"
+
+    @staticmethod
+    def _texto_cursos_comprobante(comprobante: Optional[Dict[str, Any]]) -> str:
+        if not comprobante:
+            return "sin especificar"
+        raw = comprobante.get("cursos_solicitados")
+        if raw is None:
+            return "sin especificar"
+        if isinstance(raw, str):
+            texto = raw.strip()
+            if not texto:
+                return "sin especificar"
+            try:
+                parsed = json.loads(texto)
+                if isinstance(parsed, list):
+                    raw = parsed
+                else:
+                    return texto
+            except json.JSONDecodeError:
+                return texto
+        if isinstance(raw, list):
+            cursos = PaymentManager._normalizar_lista_cursos(raw)
+            if not cursos:
+                return "sin especificar"
+            return ", ".join(cursos)
+        return str(raw)
 
     def _registrar_consulta_aprobacion_comprobante(
         self,
@@ -747,22 +777,23 @@ class PaymentManager:
         master_email: str,
         comprobante: Optional[Dict[str, Any]] = None,
         observacion: str = "",
-    ) -> None:
+    ) -> Tuple[bool, str]:
         try:
             from message_manager import MessageManager
 
             user = self._obtener_usuario(email)
             nombre = (user or {}).get("nombre") or email.split("@")[0]
-            ok, msg = MessageManager().registrar_aprobacion_comprobante(
+            return MessageManager().registrar_aprobacion_comprobante(
                 email,
                 master_email=master_email,
                 nombre_usuario=nombre,
                 observacion=observacion,
+                cursos_solicitados=self._texto_cursos_comprobante(comprobante),
             )
-            if not ok:
-                print(f"Aviso consulta aprobación ({email}): {msg}")
         except Exception as e:
-            print(f"No se pudo registrar consulta de aprobación: {_format_error(e)}")
+            err = _format_error(e)
+            print(f"No se pudo registrar consulta de aprobación: {err}")
+            return False, err
 
     def _registrar_consulta_rechazo_comprobante(
         self,
@@ -770,23 +801,23 @@ class PaymentManager:
         observacion: str,
         master_email: str,
         comprobante: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        _ = comprobante
+    ) -> Tuple[bool, str]:
         try:
             from message_manager import MessageManager
 
             user = self._obtener_usuario(email)
             nombre = (user or {}).get("nombre") or email.split("@")[0]
-            ok, msg = MessageManager().registrar_rechazo_comprobante(
+            return MessageManager().registrar_rechazo_comprobante(
                 email,
                 observacion,
                 master_email=master_email,
                 nombre_usuario=nombre,
+                cursos_solicitados=self._texto_cursos_comprobante(comprobante),
             )
-            if not ok:
-                print(f"Aviso consulta rechazo ({email}): {msg}")
         except Exception as e:
-            print(f"No se pudo registrar consulta de rechazo: {_format_error(e)}")
+            err = _format_error(e)
+            print(f"No se pudo registrar consulta de rechazo: {err}")
+            return False, err
 
     def registrar_verification_yape_lim(
         self,

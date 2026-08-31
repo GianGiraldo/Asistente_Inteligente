@@ -3825,6 +3825,19 @@ def _render_tarjeta_consulta(msg: dict, mostrar_email: bool = False) -> None:
     if mostrar_email:
         email_line = f" · `{MessageManager._email_de_consulta(msg)}`"
 
+    borde_tarjeta = (
+        "border-left:5px solid #F59E0B;background:#FFFBEB;padding:10px 12px;border-radius:10px;margin-bottom:8px;"
+        if es_cobranzas
+        else ""
+    )
+    if es_cobranzas:
+        st.markdown(
+            f'<div style="{borde_tarjeta}">'
+            f'<div style="font-size:0.82rem;font-weight:700;color:#B45309;margin-bottom:6px;">'
+            f"💳 Notificación de Cobranzas / Pagos</div>",
+            unsafe_allow_html=True,
+        )
+
     st.markdown(
         f"""
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.75rem;margin-bottom:0.35rem;">
@@ -3849,6 +3862,9 @@ def _render_tarjeta_consulta(msg: dict, mostrar_email: bool = False) -> None:
         st.markdown(f"{etiqueta_resp} {respuesta}")
     elif es_pendiente:
         st.info("**Respuesta:** Pendiente de respuesta por el administrador.")
+
+    if es_cobranzas:
+        st.markdown("</div>", unsafe_allow_html=True)
 
 
 @st.fragment

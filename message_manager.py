@@ -63,17 +63,12 @@ class MessageManager:
             "leido": False,
             "leido_master": True,
         }
-        candidatos = [
-            base,
-            {k: v for k, v in base.items() if k not in ("usuario_email", "asunto")},
-        ]
         ultimo_error = ""
-        for data in candidatos:
+        for data in self._candidatos_insert_consulta(base):
             try:
                 result = self.supabase.table(self.tabla).insert(data).execute()
                 if result.data:
                     return True, "Notificación registrada en consultas"
-                return False, "No se pudo registrar la notificación"
             except Exception as e:
                 ultimo_error = str(e)
                 if any(x in ultimo_error.lower() for x in ("column", "pgrst", "schema")):
@@ -83,26 +78,132 @@ class MessageManager:
         print(f"Error registrando notificación comprobante: {ultimo_error}")
         return False, ultimo_error or "No se pudo registrar en consultas"
 
+    def _candidatos_insert_consulta(self, base: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Variantes progresivas por si faltan columnas opcionales en Supabase."""
+        omitir_etapas = (
+            [],
+            ["leido_master"],
+            ["leido_master", "leido"],
+            ["leido_master", "leido", "asunto", "usuario_email"],
+            [
+                "leido_master",
+                "leido",
+                "asunto",
+                "usuario_email",
+                "estado",
+                "respondido_por",
+                "fecha_respuesta",
+                "nombre_usuario",
+                "respondido",
+            ],
+        )
+        candidatos: List[Dict[str, Any]] = []
+        vistos: set = set()
+        for omitir in omitir_etapas:
+            data = {k: v for k, v in base.items() if k not in omitir and v is not None}
+            key = tuple(sorted(data.keys()))
+            if key not in vistos:
+                vistos.add(key)
+                candidatos.append(data)
+
+        mensaje_min = base.get("mensaje") or ""
+        if base.get("asunto") and "asunto" not in (candidatos[-1] if candidatos else {}):
+            mensaje_min = f"{base['asunto']}\n\n{mensaje_min}".strip()
+
+        minimo: Dict[str, Any] = {
+            "id": base["id"],
+            "email": base["email"],
+            "mensaje": mensaje_min,
+            "respuesta": (base.get("respuesta") or "").strip(),
+            "seccion": (base.get("seccion") or "cobranzas").strip(),
+            "fecha": base["fecha"],
+            "respondido": True,
+        }
+        key_min = tuple(sorted(minimo.keys()))
+        if key_min not in vistos:
+            candidatos.append(minimo)
+        return candidatos
+
+    def insertar_notificacion_cobranza(
+        self,
+        usuario_email: str,
+        estado_acceso: str,
+        cursos_solicitados: str,
+        respuesta_master: str,
+        master_email: str = "",
+        nombre_usuario: str = "",
+    ) -> Tuple[bool, str]:
+        """INSERT en consultas tras aprobar/rechazar comprobante (badge + historial alumno)."""
+        email_norm = (usuario_email or "").strip().lower()
+        if not email_norm:
+            return False, "Email de usuario inválido"
+
+        estado_txt = (estado_acceso or "").strip().upper()
+        if estado_txt not in ("APROBADO", "RECHAZADO"):
+            return False, "Estado de acceso inválido"
+
+        cursos_txt = (cursos_solicitados or "").strip() or "sin especificar"
+        respuesta = (respuesta_master or "").strip()
+        if not respuesta:
+            respuesta = (
+                "Tu comprobante fue validado correctamente."
+                if estado_txt == "APROBADO"
+                else "Rechazado por el administrador."
+            )
+
+        now = datetime.now().isoformat()
+        base: Dict[str, Any] = {
+            "id": str(uuid.uuid4()),
+            "email": email_norm,
+            "usuario_email": email_norm,
+            "asunto": f"Solicitud de acceso: {estado_txt}",
+            "mensaje": f"Solicitud para el curso {cursos_txt} - Estado: {estado_txt}",
+            "respuesta": respuesta,
+            "estado": "Atendido" if estado_txt == "APROBADO" else "Observado",
+            "fecha": now,
+            "respondido": True,
+            "respondido_por": (master_email or "").strip() or None,
+            "fecha_respuesta": now,
+            "nombre_usuario": (nombre_usuario or email_norm.split("@")[0]).strip(),
+            "seccion": "cobranzas",
+            "leido": False,
+            "leido_master": True,
+        }
+
+        ultimo_error = ""
+        for data in self._candidatos_insert_consulta(base):
+            try:
+                result = self.supabase.table(self.tabla).insert(data).execute()
+                if result.data:
+                    return True, "Notificación de cobranza registrada en consultas"
+            except Exception as e:
+                ultimo_error = str(e)
+                if any(x in ultimo_error.lower() for x in ("column", "pgrst", "schema")):
+                    continue
+                print(f"Error insertando notificación cobranza: {e}")
+                return False, ultimo_error
+        print(f"Error insertando notificación cobranza: {ultimo_error}")
+        return False, ultimo_error or "No se pudo insertar en consultas"
+
     def registrar_aprobacion_comprobante(
         self,
         usuario_email: str,
         master_email: str = "",
         nombre_usuario: str = "",
         observacion: str = "",
+        cursos_solicitados: str = "",
     ) -> Tuple[bool, str]:
         texto_resp = (observacion or "").strip() or (
             "Tu comprobante fue validado correctamente. "
             "Tus cursos solicitados ya están activos en la plataforma."
         )
-        return self.registrar_notificacion_comprobante(
+        return self.insertar_notificacion_cobranza(
             usuario_email=usuario_email,
-            asunto="Resultado de solicitud de acceso: APROBADO",
-            mensaje="Tu solicitud de compra/acceso fue revisada por administración.",
-            respuesta=texto_resp,
-            estado="Atendido",
+            estado_acceso="APROBADO",
+            cursos_solicitados=cursos_solicitados,
+            respuesta_master=texto_resp,
             master_email=master_email,
             nombre_usuario=nombre_usuario,
-            seccion="cobranzas",
         )
 
     def registrar_rechazo_comprobante(
@@ -111,20 +212,15 @@ class MessageManager:
         observacion: str,
         master_email: str = "",
         nombre_usuario: str = "",
+        cursos_solicitados: str = "",
     ) -> Tuple[bool, str]:
-        texto_resp = (observacion or "").strip() or (
-            "Tu comprobante no pudo ser validado. Revisa el monto, la captura "
-            "y vuelve a enviar una solicitud si corresponde."
-        )
-        return self.registrar_notificacion_comprobante(
+        return self.insertar_notificacion_cobranza(
             usuario_email=usuario_email,
-            asunto="Resultado de solicitud de acceso: RECHAZADO",
-            mensaje="Tu solicitud de compra/acceso fue revisada por administración.",
-            respuesta=texto_resp,
-            estado="Observado",
+            estado_acceso="RECHAZADO",
+            cursos_solicitados=cursos_solicitados,
+            respuesta_master=observacion,
             master_email=master_email,
             nombre_usuario=nombre_usuario,
-            seccion="cobranzas",
         )
 
     def obtener_historial_completo(self) -> List[Dict[str, Any]]:
@@ -451,10 +547,48 @@ class MessageManager:
         return self.obtener_consultas_pendientes()
 
     def obtener_mensajes_usuario(self, email):
-        """Obtiene el historial de consultas de un usuario (email o usuario_email)."""
+        """Historial del alumno: consultas de soporte y notificaciones de cobranzas."""
         email_norm = (email or "").strip().lower()
         if not email_norm:
             return []
+        filas: Dict[str, Dict[str, Any]] = {}
+
+        def _agregar_filas(rows: Optional[List[Dict[str, Any]]]) -> None:
+            for row in rows or []:
+                rid = str(row.get("id") or id(row))
+                filas[rid] = row
+
+        try:
+            por_email = (
+                self.supabase.table(self.tabla)
+                .select("*")
+                .eq("email", email_norm)
+                .order("fecha", desc=True)
+                .execute()
+            )
+            _agregar_filas(por_email.data)
+        except Exception as e:
+            print(f"Error consultando consultas por email: {e}")
+
+        try:
+            por_usuario_email = (
+                self.supabase.table(self.tabla)
+                .select("*")
+                .eq("usuario_email", email_norm)
+                .order("fecha", desc=True)
+                .execute()
+            )
+            _agregar_filas(por_usuario_email.data)
+        except Exception:
+            pass
+
+        if filas:
+            return sorted(
+                filas.values(),
+                key=lambda c: c.get("fecha") or "",
+                reverse=True,
+            )
+
         try:
             result = (
                 self.supabase.table(self.tabla)

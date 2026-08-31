@@ -53,7 +53,7 @@ class AuthManager:
     MODULO_DOCUMENTOS = "📁 Mis Documentos"
     MODULO_GESTION_USUARIOS = "👥 Gestión Usuarios"
     MODULO_COBRANZAS = "💳 Cobranzas"
-    MODULO_CONSULTAS = "📬 Consultas"
+    MODULO_CONSULTAS = "💬 Consultas"
     MODULO_CONFIGURACION = "⚙️ Configuración"
     MODULOS_SOLO_MASTER = frozenset({MODULO_COBRANZAS, MODULO_CONFIGURACION})
     MODULOS_ADMIN_DEFAULT = [
@@ -1705,6 +1705,9 @@ class AuthManager:
             "recovery_email",
             "unread_count",
             "_unread_count_user",
+            "unread_consultas_count",
+            "pending_cobranzas_count",
+            "_sidebar_counts_user",
         ):
             st.session_state.pop(extra, None)
         if not silent:

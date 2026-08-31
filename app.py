@@ -281,6 +281,8 @@ def _invalidar_cache_datos():
         cached_obtener_secciones_usuario.clear()
         cached_contar_publicaciones_por_seccion.clear()
         cached_contar_consultas_no_leidas.clear()
+        cached_contar_pagos_pendientes.clear()
+        cached_contar_consultas_soporte_master.clear()
     except Exception:
         pass
 
@@ -365,6 +367,18 @@ def cached_contar_consultas_no_leidas(email: str, data_cache_version: int = 0) -
     _, _, messages, _, _ = init_managers()
     return messages.contar_consultas_no_leidas(email)
 
+
+@st.cache_data(show_spinner=False, ttl=30)
+def cached_contar_pagos_pendientes(data_cache_version: int = 0) -> int:
+    _, _, _, _, payments = init_managers()
+    return payments.contar_pagos_pendientes()
+
+
+@st.cache_data(show_spinner=False, ttl=30)
+def cached_contar_consultas_soporte_master(data_cache_version: int = 0) -> int:
+    _, _, messages, _, _ = init_managers()
+    return messages.contar_consultas_soporte_no_leidas_master()
+
 auth_manager, storage_manager, message_manager, notification_manager, payment_manager = init_managers()
 
 # ==================== AUTH TEMPRANO (antes de UI de login) ====================
@@ -425,13 +439,13 @@ MENU_SIDEBAR_MASTER = [
     ("Mis Documentos", "folder", "📁 Mis Documentos"),
     ("Gestión Usuarios", "people", "👥 Gestión Usuarios"),
     ("Cobranzas", "credit-card", "💳 Cobranzas"),
-    ("Consultas", "envelope", "📬 Consultas"),
+    ("Consultas", "envelope", "💬 Consultas"),
     ("Configuración", "gear", "⚙️ Configuración"),
 ]
 MENU_SIDEBAR_USER = [
     ("Inicio", "house", "🏠 Inicio"),
     ("Mis Documentos", "folder", "📁 Mis Documentos"),
-    ("Consultas", "envelope", "📬 Consultas"),
+    ("Consultas", "envelope", "💬 Consultas"),
     ("Mi Perfil", "person", "👤 Mi Perfil"),
 ]
 MENU_SIDEBAR_PERFIL = ("Mi Perfil", "person", "👤 Mi Perfil")
@@ -625,16 +639,29 @@ SIDEBAR_NAV_CAPSULE_CSS = """
     }
     [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[kind="primary"],
     [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[data-testid="stBaseButton-primary"] {
-        background-color: #1a2744 !important;
-        color: #ffffff !important;
+        background-color: #1E293B !important;
+        color: #FFFFFF !important;
         border: 1px solid rgba(255, 255, 255, 0.12) !important;
         box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24) !important;
         font-weight: 700 !important;
     }
+    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[kind="primary"] p,
+    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[kind="primary"] span,
+    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[data-testid="stBaseButton-primary"] p,
+    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[data-testid="stBaseButton-primary"] span {
+        color: #FFFFFF !important;
+        font-weight: 700 !important;
+    }
     [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[kind="primary"]:hover,
     [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[data-testid="stBaseButton-primary"]:hover {
-        background-color: #243556 !important;
-        color: #ffffff !important;
+        background-color: #334155 !important;
+        color: #FFFFFF !important;
+    }
+    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[kind="primary"]:hover p,
+    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[kind="primary"]:hover span,
+    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[data-testid="stBaseButton-primary"]:hover p,
+    [data-testid="stSidebar"] .st-key-sidebar_menu_panel .stButton > button[data-testid="stBaseButton-primary"]:hover span {
+        color: #FFFFFF !important;
     }
     /* Logo y perfil compacto del sidebar */
     [data-testid="stSidebar"] .sidebar-brand-logo {
@@ -3071,73 +3098,167 @@ def _menu_sidebar_items():
 
     if not _es_master_admin_comprobantes():
         items = [item for item in items if item[2] != AuthManager.MODULO_COBRANZAS]
-    else:
-        items = [
-            (
-                "Pagos / Comprobantes" if valor == AuthManager.MODULO_COBRANZAS else etiqueta,
-                icono,
-                valor,
-            )
-            for etiqueta, icono, valor in items
-        ]
     return items
 
 
+_MENU_KEY_SLUGS = {
+    AuthManager.MODULO_INICIO: "inicio",
+    AuthManager.MODULO_DOCUMENTOS: "documentos",
+    AuthManager.MODULO_GESTION_USUARIOS: "gestion_usuarios",
+    AuthManager.MODULO_COBRANZAS: "cobranzas",
+    AuthManager.MODULO_CONSULTAS: "consultas",
+    AuthManager.MODULO_CONFIGURACION: "configuracion",
+    "👤 Mi Perfil": "mi_perfil",
+}
+
+
 def _sidebar_menu_button_key(valor: str) -> str:
-    slug = re.sub(r"[^\w]+", "_", (valor or "")).strip("_").lower()
+    slug = _MENU_KEY_SLUGS.get(valor)
+    if not slug:
+        slug = re.sub(r"[^\w]+", "_", (valor or "")).strip("_").lower() or "item"
     return f"main_menu_{slug}"
 
 
-def _etiqueta_menu_sidebar(etiqueta: str, valor: str, unread_count: int) -> str:
-    if valor == AuthManager.MODULO_CONSULTAS:
-        if unread_count > 0:
-            n = unread_count if unread_count < 100 else "99+"
-            return f"Consultas 🟡 ({n})"
-        return "Consultas"
+def _etiqueta_menu_sidebar(valor: str) -> str:
     return valor
 
 
-def _init_unread_count_si_falta() -> None:
+def _init_sidebar_counts_si_falta() -> None:
     if not st.session_state.get("autenticado"):
         return
     usuario = (st.session_state.get("usuario") or "").strip().lower()
     if not usuario:
         return
     if (
-        "unread_count" not in st.session_state
-        or st.session_state.get("_unread_count_user") != usuario
+        "unread_consultas_count" not in st.session_state
+        or "pending_cobranzas_count" not in st.session_state
+        or st.session_state.get("_sidebar_counts_user") != usuario
     ):
-        st.session_state["unread_count"] = cached_contar_consultas_no_leidas(
-            usuario,
-            data_cache_version=_velox_data_cache_version(),
+        _refresh_sidebar_counts(force=True)
+
+
+def _refresh_sidebar_counts(force: bool = False) -> None:
+    cache_v = _velox_data_cache_version()
+    usuario = (st.session_state.get("usuario") or "").strip().lower()
+    if _es_master_admin_comprobantes():
+        st.session_state["pending_cobranzas_count"] = cached_contar_pagos_pendientes(
+            data_cache_version=cache_v
         )
-        st.session_state["_unread_count_user"] = usuario
+    else:
+        st.session_state["pending_cobranzas_count"] = 0
+
+    if _es_staff() and _puede_modulo(AuthManager.MODULO_CONSULTAS):
+        st.session_state["unread_consultas_count"] = cached_contar_consultas_soporte_master(
+            data_cache_version=cache_v
+        )
+    else:
+        st.session_state["unread_consultas_count"] = cached_contar_consultas_no_leidas(
+            usuario,
+            data_cache_version=cache_v,
+        )
+    st.session_state["unread_count"] = st.session_state["unread_consultas_count"]
+    st.session_state["_sidebar_counts_user"] = usuario
 
 
-def _limpiar_notificaciones_consultas(email: str) -> None:
+def _decrementar_pending_cobranzas() -> None:
+    actual = int(st.session_state.get("pending_cobranzas_count") or 0)
+    st.session_state["pending_cobranzas_count"] = max(0, actual - 1)
+
+
+def _decrementar_unread_consultas() -> None:
+    actual = int(st.session_state.get("unread_consultas_count") or 0)
+    st.session_state["unread_consultas_count"] = max(0, actual - 1)
+    st.session_state["unread_count"] = st.session_state["unread_consultas_count"]
+
+
+def _limpiar_notificaciones_consultas_usuario(email: str) -> None:
     message_manager.marcar_consultas_leidas(email)
+    st.session_state["unread_consultas_count"] = 0
     st.session_state["unread_count"] = 0
 
 
+def _limpiar_notificaciones_consultas_master() -> None:
+    message_manager.marcar_consultas_leidas_master()
+    st.session_state["unread_consultas_count"] = 0
+    st.session_state["unread_count"] = 0
+
+
+def _render_sidebar_menu_badges(badge_map: Dict[str, int]) -> None:
+    rules = []
+    for key, count in badge_map.items():
+        if count <= 0:
+            continue
+        badge_text = str(count) if count < 100 else "99+"
+        rules.append(
+            f"""
+        [data-testid="stSidebar"] div.st-key-{key} {{
+            position: relative !important;
+            overflow: visible !important;
+        }}
+        [data-testid="stSidebar"] div.st-key-{key}::after {{
+            content: "{badge_text}";
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            z-index: 10;
+            background-color: #F59E0B;
+            color: #0F172A;
+            font-weight: 800;
+            font-size: 11px;
+            border-radius: 9999px;
+            padding: 2px 7px;
+            min-width: 20px;
+            height: 20px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 3px solid #FFFFFF;
+            box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.15);
+            line-height: 1;
+            pointer-events: none;
+            box-sizing: border-box;
+        }}
+        """
+        )
+    if rules:
+        st.markdown(f"<style>{''.join(rules)}</style>", unsafe_allow_html=True)
+
+
 def _render_sidebar_menu_botones(menu_items, menu_principal: str) -> None:
-    unread_count = int(st.session_state.get("unread_count") or 0)
+    pending_cobranzas = int(st.session_state.get("pending_cobranzas_count") or 0)
+    unread_consultas = int(st.session_state.get("unread_consultas_count") or 0)
+    badge_map: Dict[str, int] = {}
+
     with st.container(key="sidebar_menu_panel"):
-        for etiqueta, _icono, valor in menu_items:
-            label = _etiqueta_menu_sidebar(etiqueta, valor, unread_count)
+        for _etiqueta, _icono, valor in menu_items:
+            label = _etiqueta_menu_sidebar(valor)
+            btn_key = _sidebar_menu_button_key(valor)
+            if valor == AuthManager.MODULO_COBRANZAS and pending_cobranzas > 0:
+                badge_map[btn_key] = pending_cobranzas
+            if valor == AuthManager.MODULO_CONSULTAS and unread_consultas > 0:
+                badge_map[btn_key] = unread_consultas
+
             activo = valor == menu_principal
             if st.button(
                 label,
-                key=_sidebar_menu_button_key(valor),
+                key=btn_key,
                 use_container_width=True,
                 type="primary" if activo else "secondary",
             ):
                 if valor == AuthManager.MODULO_CONSULTAS:
-                    _limpiar_notificaciones_consultas(st.session_state.get("usuario", ""))
+                    if _es_staff() and _puede_modulo(AuthManager.MODULO_CONSULTAS):
+                        _limpiar_notificaciones_consultas_master()
+                    else:
+                        _limpiar_notificaciones_consultas_usuario(
+                            st.session_state.get("usuario", "")
+                        )
                 if valor != menu_principal:
                     st.session_state["menu_principal"] = valor
-                    if etiqueta == "Inicio":
+                    if valor == AuthManager.MODULO_INICIO:
                         st.session_state.seccion_activa = "inicio"
                     st.rerun()
+
+    _render_sidebar_menu_badges(badge_map)
 
 
 def render_lista_usuarios_solo_lectura():
@@ -3538,6 +3659,7 @@ def render_gestion_comprobantes_admin():
                                 "Acceso activado correctamente",
                             )
                             _invalidar_cache_datos()
+                            _decrementar_pending_cobranzas()
                         else:
                             st.session_state["pago_flash"] = ("error", msg)
                         st.rerun()
@@ -3568,6 +3690,7 @@ def render_gestion_comprobantes_admin():
                         st.session_state["pago_flash"] = ("success" if ok else "error", msg)
                         if ok:
                             _invalidar_cache_datos()
+                            _decrementar_pending_cobranzas()
                         st.rerun()
                     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -4954,7 +5077,7 @@ else:
     render_velox_top_banner()
     render_app_top_bar()
     render_activation_banner()
-    _init_unread_count_si_falta()
+    _init_sidebar_counts_si_falta()
 
     # ==================== SIDEBAR ====================
     with st.sidebar:
@@ -4984,7 +5107,11 @@ else:
         menu_values = [item[2] for item in menu_items]
 
         if st.session_state.get("menu_principal") not in menu_values:
-            st.session_state["menu_principal"] = menu_values[0]
+            legacy = st.session_state.get("menu_principal")
+            if legacy == "📬 Consultas" and AuthManager.MODULO_CONSULTAS in menu_values:
+                st.session_state["menu_principal"] = AuthManager.MODULO_CONSULTAS
+            else:
+                st.session_state["menu_principal"] = menu_values[0]
 
         _render_sidebar_menu_botones(menu_items, st.session_state["menu_principal"])
 
@@ -5320,12 +5447,20 @@ else:
             st.info("Versión 1.0")
 
     elif menu_actual == AuthManager.MODULO_CONSULTAS:
-        if int(st.session_state.get("unread_count") or 0) > 0:
-            _limpiar_notificaciones_consultas(st.session_state.get("usuario", ""))
+        if int(st.session_state.get("unread_consultas_count") or 0) > 0:
+            if _es_staff() and _puede_modulo(AuthManager.MODULO_CONSULTAS):
+                _limpiar_notificaciones_consultas_master()
+            else:
+                _limpiar_notificaciones_consultas_usuario(
+                    st.session_state.get("usuario", "")
+                )
 
         if _es_staff() and _puede_modulo(AuthManager.MODULO_CONSULTAS):
-            st.header("📬 Gestión de Consultas")
-            st.caption("Revisa y responde las consultas enviadas por los usuarios de la plataforma.")
+            st.header("💬 Gestión de Consultas")
+            st.caption(
+                "Historial de respuestas de cobranzas y centro de soporte para consultas "
+                "sobre cursos enviadas por los usuarios."
+            )
 
             if _es_master_admin_comprobantes():
                 with st.expander("🗂️ Historial completo de tickets (trazabilidad)", expanded=False):
@@ -5373,6 +5508,7 @@ else:
                                     msg["id"], respuesta.strip(), st.session_state["usuario"]
                                 )
                                 if exito:
+                                    _decrementar_unread_consultas()
                                     st.success("✅ Respuesta enviada correctamente")
                                     st.rerun()
                                 else:
@@ -5391,7 +5527,7 @@ else:
                             _render_tarjeta_consulta(msg, mostrar_email=True)
         else:
             # Usuario normal: enviar consulta
-            st.header("📬 Mis Consultas")
+            st.header("💬 Mis Consultas")
             st.markdown("Envía tu consulta al administrador y revisa las respuestas recibidas.")
             secciones_usuario = cached_obtener_secciones_usuario(
                 st.session_state["usuario"],

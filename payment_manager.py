@@ -629,6 +629,22 @@ class PaymentManager:
             print(f"Error listando comprobantes pendientes: {_format_error(e)}")
             return []
 
+    def contar_pagos_pendientes(self) -> int:
+        """Cantidad de solicitudes de compra/acceso pendientes de revisión."""
+        for tabla in ("pagos", TABLA_COMPROBANTES):
+            try:
+                result = (
+                    self.supabase.table(tabla)
+                    .select("id", count="exact")
+                    .eq("estado", ESTADO_PENDIENTE)
+                    .execute()
+                )
+                if result.count is not None:
+                    return int(result.count)
+            except Exception:
+                continue
+        return len(self.listar_pagos_pendientes())
+
     def aprobar_pago(self, pago_id: str, master_email: str) -> Tuple[bool, str]:
         """Aprueba comprobante; pago_id = UUID del registro en tabla comprobantes."""
         try:

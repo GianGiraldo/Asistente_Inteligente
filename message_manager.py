@@ -60,6 +60,7 @@ class MessageManager:
             "nombre_usuario": (nombre_usuario or email_norm.split("@")[0]).strip(),
             "seccion": "administracion",
             "leido": False,
+            "leido_master": True,
         }
         candidatos = [
             base,
@@ -160,8 +161,70 @@ class MessageManager:
             return False
         return True
 
+    @staticmethod
+    def _es_consulta_soporte_usuario(consulta: Dict[str, Any]) -> bool:
+        seccion = (consulta.get("seccion") or "").strip().lower()
+        return seccion not in ("administracion", "general", "")
+
+    def _es_soporte_no_leido_master(self, consulta: Dict[str, Any]) -> bool:
+        if not self._es_consulta_soporte_usuario(consulta):
+            return False
+        if consulta.get("leido_master") is True:
+            return False
+        if consulta.get("leido_master") is False:
+            return True
+        return self._es_consulta_pendiente(consulta)
+
+    def contar_consultas_soporte_no_leidas_master(self) -> int:
+        """Mensajes de soporte enviados por usuarios que el Master aún no revisó."""
+        try:
+            result = (
+                self.supabase.table(self.tabla)
+                .select("id", count="exact")
+                .eq("leido_master", False)
+                .execute()
+            )
+            if result.count is not None:
+                return int(result.count)
+        except Exception:
+            pass
+        try:
+            historial = self.obtener_historial_completo()
+            return len(
+                [
+                    c
+                    for c in historial
+                    if self._es_soporte_no_leido_master(c)
+                ]
+            )
+        except Exception as e:
+            print(f"Error contando soporte master no leído: {e}")
+            return 0
+
+    def marcar_consultas_leidas_master(self) -> None:
+        """Marca como revisadas las consultas de soporte entrantes (vista Master)."""
+        try:
+            self.supabase.table(self.tabla).update({"leido_master": True}).eq(
+                "leido_master", False
+            ).execute()
+            return
+        except Exception as e:
+            print(f"Error marcando consultas leídas master (SQL): {e}")
+        for consulta in self.obtener_historial_completo():
+            if not self._es_soporte_no_leido_master(consulta):
+                continue
+            cid = consulta.get("id")
+            if not cid:
+                continue
+            try:
+                self.supabase.table(self.tabla).update({"leido_master": True}).eq(
+                    "id", cid
+                ).execute()
+            except Exception as row_err:
+                print(f"Error marcando consulta master {cid}: {row_err}")
+
     def contar_consultas_no_leidas(self, email: str) -> int:
-        """Cantidad de consultas/respuestas no leídas del usuario (leido = false)."""
+        """Cantidad de respuestas/notificaciones no leídas del usuario (leido = false)."""
         email_norm = (email or "").strip().lower()
         if not email_norm:
             return 0
@@ -229,6 +292,7 @@ class MessageManager:
                 "fecha_respuesta": None,
                 "estado": "pendiente",
                 "leido": True,
+                "leido_master": False,
             }
             result = self.supabase.table(self.tabla).insert(data).execute()
             if result.data:
@@ -283,6 +347,7 @@ class MessageManager:
                 "fecha_respuesta": datetime.now().isoformat(),
                 "estado": "respondida",
                 "leido": False,
+                "leido_master": True,
             }
             try:
                 result = (
@@ -293,10 +358,16 @@ class MessageManager:
                 )
             except Exception as col_err:
                 err_text = str(col_err).lower()
-                if "estado" not in err_text and "leido" not in err_text and "column" not in err_text:
+                if (
+                    "estado" not in err_text
+                    and "leido" not in err_text
+                    and "leido_master" not in err_text
+                    and "column" not in err_text
+                ):
                     raise
                 update.pop("estado", None)
                 update.pop("leido", None)
+                update.pop("leido_master", None)
                 result = (
                     self.supabase.table(self.tabla)
                     .update(update)

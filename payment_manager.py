@@ -684,15 +684,7 @@ class PaymentManager:
                     {"estado": ESTADO_APROBADO}
                 ).eq("id", comprobante["id"]).execute()
 
-            ok_consulta, msg_consulta = self._registrar_consulta_aprobacion_comprobante(
-                email, master_email, comprobante, observacion=observacion
-            )
-            if not ok_consulta:
-                print(
-                    "Aviso: INSERT consultas vía Python falló; el trigger SQL en "
-                    f"comprobantes debe crear el aviso al alumno. Detalle: {msg_consulta}"
-                )
-
+            # Notificación al alumno: la crea el trigger SQL en comprobantes → consultas.
             if cursos_aprobados:
                 secciones = [
                     s
@@ -742,15 +734,7 @@ class PaymentManager:
             if not result.data:
                 return False, "No se pudo registrar el rechazo"
 
-            email = (comprobante.get("usuario_email") or "").strip().lower()
-            ok_consulta, msg_consulta = self._registrar_consulta_rechazo_comprobante(
-                email, motivo_l, master_email, comprobante
-            )
-            if not ok_consulta:
-                print(
-                    "Aviso: INSERT consultas vía Python falló; el trigger SQL en "
-                    f"comprobantes debe crear el aviso al alumno. Detalle: {msg_consulta}"
-                )
+            # Notificación al alumno: la crea el trigger SQL en comprobantes → consultas.
             return True, "Pago rechazado correctamente"
         except Exception as e:
             return False, f"Error al rechazar pago: {_format_error(e)}"

@@ -100,6 +100,7 @@ import re
 import time
 from datetime import datetime
 from typing import Dict, Optional
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import pygwalker as pyg
@@ -3552,11 +3553,30 @@ def _formatear_fecha_notif(fecha_raw):
     if not fecha_raw:
         return "Fecha desconocida"
     try:
-        texto = str(fecha_raw).replace("Z", "+00:00")
-        dt = datetime.fromisoformat(texto)
-        return dt.strftime("%d/%m/%Y %H:%M")
-    except (ValueError, TypeError):
-        return str(fecha_raw)[:16].replace("T", " ")
+        from message_manager import MessageManager
+
+        return MessageManager.formatear_fecha_lima(fecha_raw)
+    except Exception:
+        try:
+            texto = str(fecha_raw).replace("Z", "+00:00")
+            dt = datetime.fromisoformat(texto)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+            return dt.astimezone(ZoneInfo("America/Lima")).strftime("%d/%m/%Y %H:%M")
+        except (ValueError, TypeError):
+            return str(fecha_raw)[:16].replace("T", " ")
+
+
+def _formatear_fecha_consulta(msg_or_fecha) -> str:
+    if isinstance(msg_or_fecha, dict):
+        fecha_raw = (
+            msg_or_fecha.get("fecha")
+            or msg_or_fecha.get("created_at")
+            or msg_or_fecha.get("fecha_respuesta")
+        )
+    else:
+        fecha_raw = msg_or_fecha
+    return _formatear_fecha_notif(fecha_raw) if fecha_raw else "Sin fecha"
 
 def _formatear_cursos_comprobante(cursos_raw) -> str:
     """Etiquetas legibles para cursos_solicitados (claves Supabase)."""
@@ -3779,9 +3799,6 @@ def render_gestion_cobranzas_master():
     """Alias retrocompatible → panel exclusivo Master."""
     render_gestion_comprobantes_admin()
 
-def _formatear_fecha_consulta(fecha_raw) -> str:
-    return _formatear_fecha_notif(fecha_raw) if fecha_raw else "Sin fecha"
-
 
 def _nombre_seccion_consulta(msg: dict) -> str:
     seccion = (msg.get("seccion") or "").strip().lower()
@@ -3794,7 +3811,7 @@ def _nombre_seccion_consulta(msg: dict) -> str:
 
 def _render_tarjeta_consulta(msg: dict, mostrar_email: bool = False) -> None:
     asunto = MessageManager._texto_asunto(msg)
-    fecha_str = _formatear_fecha_consulta(msg.get("fecha"))
+    fecha_str = _formatear_fecha_consulta(msg)
     estado_raw = (msg.get("estado") or "").strip()
     respuesta = (msg.get("respuesta") or "").strip()
     asunto_upper = asunto.upper()
@@ -3879,7 +3896,7 @@ def _fragment_consultas_staff_pendientes():
 
     for msg in pendientes:
         seccion_nombre = _nombre_seccion_consulta(msg)
-        fecha_str = _formatear_fecha_consulta(msg.get("fecha"))
+        fecha_str = _formatear_fecha_consulta(msg)
         with st.container(border=True):
             col_info, col_badge = st.columns([4, 1])
             with col_info:

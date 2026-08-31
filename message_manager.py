@@ -2,8 +2,12 @@
 from datetime import datetime
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
+from zoneinfo import ZoneInfo
 
 from supabase_client import get_supabase
+
+ZONA_LIMA = ZoneInfo("America/Lima")
+ZONA_UTC = ZoneInfo("UTC")
 
 
 class MessageManager:
@@ -11,6 +15,108 @@ class MessageManager:
         self.supabase = get_supabase()
         self.tabla = "consultas"
         self.tabla_comprobantes = "comprobantes"
+
+    @staticmethod
+    def _parse_fecha_iso(fecha_raw) -> Optional[datetime]:
+        if not fecha_raw:
+            return None
+        try:
+            texto = str(fecha_raw).replace("Z", "+00:00")
+            dt = datetime.fromisoformat(texto)
+            if dt.tzinfo is None:
+                return dt.replace(tzinfo=ZONA_UTC)
+            return dt
+        except (ValueError, TypeError):
+            return None
+
+    @staticmethod
+    def formatear_fecha_lima(fecha_raw, formato: str = "%d/%m/%Y %H:%M") -> str:
+        """Convierte ISO/UTC de Supabase a hora local de Perú (America/Lima)."""
+        dt = MessageManager._parse_fecha_iso(fecha_raw)
+        if dt is None:
+            return str(fecha_raw)[:16].replace("T", " ") if fecha_raw else "Sin fecha"
+        return dt.astimezone(ZONA_LIMA).strftime(formato)
+
+    @staticmethod
+    def _fecha_consulta_minuto_utc(fecha_raw) -> str:
+        """Clave de minuto (UTC) para deduplicar notificaciones de cobranzas."""
+        dt = MessageManager._parse_fecha_iso(fecha_raw)
+        if dt is None:
+            return str(fecha_raw or "")[:16]
+        return dt.astimezone(ZONA_UTC).strftime("%Y-%m-%d %H:%M")
+
+    @staticmethod
+    def _estado_desde_asunto_cobranza(asunto: str) -> str:
+        asunto_upper = (asunto or "").upper()
+        if "RECHAZADO" in asunto_upper:
+            return "rechazado"
+        if "APROBADO" in asunto_upper:
+            return "aprobado"
+        return ""
+
+    @staticmethod
+    def _prioridad_consulta_cobranzas(row: Dict[str, Any]) -> int:
+        score = 0
+        if row.get("comprobante_id"):
+            score += 10
+        asunto = (row.get("asunto") or "").upper()
+        if "ESTADO DE SOLICITUD" in asunto:
+            score += 5
+        if row.get("created_at"):
+            score += 1
+        return score
+
+    def _clave_semantica_cobranza(self, row: Dict[str, Any]) -> str:
+        email = self._email_de_consulta(row)
+        resp = (row.get("respuesta") or "").strip().lower()
+        fecha = self._fecha_consulta_minuto_utc(
+            row.get("fecha") or row.get("created_at") or row.get("fecha_respuesta")
+        )
+        estado = self._estado_desde_asunto_cobranza(row.get("asunto") or "")
+        return f"cob:{email}:{estado}:{resp}:{fecha}"
+
+    def _deduplicar_consultas(self, consultas: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Evita tarjetas duplicadas por trigger SQL + INSERT legacy de Python."""
+        if not consultas:
+            return []
+
+        ordenados = sorted(
+            consultas,
+            key=lambda row: (
+                self._prioridad_consulta_cobranzas(row),
+                row.get("created_at") or row.get("fecha") or "",
+            ),
+            reverse=True,
+        )
+
+        vistos_comp: set = set()
+        vistos_sem: set = set()
+        dedup: List[Dict[str, Any]] = []
+
+        for row in ordenados:
+            seccion = (row.get("seccion") or "").strip().lower()
+            if seccion != "cobranzas":
+                dedup.append(row)
+                continue
+
+            comp_id = str(row.get("comprobante_id") or "").strip()
+            sem = self._clave_semantica_cobranza(row)
+
+            if comp_id and comp_id in vistos_comp:
+                continue
+            if sem in vistos_sem:
+                continue
+
+            if comp_id:
+                vistos_comp.add(comp_id)
+            vistos_sem.add(sem)
+            dedup.append(row)
+
+        return sorted(
+            dedup,
+            key=lambda c: c.get("fecha") or c.get("created_at") or "",
+            reverse=True,
+        )
 
     @staticmethod
     def _email_de_consulta(consulta: Dict[str, Any]) -> str:
@@ -736,7 +842,9 @@ class MessageManager:
                 print(f"Error obteniendo consultas del usuario: {e}")
                 consultas = []
 
-        return self._fusionar_consultas_con_comprobantes(consultas, email_norm)
+        return self._deduplicar_consultas(
+            self._fusionar_consultas_con_comprobantes(consultas, email_norm)
+        )
 
     def contar_no_leidos(self, email):
         """Cuenta consultas del usuario que aún no tienen respuesta."""

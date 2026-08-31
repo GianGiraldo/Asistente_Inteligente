@@ -1298,9 +1298,12 @@ SIDEBAR_CSS = """
 
 def inject_global_theme():
     import streamlit as st
+    if st.session_state.get("_velox_global_theme_css_injected"):
+        return
     st.markdown(EXECUTIVE_CSS, unsafe_allow_html=True)
     st.markdown(MAIN_CONTENT_AREA_CSS, unsafe_allow_html=True)
     st.markdown(VELOX_ULTRA_COMPACT_LAYOUT_CSS, unsafe_allow_html=True)
+    st.session_state["_velox_global_theme_css_injected"] = True
 
 
 def inject_main_content_area_styles():
@@ -1561,13 +1564,19 @@ WELCOME_LAYOUT_CSS = """
 
 def inject_welcome_layout():
     import streamlit as st
+    if st.session_state.get("_velox_welcome_layout_css_injected"):
+        return
     st.markdown(WELCOME_LAYOUT_CSS, unsafe_allow_html=True)
+    st.session_state["_velox_welcome_layout_css_injected"] = True
 
 
 def inject_section_catalog_css():
     import streamlit as st
+    if st.session_state.get("_velox_section_catalog_css_injected"):
+        return
     st.markdown(SECTION_CATALOG_CSS, unsafe_allow_html=True)
     st.markdown(MAIN_CONTENT_AREA_CSS, unsafe_allow_html=True)
+    st.session_state["_velox_section_catalog_css_injected"] = True
 
 
 SECTION_CATALOG_CSS = """
@@ -1734,7 +1743,10 @@ SECTION_CATALOG_CSS = """
 
 def inject_sidebar_theme():
     import streamlit as st
+    if st.session_state.get("_velox_sidebar_theme_css_injected"):
+        return
     st.markdown(SIDEBAR_CSS, unsafe_allow_html=True)
+    st.session_state["_velox_sidebar_theme_css_injected"] = True
 
 
 VELOX_LOADING_BRAND_CSS = f"""
@@ -1845,7 +1857,10 @@ def inject_velox_loading_brand() -> None:
     """Inyecta el spinner personalizado de veloX usando st.html() para mayor robustez."""
     import streamlit as st
 
+    if st.session_state.get("_velox_loading_brand_css_injected"):
+        return
     st.html(VELOX_LOADING_BRAND_CSS)
+    st.session_state["_velox_loading_brand_css_injected"] = True
 
 
 __all__ = [

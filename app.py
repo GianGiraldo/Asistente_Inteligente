@@ -12,13 +12,16 @@ st.set_page_config(
 )
 
 # Forzar nombre e ícono para aplicaciones móviles (PWA)
-_velox_pwa_icon_href = "assets/velox.png"
-if os.path.exists(_velox_pwa_icon_href):
-    with open(_velox_pwa_icon_href, "rb") as _velox_icon_file:
-        _velox_pwa_icon_href = (
-            "data:image/png;base64,"
-            + base64.b64encode(_velox_icon_file.read()).decode("ascii")
-        )
+@st.cache_resource(show_spinner=False)
+def _velox_pwa_icon_data_uri() -> str:
+    path = "assets/velox.png"
+    if not os.path.exists(path):
+        return path
+    with open(path, "rb") as icon_file:
+        return "data:image/png;base64," + base64.b64encode(icon_file.read()).decode("ascii")
+
+
+_velox_pwa_icon_href = _velox_pwa_icon_data_uri()
 
 st.markdown(
     f"""
@@ -103,7 +106,6 @@ from typing import Dict, Optional
 from zoneinfo import ZoneInfo
 
 import pandas as pd
-import pygwalker as pyg
 import streamlit as st
 import streamlit.components.v1 as components
 from analytics_charts import (
@@ -216,7 +218,10 @@ VELOX_POST_LOGIN_SHELL_CSS = """
 
 def inject_post_login_shell_layout():
     """Ordena capas y columnas del shell autenticado (sidebar vs. contenido central)."""
+    if st.session_state.get("_velox_post_login_shell_css_injected"):
+        return
     st.markdown(VELOX_POST_LOGIN_SHELL_CSS, unsafe_allow_html=True)
+    st.session_state["_velox_post_login_shell_css_injected"] = True
 
 
 VELOX_TOP_AREA_COMPACT_CSS = """
@@ -245,24 +250,44 @@ VELOX_TOP_AREA_COMPACT_CSS = """
 def render_velox_top_banner():
     """Banner principal post-login, compactado al tope del área central."""
     st.markdown(VELOX_TOP_AREA_COMPACT_CSS, unsafe_allow_html=True)
-    if not os.path.exists(VELOX_BANNER_PATH):
+    if not _velox_banner_existe():
         return
     with st.container(key="velox_top_banner"):
         st.image(VELOX_BANNER_PATH, use_container_width=True)
 
 
 @st.cache_resource(show_spinner=False)
-def init_managers(_cache_version=4):
-    """Instancias singleton de managers (Supabase, Culqi, etc.) — una sola vez por proceso."""
-    auth = AuthManager()
+def _velox_banner_existe(path: str = VELOX_BANNER_PATH) -> bool:
+    return os.path.exists(path)
+
+
+@st.cache_resource(show_spinner=False)
+def init_auth_manager():
+    """Solo AuthManager antes del login (OAuth / sesión)."""
+    return AuthManager()
+
+
+@st.cache_resource(show_spinner=False)
+def init_data_managers(_cache_version=4):
+    """Managers de datos pesados — se instancian tras el login."""
     storage = StorageManager()
     messages = MessageManager()
     notifications = NotificationManager()
     payments = PaymentManager()
-    return auth, storage, messages, notifications, payments
+    return storage, messages, notifications, payments
+
+
+auth_manager = init_auth_manager()
+storage_manager = message_manager = notification_manager = payment_manager = None
 
 
 VELOX_DATA_CACHE_VERSION_KEY = "velox_data_cache_version"
+
+
+def _ensure_data_managers() -> None:
+    """Lazy bind post-login: evita Storage/Message/Notification/Payment en pantalla de login."""
+    global storage_manager, message_manager, notification_manager, payment_manager
+    storage_manager, message_manager, notification_manager, payment_manager = init_data_managers()
 
 
 def _velox_data_cache_version() -> int:
@@ -308,27 +333,27 @@ def _invalidar_cache_datos():
         pass
 
 
-@st.cache_data(show_spinner=False, ttl=180)
+@st.cache_data(show_spinner=False, ttl=300)
 def cached_obtener_publicaciones_por_seccion(
     seccion: Optional[str] = None,
     subcategoria: Optional[str] = None,
     data_cache_version: int = 0,
 ):
-    _, storage, _, _, _ = init_managers()
+    storage, _, _, _ = init_data_managers()
     return storage.obtener_publicaciones_por_seccion(seccion=seccion, subcategoria=subcategoria)
 
 
-@st.cache_data(show_spinner=False, ttl=180)
+@st.cache_data(show_spinner=False, ttl=300)
 def cached_listar_catalogo_seccion(
     seccion: str,
     subcategoria: Optional[str] = None,
     data_cache_version: int = 0,
 ):
-    _, storage, _, _, _ = init_managers()
+    storage, _, _, _ = init_data_managers()
     return storage.listar_catalogo_seccion(seccion, subcategoria)
 
 
-@st.cache_data(show_spinner=False, ttl=180)
+@st.cache_data(show_spinner=False, ttl=300)
 def cached_listar_archivos_usuario(
     usuario: str,
     seccion: Optional[str] = None,
@@ -336,7 +361,7 @@ def cached_listar_archivos_usuario(
     incluir_publicaciones: bool = False,
     data_cache_version: int = 0,
 ):
-    _, storage, _, _, _ = init_managers()
+    storage, _, _, _ = init_data_managers()
     return storage.listar_archivos_usuario(
         usuario,
         seccion=seccion,
@@ -345,31 +370,29 @@ def cached_listar_archivos_usuario(
     )
 
 
-@st.cache_data(show_spinner=False, ttl=180)
+@st.cache_data(show_spinner=False, ttl=300)
 def cached_obtener_publicaciones_usuario(
     usuario: str,
     secciones_usuario: tuple,
     data_cache_version: int = 0,
 ):
-    _, storage, _, _, _ = init_managers()
+    storage, _, _, _ = init_data_managers()
     return storage.obtener_publicaciones_usuario(usuario, list(secciones_usuario))
 
 
-@st.cache_data(show_spinner=False, ttl=180)
+@st.cache_data(show_spinner=False, ttl=300)
 def cached_listar_usuarios(data_cache_version: int = 0):
-    auth, _, _, _, _ = init_managers()
-    return auth.listar_usuarios()
+    return auth_manager.listar_usuarios()
 
 
-@st.cache_data(show_spinner=False, ttl=180)
+@st.cache_data(show_spinner=False, ttl=300)
 def cached_obtener_secciones_usuario(email: str, data_cache_version: int = 0):
-    auth, _, _, _, _ = init_managers()
-    return auth.obtener_secciones_usuario(email)
+    return auth_manager.obtener_secciones_usuario(email)
 
 
-@st.cache_data(show_spinner=False, ttl=180)
+@st.cache_data(show_spinner=False, ttl=300)
 def cached_contar_publicaciones_por_seccion(data_cache_version: int = 0) -> dict:
-    _, storage, _, _, _ = init_managers()
+    storage, _, _, _ = init_data_managers()
     conteos: dict = {}
     for pub in storage.obtener_publicaciones_por_seccion():
         seccion = pub.get("seccion") or ""
@@ -377,76 +400,74 @@ def cached_contar_publicaciones_por_seccion(data_cache_version: int = 0) -> dict
     return conteos
 
 
-@st.cache_data(show_spinner=False, ttl=180)
+@st.cache_data(show_spinner=False, ttl=300)
 def cached_listar_pagos_pendientes(data_cache_version: int = 0):
-    _, _, _, _, payments = init_managers()
+    _, _, _, payments = init_data_managers()
     return payments.listar_pagos_pendientes()
 
 
-@st.cache_data(show_spinner=False, ttl=180)
+@st.cache_data(show_spinner=False, ttl=300)
 def cached_contar_consultas_no_leidas(email: str, data_cache_version: int = 0) -> int:
-    _, _, messages, _, _ = init_managers()
+    _, messages, _, _ = init_data_managers()
     return messages.contar_consultas_no_leidas(email)
 
 
-@st.cache_data(show_spinner=False, ttl=180)
+@st.cache_data(show_spinner=False, ttl=300)
 def cached_contar_pagos_pendientes(data_cache_version: int = 0) -> int:
-    _, _, _, _, payments = init_managers()
+    _, _, _, payments = init_data_managers()
     return payments.contar_pagos_pendientes()
 
 
-@st.cache_data(show_spinner=False, ttl=180)
+@st.cache_data(show_spinner=False, ttl=300)
 def cached_contar_consultas_soporte_master(data_cache_version: int = 0) -> int:
-    _, _, messages, _, _ = init_managers()
+    _, messages, _, _ = init_data_managers()
     return messages.contar_consultas_soporte_no_leidas_master()
 
 
-@st.cache_data(show_spinner=False, ttl=180)
+@st.cache_data(show_spinner=False, ttl=300)
 def cached_contar_notificaciones_no_leidas(email: str, data_cache_version: int = 0) -> int:
-    _, _, _, notifications, _ = init_managers()
+    _, _, notifications, _ = init_data_managers()
     return notifications.contar_no_leidas(email)
 
 
-@st.cache_data(show_spinner=False, ttl=180)
+@st.cache_data(show_spinner=False, ttl=300)
 def cached_obtener_ultimas_notificaciones(
     email: str,
     limite: int,
     data_cache_version: int = 0,
 ):
-    _, _, _, notifications, _ = init_managers()
+    _, _, notifications, _ = init_data_managers()
     return notifications.obtener_ultimas_no_leidas(email, limite=limite)
 
 
-@st.cache_data(show_spinner=False, ttl=180)
+@st.cache_data(show_spinner=False, ttl=300)
 def cached_obtener_consultas_pendientes_master(data_cache_version: int = 0):
-    _, _, messages, _, _ = init_managers()
+    _, messages, _, _ = init_data_managers()
     return messages.obtener_mensajes_para_master(respondidos=False)
 
 
-@st.cache_data(show_spinner=False, ttl=180)
+@st.cache_data(show_spinner=False, ttl=300)
 def cached_obtener_consultas_respondidas_master(data_cache_version: int = 0):
-    _, _, messages, _, _ = init_managers()
+    _, messages, _, _ = init_data_managers()
     return messages.obtener_mensajes_para_master(respondidos=True)
 
 
-@st.cache_data(show_spinner=False, ttl=180)
+@st.cache_data(show_spinner=False, ttl=300)
 def cached_obtener_historial_consultas_usuario(email: str, data_cache_version: int = 0):
-    _, _, messages, _, _ = init_managers()
+    _, messages, _, _ = init_data_managers()
     return messages.obtener_mensajes_usuario(email)
 
 
-@st.cache_data(show_spinner=False, ttl=180)
+@st.cache_data(show_spinner=False, ttl=300)
 def cached_obtener_historial_consultas_completo(data_cache_version: int = 0):
-    _, _, messages, _, _ = init_managers()
+    _, messages, _, _ = init_data_managers()
     return messages.obtener_historial_completo()
 
 
-@st.cache_data(show_spinner=False, ttl=180)
+@st.cache_data(show_spinner=False, ttl=300)
 def cached_obtener_perfil_usuario(email: str, data_cache_version: int = 0):
-    auth, _, _, _, _ = init_managers()
-    return auth.obtener_perfil(email)
+    return auth_manager.obtener_perfil(email)
 
-auth_manager, storage_manager, message_manager, notification_manager, payment_manager = init_managers()
 
 # ==================== AUTH TEMPRANO (antes de UI de login) ====================
 auth_manager.inicializar_estado_auth()
@@ -895,15 +916,24 @@ VELOX_TEXT_INPUT_CSS = """
 
 
 def inject_velox_text_input_styles():
+    if st.session_state.get("_velox_text_input_css_injected"):
+        return
     st.markdown(VELOX_TEXT_INPUT_CSS, unsafe_allow_html=True)
+    st.session_state["_velox_text_input_css_injected"] = True
 
 
 def inject_olvido_password_link_styles():
+    if st.session_state.get("_velox_forgot_password_css_injected"):
+        return
     st.markdown(FORGOT_PASSWORD_LINK_CSS, unsafe_allow_html=True)
+    st.session_state["_velox_forgot_password_css_injected"] = True
 
 
 def inject_login_portal_brand_styles():
+    if st.session_state.get("_velox_login_portal_css_injected"):
+        return
     st.markdown(LOGIN_PORTAL_BRAND_CSS, unsafe_allow_html=True)
+    st.session_state["_velox_login_portal_css_injected"] = True
 
 # ==================== PASARELA DE BIENVENIDA veloX (Premium) ====================
 YAPE_QR_PATH = "assets/qr_pago.png"
@@ -1250,7 +1280,7 @@ VELOX_LOGO_BLANCO_PATH = "assets/logo_blanco.png"
 VELOX_LOGO_SINFONDO_PATH = "assets/logo_blanco_sinfondo.png"
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_resource(show_spinner=False)
 def _velox_logo_data_uri(path: str = VELOX_LOGO_PATH) -> Optional[str]:
     """Data URI del logo local para incrustarlo en HTML sin depender de st.image."""
     if not os.path.exists(path):
@@ -2184,6 +2214,7 @@ def login_screen():
 LEGAL_DOCS_DIR = "data"
 
 
+@st.cache_data(show_spinner=False, ttl=300)
 def _leer_documento_legal(nombre_archivo: str) -> str:
     path = os.path.join(LEGAL_DOCS_DIR, nombre_archivo)
     if not os.path.exists(path):
@@ -5188,6 +5219,8 @@ def mostrar_modulo_dashboard_interactivo():
 
             st.write("---")
 
+            import pygwalker as pyg
+
             pyg_html = pyg.to_html(df, theme="dark")
             components.html(pyg_html, height=850, scrolling=True)
 
@@ -5326,6 +5359,8 @@ if _en_vista_recuperacion_password():
 if not _usuario_con_acceso:
     login_screen()
     st.stop()
+
+_ensure_data_managers()
 
 _ensure_sesion_perfil_local()
 

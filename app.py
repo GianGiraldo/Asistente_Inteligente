@@ -3412,34 +3412,9 @@ def render_dashboard_analytics_user(secciones_usuario, publicaciones):
 # ==================== NAVEGACIÓN INTERNA - INICIO ====================
 def activar_seccion_inicio(seccion_id):
     st.session_state.seccion_activa = seccion_id
-    subcategorias = SECCIONES.get(seccion_id, {}).get("subcategorias", ["General"])
-    st.session_state.categoria_inicio = subcategorias[0]
 
 def volver_al_inicio():
     st.session_state.seccion_activa = "inicio"
-
-def seleccionar_categoria_inicio(categoria):
-    st.session_state.categoria_inicio = categoria
-
-
-def _mis_docs_categoria_key(seccion_id: str) -> str:
-    return f"mis_docs_categoria_{seccion_id}"
-
-
-def seleccionar_categoria_mis_docs(seccion_id: str, categoria: str) -> None:
-    st.session_state[_mis_docs_categoria_key(seccion_id)] = categoria
-    st.session_state[_docs_pagina_session_key(seccion_id, categoria, prefijo="pub")] = 1
-
-
-def _obtener_categoria_mis_docs(seccion_id: str, subcategorias: list) -> str:
-    cat_key = _mis_docs_categoria_key(seccion_id)
-    if cat_key not in st.session_state:
-        st.session_state[cat_key] = subcategorias[0]
-    categoria = st.session_state[cat_key]
-    if categoria not in subcategorias:
-        st.session_state[cat_key] = subcategorias[0]
-        categoria = subcategorias[0]
-    return categoria
 
 def _formatear_fecha_notif(fecha_raw):
     if not fecha_raw:
@@ -4039,17 +4014,17 @@ MIS_DOCS_COMPACT_CSS = """
 """
 
 
-def _docs_pagina_session_key(seccion, subcategoria, prefijo="pub"):
-    return f"docs_pag_{prefijo}_{seccion}_{subcategoria}"
+def _docs_pagina_session_key(seccion, prefijo="pub"):
+    return f"docs_pag_{prefijo}_{seccion}"
 
 
-def _docs_busqueda_session_key(seccion, subcategoria, prefijo="pub"):
-    return f"docs_busq_ctx_{prefijo}_{seccion}_{subcategoria}"
+def _docs_busqueda_session_key(seccion, prefijo="pub"):
+    return f"docs_busq_ctx_{prefijo}_{seccion}"
 
 
-def _sincronizar_pagina_documentos(seccion, subcategoria, busqueda, prefijo="pub"):
-    ctx_key = _docs_busqueda_session_key(seccion, subcategoria, prefijo)
-    pag_key = _docs_pagina_session_key(seccion, subcategoria, prefijo)
+def _sincronizar_pagina_documentos(seccion, busqueda, prefijo="pub"):
+    ctx_key = _docs_busqueda_session_key(seccion, prefijo)
+    pag_key = _docs_pagina_session_key(seccion, prefijo)
     ctx = (busqueda or "").strip().lower()
     if st.session_state.get(ctx_key) != ctx:
         st.session_state[ctx_key] = ctx
@@ -4089,13 +4064,13 @@ def _paginar_lista_documentos(documentos, pagina, por_pagina=DOCS_ITEMS_POR_PAGI
     return documentos[inicio:inicio + por_pagina], pagina, total_paginas, total
 
 
-def _render_paginacion_documentos(seccion, subcategoria, pagina, total_paginas, total_items, prefijo="pub"):
-    pag_key = _docs_pagina_session_key(seccion, subcategoria, prefijo)
+def _render_paginacion_documentos(seccion, pagina, total_paginas, total_items, prefijo="pub"):
+    pag_key = _docs_pagina_session_key(seccion, prefijo)
     col_prev, col_mid, col_next = st.columns([1, 2, 1])
     with col_prev:
         if st.button(
             "◀ Anterior",
-            key=f"docs_prev_{prefijo}_{seccion}_{subcategoria}",
+            key=f"docs_prev_{prefijo}_{seccion}",
             disabled=pagina <= 1,
             use_container_width=True,
         ):
@@ -4110,7 +4085,7 @@ def _render_paginacion_documentos(seccion, subcategoria, pagina, total_paginas, 
     with col_next:
         if st.button(
             "Siguiente ▶",
-            key=f"docs_next_{prefijo}_{seccion}_{subcategoria}",
+            key=f"docs_next_{prefijo}_{seccion}",
             disabled=pagina >= total_paginas,
             use_container_width=True,
         ):
@@ -4253,7 +4228,6 @@ def _render_fila_documento_personal(archivo, meta, indice):
 def _render_lista_documentos_compacta(
     documentos,
     seccion,
-    subcategoria,
     busqueda,
     prefijo,
     render_fila_fn,
@@ -4262,7 +4236,7 @@ def _render_lista_documentos_compacta(
     incluir_publicar=False,
 ):
     filtrados = _filtrar_documentos_por_busqueda(documentos, busqueda)
-    pagina = _sincronizar_pagina_documentos(seccion, subcategoria, busqueda, prefijo)
+    pagina = _sincronizar_pagina_documentos(seccion, busqueda, prefijo)
     lote, pagina, total_paginas, total_items = _paginar_lista_documentos(filtrados, pagina)
 
     if not filtrados:
@@ -4277,18 +4251,17 @@ def _render_lista_documentos_compacta(
                 render_fila_fn(doc, i + (pagina - 1) * DOCS_ITEMS_POR_PAGINA)
 
         if total_paginas > 1 or total_items > DOCS_ITEMS_POR_PAGINA:
-            _render_paginacion_documentos(seccion, subcategoria, pagina, total_paginas, total_items, prefijo)
+            _render_paginacion_documentos(seccion, pagina, total_paginas, total_items, prefijo)
 
 
 def _render_bloque_publicaciones_compacto(
     seccion_id,
-    categoria_actual,
     busqueda,
     secciones_usuario,
     *,
     prefijo="pub",
     titulo="### 📢 Publicaciones disponibles",
-    mensaje_vacio="No hay documentos en esta categoría.",
+    mensaje_vacio="No hay documentos disponibles.",
     seccion_info=None,
     sincronizar_chatbot=False,
 ):
@@ -4297,12 +4270,12 @@ def _render_bloque_publicaciones_compacto(
     _cache_v = _velox_data_cache_version()
     publicaciones = cached_obtener_publicaciones_por_seccion(
         seccion=seccion_id,
-        subcategoria=categoria_actual,
+        subcategoria=None,
         data_cache_version=_cache_v,
     )
     if sincronizar_chatbot and seccion_info:
         _actualizar_catalogo_chatbot_seccion(
-            seccion_info, seccion_id, categoria_actual, secciones_usuario
+            seccion_info, seccion_id, secciones_usuario
         )
 
     def _render_fila_publicacion(pub, indice):
@@ -4319,7 +4292,6 @@ def _render_bloque_publicaciones_compacto(
     _render_lista_documentos_compacta(
         publicaciones,
         seccion_id,
-        categoria_actual,
         busqueda,
         prefijo=prefijo,
         render_fila_fn=_render_fila_publicacion,
@@ -4328,17 +4300,17 @@ def _render_bloque_publicaciones_compacto(
     )
 
 
-def _actualizar_catalogo_chatbot_seccion(seccion_info, seccion_id, subcategoria, secciones_usuario):
+def _actualizar_catalogo_chatbot_seccion(seccion_info, seccion_id, secciones_usuario):
     catalogo = cached_listar_catalogo_seccion(
         seccion_id,
-        subcategoria,
+        subcategoria=None,
         data_cache_version=_velox_data_cache_version(),
     )
     st.session_state["velox_catalogo_documentos"] = [
         {
             "nombre": item["nombre"],
             "carpeta": seccion_info["nombre"],
-            "subcategoria": item.get("subcategoria") or subcategoria,
+            "subcategoria": item.get("subcategoria") or "",
             "acceso": seccion_id in secciones_usuario,
             "id": item.get("id"),
             "descripcion": item.get("descripcion", ""),
@@ -4371,8 +4343,6 @@ def abrir_notificacion(
     st.session_state.seccion_activa = seccion_norm or "inicio"
     if seccion_norm:
         st.session_state["seccion_seleccionada_documentos"] = seccion_norm
-    if categoria and seccion_norm:
-        st.session_state["categoria_redirigida"] = categoria
     if titulo:
         st.session_state["notif_redirect_mensaje"] = f"✅ Has sido redirigido a la publicación: {titulo}"
         nombre_busqueda = titulo.rsplit(".", 1)[0] if "." in titulo else titulo
@@ -5062,8 +5032,8 @@ def mostrar_modulo_dashboard_interactivo():
         )
 
 
-def _render_documentos_categoria_inicio(seccion_id, categoria_actual, secciones_usuario, busqueda_key):
-    """Lista de publicaciones por subcategoría dentro de la vista Inicio de una sección."""
+def _render_documentos_seccion_inicio(seccion_id, secciones_usuario, busqueda_key):
+    """Lista de publicaciones de la sección (sin sub-pestañas por categoría)."""
     st.markdown(MIS_DOCS_COMPACT_CSS, unsafe_allow_html=True)
     busqueda = st.text_input(
         "🔍 Buscar por nombre o descripción:",
@@ -5071,12 +5041,11 @@ def _render_documentos_categoria_inicio(seccion_id, categoria_actual, secciones_
     )
     _render_bloque_publicaciones_compacto(
         seccion_id,
-        categoria_actual,
         busqueda,
         secciones_usuario,
         prefijo="inicio",
         titulo="### 📢 Documentos disponibles",
-        mensaje_vacio="No hay documentos en esta categoría.",
+        mensaje_vacio="No hay documentos disponibles en esta sección.",
     )
 
 
@@ -5087,10 +5056,6 @@ def render_vista_seccion_inicio(seccion_id):
         return
 
     seccion_info = SECCIONES[seccion_id]
-    subcategorias = seccion_info.get("subcategorias", ["General"])
-    if "categoria_inicio" not in st.session_state:
-        st.session_state.categoria_inicio = subcategorias[0]
-
     secciones_usuario = _secciones_efectivas()
 
     if seccion_id not in secciones_usuario:
@@ -5113,49 +5078,16 @@ def render_vista_seccion_inicio(seccion_id):
     </div>
     """, unsafe_allow_html=True)
 
-    if seccion_id == "laboral":
-        tab_minicursos, tab_formatos, tab_dashboard = st.tabs(
-            ["📚 Mini Cursos", "🗂️ Formatos y Plantillas", "📊 Diseñador de Dashboards"]
-        )
-        with tab_minicursos:
-            _render_documentos_categoria_inicio(
-                seccion_id,
-                "Minicursos",
-                secciones_usuario,
-                busqueda_key=f"buscador_inicio_{seccion_id}_minicursos",
-            )
-        with tab_formatos:
-            _render_documentos_categoria_inicio(
-                seccion_id,
-                "Formatos y Plantillas",
-                secciones_usuario,
-                busqueda_key=f"buscador_inicio_{seccion_id}_formatos",
-            )
-        with tab_dashboard:
-            mostrar_modulo_dashboard_interactivo()
-        return
-
-    st.markdown("### 📂 Categorías")
-    categoria_actual = st.session_state.categoria_inicio
-    with st.container(key="velox_categoria_botones"):
-        cols_cat = st.columns(len(subcategorias))
-        for idx, cat in enumerate(subcategorias):
-            with cols_cat[idx]:
-                st.button(
-                    cat,
-                    key=f"cat_inicio_{seccion_id}_{cat}",
-                    use_container_width=True,
-                    type="primary" if categoria_actual == cat else "secondary",
-                    on_click=seleccionar_categoria_inicio,
-                    kwargs={"categoria": cat},
-                )
-
-    _render_documentos_categoria_inicio(
+    _render_documentos_seccion_inicio(
         seccion_id,
-        categoria_actual,
         secciones_usuario,
         busqueda_key=f"buscador_inicio_{seccion_id}",
     )
+
+    if seccion_id == "laboral":
+        st.markdown("---")
+        with st.expander("📊 Diseñador de Dashboards", expanded=False):
+            mostrar_modulo_dashboard_interactivo()
 
 # ==================== PUERTA DE ACCESO (post-definiciones) ====================
 _legal_page = (st.query_params.get("page") or "").strip().lower()
@@ -5339,7 +5271,6 @@ else:
 
     elif menu_actual == "📁 Mis Documentos":
         seccion_preseleccionada = st.session_state.pop("seccion_seleccionada_documentos", None)
-        categoria_redirigida = st.session_state.pop("categoria_redirigida", None)
         notif_redirect_mensaje = st.session_state.pop("notif_redirect_mensaje", None)
         notif_redirect_publicacion_id = st.session_state.pop("notif_redirect_publicacion_id", None)
         st.query_params.clear()
@@ -5367,15 +5298,6 @@ else:
             seccion_preseleccionada_norm = (
                 normalizar_seccion(seccion_preseleccionada) if seccion_preseleccionada else None
             )
-
-            if categoria_redirigida and seccion_preseleccionada_norm:
-                subs_redirect = SECCIONES.get(seccion_preseleccionada_norm, {}).get(
-                    "subcategorias", ["General"]
-                )
-                if categoria_redirigida in subs_redirect:
-                    st.session_state[
-                        _mis_docs_categoria_key(seccion_preseleccionada_norm)
-                    ] = categoria_redirigida
 
             indice_preseleccionado = 0
             if seccion_preseleccionada_norm:
@@ -5405,33 +5327,12 @@ else:
                 st.rerun()
 
             subcategorias_disponibles = seccion_info.get("subcategorias", ["General"])
-            st.markdown("### 📂 Categorías")
-
-            cat_key = _mis_docs_categoria_key(seccion_seleccionada)
-            categoria_actual = _obtener_categoria_mis_docs(
-                seccion_seleccionada, subcategorias_disponibles
-            )
 
             if seccion_preseleccionada_norm:
                 st.session_state[
-                    _docs_pagina_session_key(seccion_seleccionada, categoria_actual, prefijo="pub")
+                    _docs_pagina_session_key(seccion_seleccionada, prefijo="pub")
                 ] = 1
                 _invalidar_cache_datos()
-
-            with st.container(key="velox_categoria_botones"):
-                cols_cat = st.columns(len(subcategorias_disponibles))
-                for idx, cat in enumerate(subcategorias_disponibles):
-                    with cols_cat[idx]:
-                        st.button(
-                            cat,
-                            key=f"cat_{seccion_seleccionada}_{idx}_{cat}",
-                            use_container_width=True,
-                            type="primary" if categoria_actual == cat else "secondary",
-                            on_click=seleccionar_categoria_mis_docs,
-                            kwargs={"seccion_id": seccion_seleccionada, "categoria": cat},
-                        )
-
-            st.markdown(f"**Categoría actual:** {categoria_actual}")
 
             st.markdown(MIS_DOCS_COMPACT_CSS, unsafe_allow_html=True)
             busqueda = st.text_input(
@@ -5440,7 +5341,7 @@ else:
                 key="buscador_mis_docs",
                 label_visibility="collapsed",
             )
-            st.caption("Búsqueda instantánea sobre los documentos de la categoría seleccionada.")
+            st.caption("Búsqueda instantánea sobre todos los documentos de la sección.")
 
             if (
                 _puede_publicar_documentos()
@@ -5448,19 +5349,15 @@ else:
                 and _puede_modulo(AuthManager.MODULO_DOCUMENTOS)
             ):
                 with st.expander("📤 Publicar documento", expanded=_es_admin()):
-                    st.caption(
-                        f"Publicación en **{seccion_info['nombre']}** · categoría **{categoria_actual}**"
-                    )
-                    # Categoría fijada al renderizar el formulario (evita desfase al enviar)
-                    st.session_state[f"mis_docs_pub_target_{seccion_seleccionada}"] = categoria_actual
+                    st.caption(f"Publicación en **{seccion_info['nombre']}**")
                     with st.form(
                         key=f"form_pub_{seccion_seleccionada}",
                         clear_on_submit=True,
                     ):
-                        st.text_input(
+                        categoria_publicar = st.selectbox(
                             "Categoría de destino",
-                            value=categoria_actual,
-                            disabled=True,
+                            options=subcategorias_disponibles,
+                            key=f"mis_docs_pub_categoria_{seccion_seleccionada}",
                         )
                         archivo_pub = st.file_uploader(
                             "Seleccionar archivo",
@@ -5477,11 +5374,6 @@ else:
                         )
 
                     if submitted:
-                        categoria_publicar = (
-                            st.session_state.get(f"mis_docs_pub_target_{seccion_seleccionada}")
-                            or st.session_state.get(cat_key)
-                            or categoria_actual
-                        )
                         descripcion_guardar = (descripcion_texto or "").strip()
                         if not archivo_pub:
                             st.error("❌ Selecciona un archivo antes de publicar.")
@@ -5498,11 +5390,9 @@ else:
                                 if exito:
                                     _mostrar_alerta_publicacion(exito, resultado)
                                     _invalidar_cache_datos()
-                                    st.session_state[cat_key] = categoria_publicar
                                     st.session_state[
                                         _docs_pagina_session_key(
                                             seccion_seleccionada,
-                                            categoria_publicar,
                                             prefijo="pub",
                                         )
                                     ] = 1
@@ -5519,12 +5409,11 @@ else:
             )
             _render_bloque_publicaciones_compacto(
                 seccion_seleccionada,
-                categoria_actual,
                 busqueda,
                 secciones_usuario,
                 prefijo="pub",
                 titulo=titulo_publicaciones,
-                mensaje_vacio="No hay publicaciones del master en esta categoría",
+                mensaje_vacio="No hay publicaciones disponibles en esta sección.",
                 seccion_info=seccion_info,
                 sincronizar_chatbot=True,
             )

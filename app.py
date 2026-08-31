@@ -283,11 +283,18 @@ def _invalidar_cache_datos():
         cached_contar_consultas_no_leidas.clear()
         cached_contar_pagos_pendientes.clear()
         cached_contar_consultas_soporte_master.clear()
+        cached_contar_notificaciones_no_leidas.clear()
+        cached_obtener_ultimas_notificaciones.clear()
+        cached_obtener_consultas_pendientes_master.clear()
+        cached_obtener_consultas_respondidas_master.clear()
+        cached_obtener_historial_consultas_usuario.clear()
+        cached_obtener_historial_consultas_completo.clear()
+        cached_obtener_perfil_usuario.clear()
     except Exception:
         pass
 
 
-@st.cache_data(show_spinner=False, ttl=300)
+@st.cache_data(show_spinner=False, ttl=180)
 def cached_obtener_publicaciones_por_seccion(
     seccion: Optional[str] = None,
     subcategoria: Optional[str] = None,
@@ -297,7 +304,7 @@ def cached_obtener_publicaciones_por_seccion(
     return storage.obtener_publicaciones_por_seccion(seccion=seccion, subcategoria=subcategoria)
 
 
-@st.cache_data(show_spinner=False, ttl=300)
+@st.cache_data(show_spinner=False, ttl=180)
 def cached_listar_catalogo_seccion(
     seccion: str,
     subcategoria: Optional[str] = None,
@@ -307,7 +314,7 @@ def cached_listar_catalogo_seccion(
     return storage.listar_catalogo_seccion(seccion, subcategoria)
 
 
-@st.cache_data(show_spinner=False, ttl=300)
+@st.cache_data(show_spinner=False, ttl=180)
 def cached_listar_archivos_usuario(
     usuario: str,
     seccion: Optional[str] = None,
@@ -324,7 +331,7 @@ def cached_listar_archivos_usuario(
     )
 
 
-@st.cache_data(show_spinner=False, ttl=300)
+@st.cache_data(show_spinner=False, ttl=180)
 def cached_obtener_publicaciones_usuario(
     usuario: str,
     secciones_usuario: tuple,
@@ -334,19 +341,19 @@ def cached_obtener_publicaciones_usuario(
     return storage.obtener_publicaciones_usuario(usuario, list(secciones_usuario))
 
 
-@st.cache_data(show_spinner=False, ttl=300)
+@st.cache_data(show_spinner=False, ttl=180)
 def cached_listar_usuarios(data_cache_version: int = 0):
     auth, _, _, _, _ = init_managers()
     return auth.listar_usuarios()
 
 
-@st.cache_data(show_spinner=False, ttl=300)
+@st.cache_data(show_spinner=False, ttl=180)
 def cached_obtener_secciones_usuario(email: str, data_cache_version: int = 0):
     auth, _, _, _, _ = init_managers()
     return auth.obtener_secciones_usuario(email)
 
 
-@st.cache_data(show_spinner=False, ttl=300)
+@st.cache_data(show_spinner=False, ttl=180)
 def cached_contar_publicaciones_por_seccion(data_cache_version: int = 0) -> dict:
     _, storage, _, _, _ = init_managers()
     conteos: dict = {}
@@ -356,28 +363,74 @@ def cached_contar_publicaciones_por_seccion(data_cache_version: int = 0) -> dict
     return conteos
 
 
-@st.cache_data(show_spinner=False, ttl=30)
+@st.cache_data(show_spinner=False, ttl=180)
 def cached_listar_pagos_pendientes(data_cache_version: int = 0):
     _, _, _, _, payments = init_managers()
     return payments.listar_pagos_pendientes()
 
 
-@st.cache_data(show_spinner=False, ttl=30)
+@st.cache_data(show_spinner=False, ttl=180)
 def cached_contar_consultas_no_leidas(email: str, data_cache_version: int = 0) -> int:
     _, _, messages, _, _ = init_managers()
     return messages.contar_consultas_no_leidas(email)
 
 
-@st.cache_data(show_spinner=False, ttl=30)
+@st.cache_data(show_spinner=False, ttl=180)
 def cached_contar_pagos_pendientes(data_cache_version: int = 0) -> int:
     _, _, _, _, payments = init_managers()
     return payments.contar_pagos_pendientes()
 
 
-@st.cache_data(show_spinner=False, ttl=30)
+@st.cache_data(show_spinner=False, ttl=180)
 def cached_contar_consultas_soporte_master(data_cache_version: int = 0) -> int:
     _, _, messages, _, _ = init_managers()
     return messages.contar_consultas_soporte_no_leidas_master()
+
+
+@st.cache_data(show_spinner=False, ttl=180)
+def cached_contar_notificaciones_no_leidas(email: str, data_cache_version: int = 0) -> int:
+    _, _, _, notifications, _ = init_managers()
+    return notifications.contar_no_leidas(email)
+
+
+@st.cache_data(show_spinner=False, ttl=180)
+def cached_obtener_ultimas_notificaciones(
+    email: str,
+    limite: int,
+    data_cache_version: int = 0,
+):
+    _, _, _, notifications, _ = init_managers()
+    return notifications.obtener_ultimas_no_leidas(email, limite=limite)
+
+
+@st.cache_data(show_spinner=False, ttl=180)
+def cached_obtener_consultas_pendientes_master(data_cache_version: int = 0):
+    _, _, messages, _, _ = init_managers()
+    return messages.obtener_mensajes_para_master(respondidos=False)
+
+
+@st.cache_data(show_spinner=False, ttl=180)
+def cached_obtener_consultas_respondidas_master(data_cache_version: int = 0):
+    _, _, messages, _, _ = init_managers()
+    return messages.obtener_mensajes_para_master(respondidos=True)
+
+
+@st.cache_data(show_spinner=False, ttl=180)
+def cached_obtener_historial_consultas_usuario(email: str, data_cache_version: int = 0):
+    _, _, messages, _, _ = init_managers()
+    return messages.obtener_mensajes_usuario(email)
+
+
+@st.cache_data(show_spinner=False, ttl=180)
+def cached_obtener_historial_consultas_completo(data_cache_version: int = 0):
+    _, _, messages, _, _ = init_managers()
+    return messages.obtener_historial_completo()
+
+
+@st.cache_data(show_spinner=False, ttl=180)
+def cached_obtener_perfil_usuario(email: str, data_cache_version: int = 0):
+    auth, _, _, _, _ = init_managers()
+    return auth.obtener_perfil(email)
 
 auth_manager, storage_manager, message_manager, notification_manager, payment_manager = init_managers()
 
@@ -2709,27 +2762,28 @@ def _es_master() -> bool:
 
 
 def _sincronizar_rol_master_en_sesion() -> None:
-    """Alinea session_state.rol con la BD para que Master tenga permisos de publicación."""
+    """Alinea rol Master en memoria sin consultar Supabase en cada vista."""
     if not st.session_state.get("autenticado"):
         return
     email = (st.session_state.get("usuario") or "").strip().lower()
-    if not email:
-        return
     if email == AuthManager.MASTER_EMAIL.lower():
         st.session_state["rol"] = "master"
-        return
-    try:
-        res = (
-            auth_manager.supabase.table("users")
-            .select("rol")
-            .eq("email", email)
-            .limit(1)
-            .execute()
-        )
-        if res.data:
-            st.session_state["rol"] = AuthManager.normalizar_rol(res.data[0].get("rol"))
-    except Exception:
-        pass
+
+
+def _rerun_velox(scope_fragment: bool = False) -> None:
+    if scope_fragment:
+        try:
+            st.rerun(scope="fragment")
+            return
+        except TypeError:
+            pass
+    st.rerun()
+
+
+def _ensure_sesion_perfil_local() -> None:
+    """Evita re-hidratar perfil desde BD si la sesión ya trae rol y permisos."""
+    if st.session_state.get("autenticado") and not st.session_state.get("_sesion_perfil_cargado"):
+        st.session_state["_sesion_perfil_cargado"] = True
 
 
 def _es_admin() -> bool:
@@ -3570,7 +3624,12 @@ def render_gestion_comprobantes_admin():
     st.caption(
         "Revisa solicitudes Yape/Plim pendientes, valida comprobantes y activa cursos en las cuentas de los alumnos."
     )
+    _fragment_panel_comprobantes_pendientes()
 
+
+@st.fragment
+def _fragment_panel_comprobantes_pendientes():
+    cache_v = _velox_data_cache_version()
     if st.session_state.get("pago_flash"):
         tipo, texto = st.session_state.pop("pago_flash")
         if tipo == "success":
@@ -3578,7 +3637,7 @@ def render_gestion_comprobantes_admin():
         elif tipo == "error":
             st.error(texto)
 
-    pagos = cached_listar_pagos_pendientes(data_cache_version=_velox_data_cache_version())
+    pagos = cached_listar_pagos_pendientes(data_cache_version=cache_v)
     st.markdown(f"### ⏳ Solicitudes pendientes ({len(pagos)})")
 
     if not pagos:
@@ -3662,7 +3721,7 @@ def render_gestion_comprobantes_admin():
                             _decrementar_pending_cobranzas()
                         else:
                             st.session_state["pago_flash"] = ("error", msg)
-                        st.rerun()
+                        _rerun_velox(scope_fragment=False)
                     st.markdown("</div>", unsafe_allow_html=True)
                 with col_no:
                     motivo_key = f"motivo_comprobante_{pago_id}"
@@ -3691,7 +3750,7 @@ def render_gestion_comprobantes_admin():
                         if ok:
                             _invalidar_cache_datos()
                             _decrementar_pending_cobranzas()
-                        st.rerun()
+                        _rerun_velox(scope_fragment=False)
                     st.markdown("</div>", unsafe_allow_html=True)
 
 
@@ -3756,11 +3815,105 @@ def _render_tarjeta_consulta(msg: dict, mostrar_email: bool = False) -> None:
         st.info("**Respuesta:** Pendiente de respuesta por el administrador.")
 
 
+@st.fragment
+def _fragment_consultas_staff_pendientes():
+    cache_v = _velox_data_cache_version()
+    pendientes = cached_obtener_consultas_pendientes_master(data_cache_version=cache_v)
+    st.markdown(f"### ⏳ Consultas pendientes ({len(pendientes)})")
+
+    if not pendientes:
+        st.info("No hay consultas pendientes por responder.")
+        return
+
+    for msg in pendientes:
+        seccion_nombre = _nombre_seccion_consulta(msg)
+        fecha_str = _formatear_fecha_consulta(msg.get("fecha"))
+        with st.container(border=True):
+            col_info, col_badge = st.columns([4, 1])
+            with col_info:
+                st.markdown(
+                    f"**👤 {msg.get('nombre_usuario', 'Usuario')}** · "
+                    f"`{MessageManager._email_de_consulta(msg)}`  \n"
+                    f"**📂 {seccion_nombre}** · **📅** {fecha_str}"
+                )
+            with col_badge:
+                st.markdown(
+                    '<span style="background:#fff3cd;color:#856404;padding:4px 10px;'
+                    'border-radius:12px;font-size:0.8rem;">Pendiente</span>',
+                    unsafe_allow_html=True,
+                )
+            st.markdown(
+                f'<div style="background:#f8f9fa;border-radius:10px;padding:12px;'
+                f'border-left:4px solid #4a6fa5;margin:8px 0;">{msg["mensaje"]}</div>',
+                unsafe_allow_html=True,
+            )
+            respuesta = st.text_area(
+                "Escribir respuesta...",
+                key=f"resp_master_{msg['id']}",
+                height=100,
+                placeholder="Escribe aquí la respuesta para el usuario...",
+            )
+            if st.button("Enviar Respuesta", key=f"send_master_{msg['id']}", type="primary"):
+                if respuesta.strip():
+                    exito = message_manager.responder_mensaje(
+                        msg["id"], respuesta.strip(), st.session_state["usuario"]
+                    )
+                    if exito:
+                        _invalidar_cache_datos()
+                        _decrementar_unread_consultas()
+                        st.success("✅ Respuesta enviada correctamente")
+                        _rerun_velox(scope_fragment=True)
+                    else:
+                        st.error("❌ No se pudo guardar la respuesta. Intenta de nuevo.")
+                else:
+                    st.warning("Escribe una respuesta antes de enviar.")
+
+
+@st.fragment
+def _fragment_consultas_usuario_form():
+    secciones_usuario = cached_obtener_secciones_usuario(
+        st.session_state["usuario"],
+        data_cache_version=_velox_data_cache_version(),
+    )
+    if secciones_usuario:
+        with st.container(border=True):
+            seccion = st.selectbox(
+                "Sección relacionada",
+                secciones_usuario,
+                format_func=lambda x: SECCIONES[x]["nombre"],
+            )
+            mensaje = st.text_area(
+                "Tu consulta",
+                height=150,
+                placeholder="Escribe tu pregunta aquí...",
+            )
+            if st.button("Enviar consulta", type="primary", key="btn_enviar_consulta_usuario"):
+                if mensaje.strip():
+                    exito, texto = message_manager.enviar_mensaje(
+                        st.session_state["usuario"],
+                        st.session_state["nombre"],
+                        seccion,
+                        mensaje.strip(),
+                    )
+                    if exito:
+                        _invalidar_cache_datos()
+                        st.success(texto)
+                        _rerun_velox(scope_fragment=True)
+                    else:
+                        st.error(texto)
+                else:
+                    st.warning("Escribe tu consulta antes de enviar.")
+    else:
+        st.warning("No tienes secciones asignadas. Contacta al administrador.")
+
+
 def render_historial_consultas_master_completo():
     """Trazabilidad total de tickets consultas (Master principal)."""
     st.markdown("### 🗂️ Historial completo de consultas")
     st.caption("Registro de consultas de usuarios y notificaciones automáticas de pagos/comprobantes.")
-    historial = message_manager.obtener_historial_completo()
+    historial = cached_obtener_historial_consultas_completo(
+        data_cache_version=_velox_data_cache_version()
+    )
     if not historial:
         st.info("No hay registros en la tabla consultas.")
         return
@@ -4251,6 +4404,7 @@ def abrir_notificacion(
     publicacion_id=None,
 ):
     notification_manager.marcar_como_leida(notificacion_id, st.session_state["usuario"])
+    _invalidar_cache_datos()
     st.session_state["menu_principal"] = "📁 Mis Documentos"
     seccion_norm = normalizar_seccion(seccion) if seccion else None
     st.session_state.seccion_activa = seccion_norm or "inicio"
@@ -4267,7 +4421,8 @@ def abrir_notificacion(
 
 def render_campana_notificaciones():
     usuario = st.session_state["usuario"]
-    no_leidas = notification_manager.contar_no_leidas(usuario)
+    cache_v = _velox_data_cache_version()
+    no_leidas = cached_contar_notificaciones_no_leidas(usuario, data_cache_version=cache_v)
     badge_text = str(no_leidas) if no_leidas < 100 else "99+"
 
     st.markdown("""
@@ -4349,46 +4504,54 @@ def render_campana_notificaciones():
         )
 
     with st.popover("🔔", use_container_width=True, help="Notificaciones pendientes"):
-        st.markdown('<p class="notif-panel-title">Notificaciones</p>', unsafe_allow_html=True)
-        st.caption("Publicaciones pendientes de leer")
-        notificaciones = notification_manager.obtener_ultimas_no_leidas(
-            usuario, limite=LIMITE_NOTIFICACIONES_CAMPANA
+        _fragment_campana_notificaciones_lista(usuario)
+
+
+@st.fragment
+def _fragment_campana_notificaciones_lista(usuario: str):
+    cache_v = _velox_data_cache_version()
+    st.markdown('<p class="notif-panel-title">Notificaciones</p>', unsafe_allow_html=True)
+    st.caption("Publicaciones pendientes de leer")
+    notificaciones = cached_obtener_ultimas_notificaciones(
+        usuario,
+        LIMITE_NOTIFICACIONES_CAMPANA,
+        data_cache_version=cache_v,
+    )
+
+    if not notificaciones:
+        st.info("No tienes notificaciones pendientes")
+        return
+
+    for notif in notificaciones:
+        metadata = _parsear_metadata_notif(notif.get("metadata"))
+        seccion = _seccion_desde_notificacion(notif)
+        categoria = metadata.get("subcategoria") or metadata.get("categoria") or "General"
+        seccion_nombre = SECCIONES.get(seccion, {}).get("nombre", seccion.capitalize() if seccion else "General")
+        fecha_str = _formatear_fecha_notif(notif.get("fecha_creacion"))
+        titulo = notif.get("titulo", "Nueva publicación")
+        mensaje = notif.get("mensaje", "")
+
+        st.markdown(f"""
+        <div class="notif-card">
+            <div class="notif-card-title">{titulo}</div>
+            <div class="notif-card-msg">{mensaje}</div>
+            <div class="notif-card-meta">📂 {seccion_nombre} · 🕐 {fecha_str}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.button(
+            "Revisar",
+            key=f"notif_btn_{notif['id']}",
+            use_container_width=True,
+            on_click=abrir_notificacion,
+            kwargs={
+                "notificacion_id": notif["id"],
+                "seccion": seccion,
+                "categoria": categoria,
+                "titulo": titulo,
+                "publicacion_id": metadata.get("archivo_id"),
+            },
         )
-
-        if not notificaciones:
-            st.info("No tienes notificaciones pendientes")
-            return
-
-        for notif in notificaciones:
-            metadata = _parsear_metadata_notif(notif.get("metadata"))
-            seccion = _seccion_desde_notificacion(notif)
-            categoria = metadata.get("subcategoria") or metadata.get("categoria") or "General"
-            seccion_nombre = SECCIONES.get(seccion, {}).get("nombre", seccion.capitalize() if seccion else "General")
-            fecha_str = _formatear_fecha_notif(notif.get("fecha_creacion"))
-            titulo = notif.get("titulo", "Nueva publicación")
-            mensaje = notif.get("mensaje", "")
-
-            st.markdown(f"""
-            <div class="notif-card">
-                <div class="notif-card-title">{titulo}</div>
-                <div class="notif-card-msg">{mensaje}</div>
-                <div class="notif-card-meta">📂 {seccion_nombre} · 🕐 {fecha_str}</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            st.button(
-                "Revisar",
-                key=f"notif_btn_{notif['id']}",
-                use_container_width=True,
-                on_click=abrir_notificacion,
-                kwargs={
-                    "notificacion_id": notif["id"],
-                    "seccion": seccion,
-                    "categoria": categoria,
-                    "titulo": titulo,
-                    "publicacion_id": metadata.get("archivo_id"),
-                },
-            )
 
 PLANES_COMPRA_CURSOS = {
     "1_curso": {
@@ -5063,6 +5226,8 @@ if not _usuario_con_acceso:
     login_screen()
     st.stop()
 
+_ensure_sesion_perfil_local()
+
 if auth_manager.usuario_requiere_configurar_password():
     render_pantalla_configurar_password()
     st.stop()
@@ -5467,58 +5632,12 @@ else:
                     render_historial_consultas_master_completo()
                 st.markdown("---")
 
-            # Consultas pendientes (no respondidas)
-            pendientes = message_manager.obtener_mensajes_para_master(respondidos=False)
-            st.markdown(f"### ⏳ Consultas pendientes ({len(pendientes)})")
+            _fragment_consultas_staff_pendientes()
 
-            if not pendientes:
-                st.info("No hay consultas pendientes por responder.")
-            else:
-                for msg in pendientes:
-                    seccion_nombre = _nombre_seccion_consulta(msg)
-                    fecha_str = _formatear_fecha_consulta(msg.get("fecha"))
-                    with st.container(border=True):
-                        col_info, col_badge = st.columns([4, 1])
-                        with col_info:
-                            st.markdown(
-                                f"**👤 {msg.get('nombre_usuario', 'Usuario')}** · "
-                                f"`{MessageManager._email_de_consulta(msg)}`  \n"
-                                f"**📂 {seccion_nombre}** · **📅** {fecha_str}"
-                            )
-                        with col_badge:
-                            st.markdown(
-                                '<span style="background:#fff3cd;color:#856404;padding:4px 10px;'
-                                'border-radius:12px;font-size:0.8rem;">Pendiente</span>',
-                                unsafe_allow_html=True,
-                            )
-                        st.markdown(
-                            f'<div style="background:#f8f9fa;border-radius:10px;padding:12px;'
-                            f'border-left:4px solid #4a6fa5;margin:8px 0;">{msg["mensaje"]}</div>',
-                            unsafe_allow_html=True,
-                        )
-                        respuesta = st.text_area(
-                            "Escribir respuesta...",
-                            key=f"resp_master_{msg['id']}",
-                            height=100,
-                            placeholder="Escribe aquí la respuesta para el usuario...",
-                        )
-                        if st.button("Enviar Respuesta", key=f"send_master_{msg['id']}", type="primary"):
-                            if respuesta.strip():
-                                exito = message_manager.responder_mensaje(
-                                    msg["id"], respuesta.strip(), st.session_state["usuario"]
-                                )
-                                if exito:
-                                    _decrementar_unread_consultas()
-                                    st.success("✅ Respuesta enviada correctamente")
-                                    st.rerun()
-                                else:
-                                    st.error("❌ No se pudo guardar la respuesta. Intenta de nuevo.")
-                            else:
-                                st.warning("Escribe una respuesta antes de enviar.")
-
-            # Consultas respondidas
             with st.expander("Ver consultas respondidas"):
-                respondidas = message_manager.obtener_mensajes_para_master(respondidos=True)
+                respondidas = cached_obtener_consultas_respondidas_master(
+                    data_cache_version=_velox_data_cache_version()
+                )
                 if not respondidas:
                     st.info("Aún no hay consultas respondidas.")
                 else:
@@ -5526,42 +5645,15 @@ else:
                         with st.container(border=True):
                             _render_tarjeta_consulta(msg, mostrar_email=True)
         else:
-            # Usuario normal: enviar consulta
             st.header("💬 Mis Consultas")
             st.markdown("Envía tu consulta al administrador y revisa las respuestas recibidas.")
-            secciones_usuario = cached_obtener_secciones_usuario(
+            _fragment_consultas_usuario_form()
+            st.markdown("---")
+            st.markdown("### 📋 Historial de consultas")
+            historial = cached_obtener_historial_consultas_usuario(
                 st.session_state["usuario"],
                 data_cache_version=_velox_data_cache_version(),
             )
-            if secciones_usuario:
-                with st.container(border=True):
-                    seccion = st.selectbox(
-                        "Sección relacionada",
-                        secciones_usuario,
-                        format_func=lambda x: SECCIONES[x]['nombre'],
-                    )
-                    mensaje = st.text_area("Tu consulta", height=150, placeholder="Escribe tu pregunta aquí...")
-                    if st.button("Enviar consulta", type="primary"):
-                        if mensaje.strip():
-                            exito, texto = message_manager.enviar_mensaje(
-                                st.session_state['usuario'],
-                                st.session_state['nombre'],
-                                seccion,
-                                mensaje.strip(),
-                            )
-                            if exito:
-                                st.success(texto)
-                                st.rerun()
-                            else:
-                                st.error(texto)
-                        else:
-                            st.warning("Escribe tu consulta antes de enviar.")
-            else:
-                st.warning("No tienes secciones asignadas. Contacta al administrador.")
-
-            st.markdown("---")
-            st.markdown("### 📋 Historial de consultas")
-            historial = message_manager.obtener_mensajes_usuario(st.session_state['usuario'])
             if not historial:
                 st.info("Aún no tienes consultas ni notificaciones registradas.")
             else:
@@ -5577,7 +5669,10 @@ else:
         else:
             st.header("Mi Perfil")
             usuario_email = st.session_state["usuario"]
-            perfil = auth_manager.obtener_perfil(usuario_email)
+            perfil = cached_obtener_perfil_usuario(
+                usuario_email,
+                data_cache_version=_velox_data_cache_version(),
+            )
             if not perfil:
                 st.warning("No se pudo cargar tu perfil.")
             else:

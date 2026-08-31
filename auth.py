@@ -966,11 +966,15 @@ class AuthManager:
         """True si la sesión activa aún debe definir contraseña veloX."""
         if not st.session_state.get("autenticado"):
             return False
+        if "_requiere_configurar_password" in st.session_state:
+            return bool(st.session_state["_requiere_configurar_password"])
         email = (st.session_state.get("usuario") or st.session_state.get("velox_setup_email") or "").strip().lower()
         if not email:
             return False
         user = self._obtener_usuario_db(email)
-        return bool(user and self.requiere_configurar_password_velox(user))
+        requiere = bool(user and self.requiere_configurar_password_velox(user))
+        st.session_state["_requiere_configurar_password"] = requiere
+        return requiere
 
     def _crear_registro_usuario_inicial(
         self,
@@ -1189,21 +1193,22 @@ class AuthManager:
         pago_confirmado = bool(user.get("pago_confirmado", False))
         activo = bool(user.get("activo", False))
 
-        try:
-            res_pagos = (
-                self.supabase.table("users")
-                .select("pago_confirmado, activo")
-                .eq("email", email)
-                .execute()
-            )
-            info_pago = self._primera_fila(res_pagos) or {
-                "pago_confirmado": pago_confirmado,
-                "activo": activo,
-            }
-            pago_confirmado = bool(info_pago.get("pago_confirmado", pago_confirmado))
-            activo = bool(info_pago.get("activo", activo))
-        except Exception as e:
-            print(f"Aviso refrescando pago para {email}: {self._format_error(e)}")
+        if "pago_confirmado" not in user or "activo" not in user:
+            try:
+                res_pagos = (
+                    self.supabase.table("users")
+                    .select("pago_confirmado, activo")
+                    .eq("email", email)
+                    .execute()
+                )
+                info_pago = self._primera_fila(res_pagos) or {
+                    "pago_confirmado": pago_confirmado,
+                    "activo": activo,
+                }
+                pago_confirmado = bool(info_pago.get("pago_confirmado", pago_confirmado))
+                activo = bool(info_pago.get("activo", activo))
+            except Exception as e:
+                print(f"Aviso refrescando pago para {email}: {self._format_error(e)}")
 
         user_para_acceso = {
             **user,
@@ -1226,6 +1231,10 @@ class AuthManager:
             }
         )
         self._aplicar_permisos_a_sesion(user_para_acceso)
+        st.session_state["_sesion_perfil_cargado"] = True
+        st.session_state["_requiere_configurar_password"] = self.requiere_configurar_password_velox(
+            user_para_acceso
+        )
         return True, "Sesión iniciada"
 
     def _usuario_puede_ingresar_clasico(self, user: Dict[str, Any]) -> Tuple[bool, str]:
@@ -1630,6 +1639,13 @@ class AuthManager:
                     print(f"Sesión de recuperación inválida: {self._format_error(e)}")
             return False
 
+        if (
+            st.session_state.get("autenticado")
+            and st.session_state.get("usuario")
+            and st.session_state.get("_sesion_perfil_cargado")
+        ):
+            return True
+
         if st.session_state.get("autenticado") and st.session_state.get("usuario"):
             try:
                 email = st.session_state["usuario"]
@@ -1646,6 +1662,7 @@ class AuthManager:
                 st.session_state["secciones"] = user.get("secciones") or ["excel"]
                 st.session_state["nombre"] = user.get("nombre", st.session_state.get("nombre"))
                 self._aplicar_permisos_a_sesion(user)
+                st.session_state["_sesion_perfil_cargado"] = True
                 return True
             except Exception as e:
                 print(f"Error refrescando sesión local: {self._format_error(e)}")
@@ -1708,6 +1725,8 @@ class AuthManager:
             "unread_consultas_count",
             "pending_cobranzas_count",
             "_sidebar_counts_user",
+            "_sesion_perfil_cargado",
+            "_requiere_configurar_password",
         ):
             st.session_state.pop(extra, None)
         if not silent:

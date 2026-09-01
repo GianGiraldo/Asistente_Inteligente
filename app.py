@@ -4821,7 +4821,6 @@ def _render_inicio_servicios_accesos() -> None:
                     "Hola, deseo información sobre Asesoría / Negocio en veloX."
                 ),
                 use_container_width=True,
-                key="inicio_svc_1",
             )
         with col2:
             st.link_button(
@@ -4830,7 +4829,6 @@ def _render_inicio_servicios_accesos() -> None:
                     "Hola, deseo personalizar mi plantilla en veloX."
                 ),
                 use_container_width=True,
-                key="inicio_svc_2",
             )
         with col3:
             st.link_button(
@@ -4839,7 +4837,6 @@ def _render_inicio_servicios_accesos() -> None:
                     "Hola, deseo información sobre clases personalizadas en veloX."
                 ),
                 use_container_width=True,
-                key="inicio_svc_3",
             )
         with col4:
             st.button(

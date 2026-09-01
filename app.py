@@ -4748,14 +4748,27 @@ INICIO_SERVICIOS_ACCESOS_CSS = """
         gap: 0.65rem !important;
         align-items: stretch !important;
     }
+
+    /* Base — botones y enlaces del catálogo de servicios */
     .st-key-inicio_servicios_row .stButton > button,
     .st-key-inicio_servicios_row .stButton > button[kind="primary"],
+    .st-key-inicio_servicios_row .stButton > button[kind="secondary"],
+    .st-key-inicio_servicios_row .stButton > button[data-testid="stBaseButton-primary"],
+    .st-key-inicio_servicios_row .stButton > button[data-testid="stBaseButton-secondary"],
+    .st-key-inicio_servicios_row .stButton > button[data-testid="baseButton-primary"],
+    .st-key-inicio_servicios_row .stButton > button[data-testid="baseButton-secondary"],
     .st-key-inicio_servicios_row a[data-testid="stLinkButton"],
-    .st-key-inicio_servicios_row [data-testid="stLinkButton"] {
+    .st-key-inicio_servicios_row [data-testid="stLinkButton"],
+    .st-key-inicio_servicios_row a[data-testid="baseLinkButton"],
+    .st-key-inicio_svc_4 .stButton > button,
+    .st-key-inicio_svc_4 .stButton > button[kind="primary"],
+    .st-key-inicio_svc_4 .stButton > button[data-testid="stBaseButton-primary"] {
         width: 100% !important;
         min-height: 2.55rem !important;
         border-radius: 20px !important;
         background: linear-gradient(90deg, #008080 0%, #00C9A7 100%) !important;
+        background-color: transparent !important;
+        background-image: linear-gradient(90deg, #008080 0%, #00C9A7 100%) !important;
         color: #FFFFFF !important;
         font-weight: 600 !important;
         border: 1px solid rgba(0, 229, 255, 0.35) !important;
@@ -4765,26 +4778,115 @@ INICIO_SERVICIOS_ACCESOS_CSS = """
         white-space: normal !important;
         line-height: 1.25 !important;
         text-align: center !important;
+        outline: none !important;
+        outline-offset: 0 !important;
+        -webkit-tap-highlight-color: transparent !important;
     }
+
     .st-key-inicio_servicios_row .stButton > button p,
     .st-key-inicio_servicios_row .stButton > button span,
+    .st-key-inicio_servicios_row .stButton > button [data-testid="stMarkdownContainer"],
+    .st-key-inicio_servicios_row .stButton > button [data-testid="stMarkdownContainer"] p,
     .st-key-inicio_servicios_row a[data-testid="stLinkButton"] p,
     .st-key-inicio_servicios_row a[data-testid="stLinkButton"] span,
     .st-key-inicio_servicios_row [data-testid="stLinkButton"] p,
-    .st-key-inicio_servicios_row [data-testid="stLinkButton"] span {
+    .st-key-inicio_servicios_row [data-testid="stLinkButton"] span,
+    .st-key-inicio_svc_4 .stButton > button p,
+    .st-key-inicio_svc_4 .stButton > button span {
         color: #FFFFFF !important;
         font-weight: 600 !important;
         text-shadow: 0 1px 2px rgba(0, 0, 0, 0.18) !important;
     }
+
+    /* Hover — ligero realce sin perder identidad esmeralda */
     .st-key-inicio_servicios_row .stButton > button:hover,
+    .st-key-inicio_servicios_row .stButton > button[kind="primary"]:hover,
+    .st-key-inicio_servicios_row .stButton > button[data-testid="stBaseButton-primary"]:hover,
     .st-key-inicio_servicios_row a[data-testid="stLinkButton"]:hover,
-    .st-key-inicio_servicios_row [data-testid="stLinkButton"]:hover {
+    .st-key-inicio_servicios_row [data-testid="stLinkButton"]:hover,
+    .st-key-inicio_svc_4 .stButton > button:hover {
         background: linear-gradient(90deg, #00A3B1 0%, #00E5FF 100%) !important;
+        background-color: transparent !important;
+        background-image: linear-gradient(90deg, #00A3B1 0%, #00E5FF 100%) !important;
         filter: brightness(1.04) !important;
         transform: translateY(-1px) !important;
-        box-shadow: 0 8px 24px rgba(0, 229, 255, 0.32) !important;
+        box-shadow: 0 8px 24px rgba(0, 229, 255, 0.32),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.18) !important;
         color: #FFFFFF !important;
+        border: 1px solid rgba(0, 229, 255, 0.35) !important;
+        outline: none !important;
     }
+
+    /* Focus / Active / Visited — mismo degradado esmeralda (anti-override Streamlit) */
+    .st-key-inicio_servicios_row .stButton > button:focus,
+    .st-key-inicio_servicios_row .stButton > button:focus-visible,
+    .st-key-inicio_servicios_row .stButton > button:active,
+    .st-key-inicio_servicios_row .stButton > button:visited,
+    .st-key-inicio_servicios_row .stButton > button[kind="primary"]:focus,
+    .st-key-inicio_servicios_row .stButton > button[kind="primary"]:focus-visible,
+    .st-key-inicio_servicios_row .stButton > button[kind="primary"]:active,
+    .st-key-inicio_servicios_row .stButton > button[kind="primary"]:visited,
+    .st-key-inicio_servicios_row .stButton > button[data-testid="stBaseButton-primary"]:focus,
+    .st-key-inicio_servicios_row .stButton > button[data-testid="stBaseButton-primary"]:focus-visible,
+    .st-key-inicio_servicios_row .stButton > button[data-testid="stBaseButton-primary"]:active,
+    .st-key-inicio_servicios_row .stButton > button[data-testid="stBaseButton-primary"]:visited,
+    .st-key-inicio_servicios_row .stButton > button[data-testid="baseButton-primary"]:focus,
+    .st-key-inicio_servicios_row .stButton > button[data-testid="baseButton-primary"]:focus-visible,
+    .st-key-inicio_servicios_row .stButton > button[data-testid="baseButton-primary"]:active,
+    .st-key-inicio_servicios_row a[data-testid="stLinkButton"]:focus,
+    .st-key-inicio_servicios_row a[data-testid="stLinkButton"]:focus-visible,
+    .st-key-inicio_servicios_row a[data-testid="stLinkButton"]:active,
+    .st-key-inicio_servicios_row a[data-testid="stLinkButton"]:visited,
+    .st-key-inicio_servicios_row [data-testid="stLinkButton"]:focus,
+    .st-key-inicio_servicios_row [data-testid="stLinkButton"]:focus-visible,
+    .st-key-inicio_servicios_row [data-testid="stLinkButton"]:active,
+    .st-key-inicio_servicios_row [data-testid="stLinkButton"]:visited,
+    .st-key-inicio_svc_4 .stButton > button:focus,
+    .st-key-inicio_svc_4 .stButton > button:focus-visible,
+    .st-key-inicio_svc_4 .stButton > button:active,
+    .st-key-inicio_svc_4 .stButton > button:visited,
+    .st-key-inicio_svc_4 .stButton > button[kind="primary"]:focus,
+    .st-key-inicio_svc_4 .stButton > button[kind="primary"]:focus-visible,
+    .st-key-inicio_svc_4 .stButton > button[kind="primary"]:active,
+    .st-key-inicio_svc_4 .stButton > button[data-testid="stBaseButton-primary"]:focus,
+    .st-key-inicio_svc_4 .stButton > button[data-testid="stBaseButton-primary"]:focus-visible,
+    .st-key-inicio_svc_4 .stButton > button[data-testid="stBaseButton-primary"]:active {
+        background: linear-gradient(90deg, #008080 0%, #00C9A7 100%) !important;
+        background-color: transparent !important;
+        background-image: linear-gradient(90deg, #008080 0%, #00C9A7 100%) !important;
+        color: #FFFFFF !important;
+        border: 1px solid rgba(0, 229, 255, 0.35) !important;
+        box-shadow: 0 6px 20px rgba(0, 201, 167, 0.28),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.18) !important;
+        outline: none !important;
+        outline-offset: 0 !important;
+        filter: none !important;
+        transform: none !important;
+    }
+
+    .st-key-inicio_servicios_row .stButton > button:focus p,
+    .st-key-inicio_servicios_row .stButton > button:focus span,
+    .st-key-inicio_servicios_row .stButton > button:focus-visible p,
+    .st-key-inicio_servicios_row .stButton > button:focus-visible span,
+    .st-key-inicio_servicios_row .stButton > button:active p,
+    .st-key-inicio_servicios_row .stButton > button:active span,
+    .st-key-inicio_servicios_row .stButton > button[kind="primary"]:focus p,
+    .st-key-inicio_servicios_row .stButton > button[kind="primary"]:focus span,
+    .st-key-inicio_servicios_row .stButton > button[kind="primary"]:active p,
+    .st-key-inicio_servicios_row .stButton > button[kind="primary"]:active span,
+    .st-key-inicio_servicios_row .stButton > button[data-testid="stBaseButton-primary"]:focus p,
+    .st-key-inicio_servicios_row .stButton > button[data-testid="stBaseButton-primary"]:focus span,
+    .st-key-inicio_servicios_row .stButton > button[data-testid="stBaseButton-primary"]:active p,
+    .st-key-inicio_servicios_row .stButton > button[data-testid="stBaseButton-primary"]:active span,
+    .st-key-inicio_svc_4 .stButton > button:focus p,
+    .st-key-inicio_svc_4 .stButton > button:focus span,
+    .st-key-inicio_svc_4 .stButton > button:active p,
+    .st-key-inicio_svc_4 .stButton > button:active span {
+        color: #FFFFFF !important;
+        font-weight: 600 !important;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.18) !important;
+    }
+
     @media (max-width: 1100px) {
         .st-key-inicio_servicios_row [data-testid="stHorizontalBlock"] {
             flex-wrap: wrap !important;
@@ -4808,9 +4910,9 @@ INICIO_SERVICIOS_ACCESOS_CSS = """
 
 def _render_inicio_servicios_accesos() -> None:
     """Fila superior de accesos a servicios en la vista Inicio (home)."""
-    if not st.session_state.get("_velox_inicio_servicios_css_injected"):
+    if not st.session_state.get("_velox_inicio_servicios_css_v2_injected"):
         st.markdown(INICIO_SERVICIOS_ACCESOS_CSS, unsafe_allow_html=True)
-        st.session_state["_velox_inicio_servicios_css_injected"] = True
+        st.session_state["_velox_inicio_servicios_css_v2_injected"] = True
 
     with st.container(key="inicio_servicios_row"):
         col1, col2, col3, col4 = st.columns(4)

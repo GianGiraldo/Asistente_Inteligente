@@ -129,6 +129,7 @@ from ui_theme import (
     inject_section_detail_banner_css,
     inject_sidebar_theme,
     inject_welcome_layout,
+    WELCOME_LAYOUT_CSS,
     MAIN_CONTENT_AREA_CSS,
     VELOX_ULTRA_COMPACT_LAYOUT_CSS,
 )
@@ -748,23 +749,32 @@ def _build_velox_auth_dark_portal_css() -> str:
     portada_uri = _velox_logo_data_uri(VELOX_PORTADA_PATH)
     bg_image = f"url('{portada_uri}')" if portada_uri else "none"
     return f"""
-<style id="velox-auth-dark-portal-v4">
+<style id="velox-auth-dark-portal-v5">
     html:has(.velox-id-bar),
+    html:has(.velox-auth-brand),
     body:has(.velox-id-bar),
+    body:has(.velox-auth-brand),
     .stApp:has(.velox-id-bar),
+    .stApp:has(.velox-auth-brand),
     .stApp:has(.velox-id-bar) [data-testid="stAppViewContainer"],
-    .stApp:has(.velox-id-bar) [data-testid="stMain"] {{
+    .stApp:has(.velox-auth-brand) [data-testid="stAppViewContainer"],
+    .stApp:has(.velox-id-bar) [data-testid="stMain"],
+    .stApp:has(.velox-auth-brand) [data-testid="stMain"] {{
         background: {bg_image} center top / cover no-repeat fixed #0A0E14 !important;
         background-color: #0A0E14 !important;
     }}
 
-    .stApp:has(.velox-id-bar) [data-testid="stMain"] .block-container {{
+    .stApp:has(.velox-id-bar) [data-testid="stMain"] .block-container,
+    .stApp:has(.velox-auth-brand) [data-testid="stMain"] .block-container {{
         background: transparent !important;
     }}
 
     .stApp:has(.velox-id-bar) [data-testid="stVerticalBlockBorderWrapper"],
+    .stApp:has(.velox-auth-brand) [data-testid="stVerticalBlockBorderWrapper"],
     .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) [data-testid="stVerticalBlockBorderWrapper"],
-    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) [data-testid="stVerticalBlockBorderWrapper"] {{
+    .stApp:has(.velox-auth-brand) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) [data-testid="stVerticalBlockBorderWrapper"],
+    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) [data-testid="stVerticalBlockBorderWrapper"],
+    .stApp:has(.velox-auth-brand) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) [data-testid="stVerticalBlockBorderWrapper"] {{
         background: rgba(8, 12, 22, 0.78) !important;
         border: 1px solid rgba(0, 210, 255, 0.18) !important;
         border-radius: 18px !important;
@@ -777,7 +787,9 @@ def _build_velox_auth_dark_portal_css() -> str:
     .stApp:has(.velox-id-bar) .velox-portal-form .stTextInput > div > div > input,
     .stApp:has(.velox-id-bar) .main .block-container .velox-portal-form div[data-testid="stTextInput"] input,
     .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) .stTextInput > div > div > input,
-    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) .stTextInput > div > div > input {{
+    .stApp:has(.velox-auth-brand) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) .stTextInput > div > div > input,
+    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) .stTextInput > div > div > input,
+    .stApp:has(.velox-auth-brand) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) .stTextInput > div > div > input {{
         background: transparent !important;
         background-color: transparent !important;
         color: #FFFFFF !important;
@@ -1023,7 +1035,9 @@ def _build_velox_auth_dark_portal_css() -> str:
     .stApp:has(.velox-id-bar) .velox-btn-primary .stButton > button,
     .stApp:has(.velox-id-bar) .main .block-container [data-testid="stBaseButton-primary"] button,
     .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) [data-testid="stBaseButton-primary"] button,
-    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) [data-testid="stBaseButton-primary"] button {{
+    .stApp:has(.velox-auth-brand) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) [data-testid="stBaseButton-primary"] button,
+    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) [data-testid="stBaseButton-primary"] button,
+    .stApp:has(.velox-auth-brand) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) [data-testid="stBaseButton-primary"] button {{
         background: linear-gradient(90deg, #00d2ff 0%, #0052d4 100%) !important;
         background-image: linear-gradient(90deg, #00d2ff 0%, #0052d4 100%) !important;
         color: #FFFFFF !important;
@@ -1095,11 +1109,11 @@ def inject_velox_auth_dark_portal_styles():
 
 
 def inject_velox_auth_portal_styles():
-    """Estilos visuales del portal login/registro (sin alterar lógica)."""
-    inject_welcome_layout()
-    inject_login_portal_brand_styles()
-    inject_olvido_password_link_styles()
-    inject_velox_auth_dark_portal_styles()
+    """Estilos del portal auth: re-inyectados en cada rerun (Streamlit no persiste CSS en DOM)."""
+    st.markdown(WELCOME_LAYOUT_CSS, unsafe_allow_html=True)
+    st.markdown(LOGIN_PORTAL_BRAND_CSS, unsafe_allow_html=True)
+    st.markdown(FORGOT_PASSWORD_LINK_CSS, unsafe_allow_html=True)
+    st.markdown(_build_velox_auth_dark_portal_css(), unsafe_allow_html=True)
 
 # ==================== PASARELA DE BIENVENIDA veloX (Premium) ====================
 YAPE_QR_PATH = "assets/qr_pago.png"
@@ -1649,11 +1663,9 @@ def render_tab_gate_portal():
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-def render_tab_login_portal(oauth_url: Optional[str] = None):
+def render_tab_login_portal():
     """Portada: correo/contraseña, Iniciar Sesión y enlace a Registrarme."""
-    _ = oauth_url
     _init_login_form_state()
-    st.session_state["oauth_intent"] = "login"
 
     denied = st.session_state.pop("oauth_login_denied_msg", None)
     if denied:
@@ -1678,7 +1690,6 @@ def render_tab_login_portal(oauth_url: Optional[str] = None):
         placeholder="Ingresa tu contraseña",
     )
 
-    inject_olvido_password_link_styles()
     recordarme_col, forgot_col = st.columns([3, 1], vertical_alignment="center")
     with recordarme_col:
         st.toggle("Recordarme", key="login_recordarme")
@@ -1708,12 +1719,6 @@ def render_tab_login_portal(oauth_url: Optional[str] = None):
         else:
             st.error(msg)
 
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    render_divider_or("o continúa con Google")
-    render_google_oauth_button("Iniciar sesión con Google", oauth_url=oauth_url)
-
     st.markdown('<div class="velox-auth-register-footer">', unsafe_allow_html=True)
     st.markdown(
         '<p class="velox-auth-register-prompt">¿Aún no tienes cuenta?</p>',
@@ -1727,6 +1732,9 @@ def render_tab_login_portal(oauth_url: Optional[str] = None):
         _iniciar_registro_otp_flujo()
         st.session_state.welcome_active_tab = WELCOME_TAB_REGISTER
         st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
 
@@ -2197,9 +2205,8 @@ def _render_registro_confirmacion_otp():
         _finalizar_registro_y_volver_login()
 
 
-def render_tab_registro_velox(oauth_url: Optional[str] = None):
+def render_tab_registro_velox():
     """Registro por OTP: Gmail → código → contraseña → confirmación."""
-    _ = oauth_url
     _init_registro_otp_state()
     st.session_state["registro_en_progreso"] = True
 
@@ -2262,13 +2269,7 @@ def _render_velox_auth_portal_marker():
 
 def render_welcome_gateway():
     """Pantalla premium centrada: login directo y registro por pasos."""
-    inject_velox_auth_portal_styles()
-    _render_velox_auth_portal_marker()
     _init_welcome_tab_state()
-    oauth_url = auth_manager.ensure_google_oauth_url(
-        force_refresh=st.session_state.get("google_oauth_redirect")
-        != auth_manager.obtener_redirect_url()
-    )
 
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
@@ -2280,14 +2281,16 @@ def render_welcome_gateway():
 
             active = st.session_state.welcome_active_tab
             if active == WELCOME_TAB_LOGIN:
-                render_tab_login_portal(oauth_url=oauth_url)
+                render_tab_login_portal()
             elif active == WELCOME_TAB_SETUP_PASSWORD:
                 render_tab_setup_password_velox()
             else:
-                render_tab_registro_velox(oauth_url=oauth_url)
+                render_tab_registro_velox()
 
 
 def login_screen():
+    inject_velox_auth_portal_styles()
+    _render_velox_auth_portal_marker()
     render_welcome_gateway()
     render_footer()
 

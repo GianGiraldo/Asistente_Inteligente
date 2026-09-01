@@ -4856,11 +4856,15 @@ def _nombre_curso_plan(curso_id: str) -> str:
     return CURSOS_PLAN_CATALOGO.get(curso_id, curso_id)
 
 
+def _cerrar_dialog_plan_cursos() -> None:
+    st.session_state["dialog_plan_cursos"] = False
+
+
 def _abrir_dialog_plan_cursos():
     st.session_state["dialog_plan_cursos"] = True
 
 
-@st.dialog("💎 Adquirir Plan de Cursos", width="medium")
+@st.dialog("💎 Adquirir Plan de Cursos", width="medium", on_dismiss=_cerrar_dialog_plan_cursos)
 def _dialog_adquirir_plan_cursos():
     st.markdown(PLAN_COMPRA_MODAL_CSS, unsafe_allow_html=True)
 
@@ -4965,7 +4969,7 @@ def _dialog_adquirir_plan_cursos():
                     comprobante_file=comprobante,
                 )
             if ok:
-                st.session_state.pop("dialog_plan_cursos", None)
+                _cerrar_dialog_plan_cursos()
                 st.session_state["plan_compra_exito_msg"] = msg
                 st.session_state.pop("plan_compra_cursos_sel", None)
                 st.session_state.pop("plan_compra_comprobante", None)
@@ -4976,41 +4980,37 @@ def _dialog_adquirir_plan_cursos():
         st.markdown("</div>", unsafe_allow_html=True)
     with col_cerrar:
         st.markdown('<div class="st-key-btn_plan_compra_cerrar">', unsafe_allow_html=True)
-        if st.button("Cerrar", use_container_width=True, key="btn_plan_compra_cerrar"):
-            st.session_state.pop("dialog_plan_cursos", None)
-            st.rerun()
+        st.button(
+            "Cerrar",
+            use_container_width=True,
+            key="btn_plan_compra_cerrar",
+            on_click=_cerrar_dialog_plan_cursos,
+        )
         st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_app_top_bar():
-    """Barra superior post-login: CTA de plan (Inicio) y campana de notificaciones."""
+    """Barra superior post-login: campana de notificaciones."""
     st.markdown(PLAN_COMPRA_HEADER_CSS, unsafe_allow_html=True)
-    mostrar_cta_plan = _en_vista_inicio_home() and not _es_staff()
 
-    if mostrar_cta_plan:
-        col_spacer, col_cta, col_bell = st.columns([6.2, 3.3, 0.9])
-        with col_cta:
-            st.markdown('<div class="velox-plan-topbar-wrap">', unsafe_allow_html=True)
-            st.button(
-                "💎 Adquirir Plan de Cursos",
-                key="btn_adquirir_plan_cursos",
-                use_container_width=True,
-                on_click=_abrir_dialog_plan_cursos,
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
-        with col_bell:
-            render_campana_notificaciones()
-    else:
-        _, col_bell = st.columns([11, 1])
-        with col_bell:
-            render_campana_notificaciones()
+    menu_actual = st.session_state.get("menu_principal", "🏠 Inicio")
+    if st.session_state.get("_velox_plan_dialog_menu") != menu_actual:
+        _cerrar_dialog_plan_cursos()
+    st.session_state["_velox_plan_dialog_menu"] = menu_actual
+
+    _, col_bell = st.columns([11, 1])
+    with col_bell:
+        render_campana_notificaciones()
 
     plan_exito = st.session_state.pop("plan_compra_exito_msg", None)
     if plan_exito:
         st.success(plan_exito)
 
     if st.session_state.get("dialog_plan_cursos"):
-        _dialog_adquirir_plan_cursos()
+        if _en_vista_inicio_home():
+            _dialog_adquirir_plan_cursos()
+        else:
+            _cerrar_dialog_plan_cursos()
 
 
 def mostrar_modulo_dashboard_interactivo():

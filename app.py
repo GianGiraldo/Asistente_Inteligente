@@ -134,7 +134,7 @@ from ui_theme import (
 )
 
 VELOX_BANNER_PATH = "assets/portada.jpeg"
-VELOX_PORTADA_PATH = "assets/velox_portada.png"
+VELOX_PORTADA_PATH = "assets/velox_fondo_login_sin_circulo.png"
 VELOX_ICONO_LOGO_PATH = "assets/velox_icono_logo.png"
 
 
@@ -748,7 +748,7 @@ def _build_velox_auth_dark_portal_css() -> str:
     portada_uri = _velox_logo_data_uri(VELOX_PORTADA_PATH)
     bg_image = f"url('{portada_uri}')" if portada_uri else "none"
     return f"""
-<style id="velox-auth-dark-portal-v3">
+<style id="velox-auth-dark-portal-v4">
     html:has(.velox-id-bar),
     body:has(.velox-id-bar),
     .stApp:has(.velox-id-bar),
@@ -1088,10 +1088,10 @@ def _build_velox_auth_dark_portal_css() -> str:
 
 
 def inject_velox_auth_dark_portal_styles():
-    if st.session_state.get("_velox_auth_dark_portal_css_v3"):
+    if st.session_state.get("_velox_auth_dark_portal_css_v4"):
         return
     st.markdown(_build_velox_auth_dark_portal_css(), unsafe_allow_html=True)
-    st.session_state["_velox_auth_dark_portal_css_v3"] = True
+    st.session_state["_velox_auth_dark_portal_css_v4"] = True
 
 
 def inject_velox_auth_portal_styles():
@@ -1420,7 +1420,9 @@ def render_divider_or(text: str = "o ingresa con tu cuenta administradora"):
 
 def _init_welcome_tab_state():
     if "welcome_active_tab" not in st.session_state:
-        st.session_state.welcome_active_tab = WELCOME_TAB_GATE
+        st.session_state.welcome_active_tab = WELCOME_TAB_LOGIN
+    elif st.session_state.welcome_active_tab == WELCOME_TAB_GATE:
+        st.session_state.welcome_active_tab = WELCOME_TAB_LOGIN
 
 
 def _init_registro_otp_state():
@@ -1482,21 +1484,12 @@ def _finalizar_registro_y_volver_login():
 
 
 def render_portal_id_bar():
-    """Barra corporativa de identificación (sin botón Registro flotante)."""
+    """Barra de contexto del portal (registro / configuración de contraseña)."""
     _init_welcome_tab_state()
     active = st.session_state.welcome_active_tab
 
-    if active == WELCOME_TAB_GATE:
-        st.markdown(
-            '<div class="velox-id-bar">Acceso veloX</div>',
-            unsafe_allow_html=True,
-        )
-    elif active == WELCOME_TAB_LOGIN:
-        st.markdown('<div class="velox-back-login velox-back-login--gate">', unsafe_allow_html=True)
-        if st.button("← Volver", key="nav_volver_gate_desde_login"):
-            st.session_state.welcome_active_tab = WELCOME_TAB_GATE
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
+    if active == WELCOME_TAB_LOGIN:
+        return
     elif active == WELCOME_TAB_SETUP_PASSWORD:
         st.markdown(
             '<div class="velox-id-bar velox-id-bar--register">Configura tu acceso veloX</div>',
@@ -1523,7 +1516,7 @@ def render_portal_id_bar():
         st.markdown('<div class="velox-back-login">', unsafe_allow_html=True)
         if st.button("← Volver", key="nav_volver_gate_desde_registro"):
             _reset_registro_otp_flujo()
-            st.session_state.welcome_active_tab = WELCOME_TAB_GATE
+            st.session_state.welcome_active_tab = WELCOME_TAB_LOGIN
             auth_manager.cerrar_sesion(silent=True)
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
@@ -2268,9 +2261,10 @@ def _render_velox_auth_portal_marker():
 
 
 def render_welcome_gateway():
-    """Pantalla premium centrada: login y adquisición de acceso."""
+    """Pantalla premium centrada: login directo y registro por pasos."""
     inject_velox_auth_portal_styles()
     _render_velox_auth_portal_marker()
+    _init_welcome_tab_state()
     oauth_url = auth_manager.ensure_google_oauth_url(
         force_refresh=st.session_state.get("google_oauth_redirect")
         != auth_manager.obtener_redirect_url()
@@ -2284,11 +2278,10 @@ def render_welcome_gateway():
         with st.container(border=True):
             render_portal_id_bar()
 
-            if st.session_state.welcome_active_tab == WELCOME_TAB_GATE:
-                render_tab_gate_portal()
-            elif st.session_state.welcome_active_tab == WELCOME_TAB_LOGIN:
+            active = st.session_state.welcome_active_tab
+            if active == WELCOME_TAB_LOGIN:
                 render_tab_login_portal(oauth_url=oauth_url)
-            elif st.session_state.welcome_active_tab == WELCOME_TAB_SETUP_PASSWORD:
+            elif active == WELCOME_TAB_SETUP_PASSWORD:
                 render_tab_setup_password_velox()
             else:
                 render_tab_registro_velox(oauth_url=oauth_url)

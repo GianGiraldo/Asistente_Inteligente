@@ -2841,6 +2841,30 @@ def _url_whatsapp_admin(seccion_nombre: str = "") -> str:
     return WHATSAPP_ADMIN_LINK
 
 
+def _url_whatsapp_con_mensaje(mensaje: str) -> str:
+    from urllib.parse import quote
+
+    try:
+        app_cfg = st.secrets.get("app", {})
+        url_directa = str(app_cfg.get("whatsapp_admin_url", "")).strip()
+        numero = str(app_cfg.get("whatsapp_admin", "")).strip()
+    except Exception:
+        url_directa = ""
+        numero = ""
+
+    if url_directa:
+        if "wa.me/" in url_directa and "text=" not in url_directa:
+            separador = "&" if "?" in url_directa else "?"
+            return f"{url_directa}{separador}text={quote(mensaje)}"
+        return url_directa
+
+    if numero and numero.upper() != "TU_NUMERO":
+        numero_limpio = numero.replace("+", "").replace(" ", "").replace("-", "")
+        return f"https://wa.me/{numero_limpio}?text={quote(mensaje)}"
+
+    return WHATSAPP_ADMIN_LINK
+
+
 def _abrir_dialog_plan_cursos_desde_catalogo(_seccion_id: str = ""):
     """Abre el modal centralizado de planes (flujo unificado desde tarjetas del catálogo)."""
     _ = _seccion_id
@@ -4715,6 +4739,118 @@ def _en_vista_inicio_home() -> bool:
     )
 
 
+INICIO_SERVICIOS_ACCESOS_CSS = """
+<style id="velox-inicio-servicios-accesos">
+    .st-key-inicio_servicios_row {
+        margin: 0 0 1rem 0 !important;
+    }
+    .st-key-inicio_servicios_row [data-testid="stHorizontalBlock"] {
+        gap: 0.65rem !important;
+        align-items: stretch !important;
+    }
+    .st-key-inicio_servicios_row .stButton > button,
+    .st-key-inicio_servicios_row .stButton > button[kind="primary"],
+    .st-key-inicio_servicios_row a[data-testid="stLinkButton"],
+    .st-key-inicio_servicios_row [data-testid="stLinkButton"] {
+        width: 100% !important;
+        min-height: 2.55rem !important;
+        border-radius: 20px !important;
+        background: linear-gradient(90deg, #008080 0%, #00C9A7 100%) !important;
+        color: #FFFFFF !important;
+        font-weight: 600 !important;
+        border: 1px solid rgba(0, 229, 255, 0.35) !important;
+        box-shadow: 0 6px 20px rgba(0, 201, 167, 0.28),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.18) !important;
+        transition: transform 0.18s ease, box-shadow 0.22s ease, filter 0.22s ease !important;
+        white-space: normal !important;
+        line-height: 1.25 !important;
+        text-align: center !important;
+    }
+    .st-key-inicio_servicios_row .stButton > button p,
+    .st-key-inicio_servicios_row .stButton > button span,
+    .st-key-inicio_servicios_row a[data-testid="stLinkButton"] p,
+    .st-key-inicio_servicios_row a[data-testid="stLinkButton"] span,
+    .st-key-inicio_servicios_row [data-testid="stLinkButton"] p,
+    .st-key-inicio_servicios_row [data-testid="stLinkButton"] span {
+        color: #FFFFFF !important;
+        font-weight: 600 !important;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.18) !important;
+    }
+    .st-key-inicio_servicios_row .stButton > button:hover,
+    .st-key-inicio_servicios_row a[data-testid="stLinkButton"]:hover,
+    .st-key-inicio_servicios_row [data-testid="stLinkButton"]:hover {
+        background: linear-gradient(90deg, #00A3B1 0%, #00E5FF 100%) !important;
+        filter: brightness(1.04) !important;
+        transform: translateY(-1px) !important;
+        box-shadow: 0 8px 24px rgba(0, 229, 255, 0.32) !important;
+        color: #FFFFFF !important;
+    }
+    @media (max-width: 1100px) {
+        .st-key-inicio_servicios_row [data-testid="stHorizontalBlock"] {
+            flex-wrap: wrap !important;
+        }
+        .st-key-inicio_servicios_row [data-testid="column"],
+        .st-key-inicio_servicios_row [data-testid="stColumn"] {
+            flex: 1 1 calc(50% - 0.35rem) !important;
+            min-width: calc(50% - 0.35rem) !important;
+        }
+    }
+    @media (max-width: 640px) {
+        .st-key-inicio_servicios_row [data-testid="column"],
+        .st-key-inicio_servicios_row [data-testid="stColumn"] {
+            flex: 1 1 100% !important;
+            min-width: 100% !important;
+        }
+    }
+</style>
+"""
+
+
+def _render_inicio_servicios_accesos() -> None:
+    """Fila superior de accesos a servicios en la vista Inicio (home)."""
+    if not st.session_state.get("_velox_inicio_servicios_css_injected"):
+        st.markdown(INICIO_SERVICIOS_ACCESOS_CSS, unsafe_allow_html=True)
+        st.session_state["_velox_inicio_servicios_css_injected"] = True
+
+    with st.container(key="inicio_servicios_row"):
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.link_button(
+                "Asesoría / Negocio",
+                _url_whatsapp_con_mensaje(
+                    "Hola, deseo información sobre Asesoría / Negocio en veloX."
+                ),
+                use_container_width=True,
+                key="inicio_svc_1",
+            )
+        with col2:
+            st.link_button(
+                "¿Te Personalizo tu Plantilla?",
+                _url_whatsapp_con_mensaje(
+                    "Hola, deseo personalizar mi plantilla en veloX."
+                ),
+                use_container_width=True,
+                key="inicio_svc_2",
+            )
+        with col3:
+            st.link_button(
+                "Clases personalizadas",
+                _url_whatsapp_con_mensaje(
+                    "Hola, deseo información sobre clases personalizadas en veloX."
+                ),
+                use_container_width=True,
+                key="inicio_svc_3",
+            )
+        with col4:
+            st.button(
+                "Adquirir Plan de Cursos",
+                key="inicio_svc_4",
+                use_container_width=True,
+                type="primary",
+                on_click=_abrir_dialog_plan_cursos,
+            )
+
+
 def _opciones_cursos_plan() -> Dict[str, str]:
     return dict(CURSOS_PLAN_CATALOGO)
 
@@ -5273,6 +5409,7 @@ else:
 
     if menu_actual == "🏠 Inicio":
         if st.session_state.seccion_activa == "inicio":
+            _render_inicio_servicios_accesos()
             if _es_master():
                 st.header("🏠 Inicio")
                 secciones_usuario = list(SECCIONES.keys())

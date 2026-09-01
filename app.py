@@ -134,6 +134,8 @@ from ui_theme import (
 )
 
 VELOX_BANNER_PATH = "assets/portada.jpeg"
+VELOX_PORTADA_PATH = "assets/velox_portada.png"
+VELOX_ICONO_LOGO_PATH = "assets/velox_icono_logo.png"
 
 
 @contextlib.contextmanager
@@ -741,6 +743,364 @@ def inject_login_portal_brand_styles():
     st.markdown(LOGIN_PORTAL_BRAND_CSS, unsafe_allow_html=True)
     st.session_state["_velox_login_portal_css_injected"] = True
 
+
+def _build_velox_auth_dark_portal_css() -> str:
+    portada_uri = _velox_logo_data_uri(VELOX_PORTADA_PATH)
+    bg_image = f"url('{portada_uri}')" if portada_uri else "none"
+    return f"""
+<style id="velox-auth-dark-portal-v3">
+    html:has(.velox-id-bar),
+    body:has(.velox-id-bar),
+    .stApp:has(.velox-id-bar),
+    .stApp:has(.velox-id-bar) [data-testid="stAppViewContainer"],
+    .stApp:has(.velox-id-bar) [data-testid="stMain"] {{
+        background: {bg_image} center top / cover no-repeat fixed #0A0E14 !important;
+        background-color: #0A0E14 !important;
+    }}
+
+    .stApp:has(.velox-id-bar) [data-testid="stMain"] .block-container {{
+        background: transparent !important;
+    }}
+
+    .stApp:has(.velox-id-bar) [data-testid="stVerticalBlockBorderWrapper"],
+    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) [data-testid="stVerticalBlockBorderWrapper"],
+    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) [data-testid="stVerticalBlockBorderWrapper"] {{
+        background: rgba(8, 12, 22, 0.78) !important;
+        border: 1px solid rgba(0, 210, 255, 0.18) !important;
+        border-radius: 18px !important;
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45) !important;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+    }}
+
+    .stApp:has(.velox-id-bar) .velox-portal-form div[data-testid="stTextInput"] input,
+    .stApp:has(.velox-id-bar) .velox-portal-form .stTextInput > div > div > input,
+    .stApp:has(.velox-id-bar) .main .block-container .velox-portal-form div[data-testid="stTextInput"] input,
+    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) .stTextInput > div > div > input,
+    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) .stTextInput > div > div > input {{
+        background: transparent !important;
+        background-color: transparent !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.38) !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        padding: 0.55rem 0 0.65rem !important;
+    }}
+
+    .stApp:has(.velox-id-bar) .velox-portal-form div[data-testid="stTextInput"] input::placeholder,
+    .stApp:has(.velox-id-bar) .velox-portal-form .stTextInput > div > div > input::placeholder,
+    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) .stTextInput > div > div > input::placeholder,
+    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) .stTextInput > div > div > input::placeholder {{
+        color: rgba(255, 255, 255, 0.45) !important;
+    }}
+
+    .stApp:has(.velox-id-bar) .velox-portal-form div[data-testid="stTextInput"] input:focus,
+    .stApp:has(.velox-id-bar) .velox-portal-form .stTextInput > div > div > input:focus,
+    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) div[data-testid="stTextInput"] input:focus,
+    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTextInput"] input:focus {{
+        border-bottom-color: #00E5FF !important;
+        box-shadow: none !important;
+        outline: none !important;
+    }}
+
+    .stApp:has(.velox-id-bar) .velox-id-bar--marker {{
+        display: none !important;
+        visibility: hidden !important;
+        height: 0 !important;
+        width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        overflow: hidden !important;
+    }}
+
+    .velox-auth-brand {{
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        width: 100%;
+        margin: 0.35rem 0 0.85rem;
+    }}
+
+    .velox-auth-icon-ring {{
+        width: 92px;
+        height: 92px;
+        border-radius: 50%;
+        padding: 8px;
+        margin: 0 auto 0.65rem;
+        background: rgba(255, 255, 255, 0.08);
+        border: 2px solid rgba(0, 229, 255, 0.55);
+        box-shadow: 0 0 24px rgba(0, 210, 255, 0.22);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+    }}
+
+    .velox-auth-icon-img {{
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
+    }}
+
+    .velox-auth-wordmark {{
+        margin: 0;
+        font-size: 2.15rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        color: #FFFFFF;
+        line-height: 1.1;
+    }}
+
+    .velox-auth-wordmark-x {{
+        color: #00E5FF;
+        text-shadow: 0 0 16px rgba(0, 229, 255, 0.45);
+    }}
+
+    .velox-auth-tagline,
+    .velox-brand-stack .velox-tagline--center {{
+        color: rgba(255, 255, 255, 0.88) !important;
+        font-size: 0.92rem !important;
+        line-height: 1.5 !important;
+        max-width: 22rem;
+        margin: 0.35rem auto 0.75rem !important;
+        text-align: center !important;
+    }}
+
+    .stApp:has(.velox-id-bar) .velox-auth-field-label {{
+        display: block;
+        margin: 0.65rem 0 0.35rem;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        color: rgba(255, 255, 255, 0.82);
+        text-transform: uppercase;
+    }}
+
+    .stApp:has(.velox-id-bar) .velox-id-bar,
+    .stApp:has(.velox-id-bar) .velox-id-bar--register {{
+        background: rgba(0, 210, 255, 0.12) !important;
+        color: #FFFFFF !important;
+        border: 1px solid rgba(0, 210, 255, 0.25) !important;
+        border-radius: 12px !important;
+    }}
+
+    .stApp:has(.velox-id-bar) .velox-section-caption,
+    .stApp:has(.velox-id-bar) .velox-register-sub,
+    .stApp:has(.velox-id-bar) .velox-register-header,
+    .stApp:has(.velox-id-bar) [data-testid="stCaptionContainer"],
+    .stApp:has(.velox-id-bar) [data-testid="stCaptionContainer"] p {{
+        color: rgba(255, 255, 255, 0.78) !important;
+    }}
+
+    .stApp:has(.velox-id-bar) .velox-register-header {{
+        color: #FFFFFF !important;
+    }}
+
+    .stApp:has(.velox-id-bar) .st-key-btn_olvido_password .stButton > button,
+    .stApp:has(.velox-id-bar) .st-key-btn_olvido_password .stButton > button * {{
+        color: rgba(255, 255, 255, 0.62) !important;
+        font-weight: 500 !important;
+    }}
+
+    .stApp:has(.velox-id-bar) .st-key-btn_olvido_password .stButton > button:hover {{
+        color: rgba(255, 255, 255, 0.88) !important;
+    }}
+
+    .velox-auth-register-footer {{
+        text-align: center;
+        margin-top: 1rem;
+        padding-top: 0.85rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.12);
+    }}
+
+    .velox-auth-register-prompt {{
+        color: rgba(255, 255, 255, 0.78);
+        font-size: 0.88rem;
+        margin: 0 0 0.45rem;
+    }}
+
+    .stApp:has(.velox-id-bar) .st-key-btn_registrarme_portal .stButton > button,
+    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) .st-key-btn_registrarme_portal .stButton > button {{
+        background: transparent !important;
+        background-color: transparent !important;
+        background-image: none !important;
+        border: none !important;
+        box-shadow: none !important;
+        color: #00E5FF !important;
+        font-weight: 700 !important;
+        font-size: 0.95rem !important;
+        min-height: auto !important;
+        padding: 0.15rem 0 !important;
+        text-decoration: underline;
+        text-underline-offset: 3px;
+        border-radius: 0 !important;
+    }}
+
+    .stApp:has(.velox-id-bar) .st-key-btn_registrarme_portal .stButton > button p,
+    .stApp:has(.velox-id-bar) .st-key-btn_registrarme_portal .stButton > button span {{
+        color: #00E5FF !important;
+        font-weight: 700 !important;
+        font-size: 0.95rem !important;
+    }}
+
+    .stApp:has(.velox-id-bar) .st-key-btn_registro_reenviar_otp .stButton > button {{
+        background: rgba(255, 255, 255, 0.06) !important;
+        color: rgba(255, 255, 255, 0.88) !important;
+        border: 1px solid rgba(0, 210, 255, 0.35) !important;
+        border-radius: 25px !important;
+        font-weight: 600 !important;
+    }}
+
+    .stApp:has(.velox-id-bar) .st-key-btn_registro_reenviar_otp .stButton > button:hover {{
+        background: rgba(0, 210, 255, 0.12) !important;
+        border-color: rgba(0, 210, 255, 0.55) !important;
+    }}
+
+    .stApp:has(.velox-id-bar) [data-testid="stToggle"] label,
+    .stApp:has(.velox-id-bar) [data-testid="stToggle"] label p,
+    .stApp:has(.velox-id-bar) [data-testid="stToggle"] label span {{
+        color: rgba(255, 255, 255, 0.78) !important;
+    }}
+
+    .stApp:has(.velox-id-bar) .google-btn-wrap a {{
+        background: rgba(255, 255, 255, 0.95) !important;
+        border-radius: 25px !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25) !important;
+    }}
+
+    .stApp:has(.velox-id-bar) .velox-register-success {{
+        text-align: center;
+        padding: 0.5rem 0 0.25rem;
+    }}
+
+    .stApp:has(.velox-id-bar) .velox-register-success__title {{
+        color: #FFFFFF !important;
+        font-size: 1.15rem;
+        font-weight: 700;
+        margin: 0.35rem 0 0.5rem;
+    }}
+
+    .stApp:has(.velox-id-bar) .velox-register-success__text {{
+        color: rgba(255, 255, 255, 0.82) !important;
+        font-size: 0.88rem;
+        line-height: 1.5;
+    }}
+
+    .stApp:has(.velox-id-bar) .velox-portal-scroll {{
+        scrollbar-color: rgba(0, 210, 255, 0.45) rgba(8, 12, 22, 0.5);
+    }}
+
+    .stApp:has(.velox-id-bar) .velox-portal-scroll::-webkit-scrollbar-track {{
+        background: rgba(8, 12, 22, 0.5);
+    }}
+
+    .stApp:has(.velox-id-bar) .velox-portal-scroll::-webkit-scrollbar-thumb {{
+        background: rgba(0, 210, 255, 0.45);
+    }}
+
+    .stApp:has(.velox-id-bar) .velox-auth-footer,
+    .stApp:has(.velox-id-bar) .velox-auth-footer a {{
+        color: rgba(255, 255, 255, 0.62) !important;
+    }}
+
+    .stApp:has(.velox-id-bar) .velox-auth-footer a:hover {{
+        color: #00E5FF !important;
+    }}
+
+    .stApp:has(.velox-id-bar) .st-key-btn_iniciar_sesion_velox .stButton > button,
+    .stApp:has(.velox-id-bar) .st-key-btn_gate_iniciar_sesion .stButton > button,
+    .stApp:has(.velox-id-bar) .st-key-btn_gate_registrarse .stButton > button,
+    .stApp:has(.velox-id-bar) .st-key-btn_registro_enviar_otp .stButton > button,
+    .stApp:has(.velox-id-bar) .st-key-btn_registro_validar_otp .stButton > button,
+    .stApp:has(.velox-id-bar) .st-key-btn_registro_guardar_password_otp .stButton > button,
+    .stApp:has(.velox-id-bar) .st-key-btn_registro_ir_login .stButton > button,
+    .stApp:has(.velox-id-bar) .st-key-btn_guardar_password_velox .stButton > button,
+    .stApp:has(.velox-id-bar) .st-key-btn_actualizar_password_recuperacion .stButton > button,
+    .stApp:has(.velox-id-bar) .velox-btn-primary .stButton > button,
+    .stApp:has(.velox-id-bar) .main .block-container [data-testid="stBaseButton-primary"] button,
+    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) [data-testid="stBaseButton-primary"] button,
+    .stApp:has(.velox-id-bar) .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) [data-testid="stBaseButton-primary"] button {{
+        background: linear-gradient(90deg, #00d2ff 0%, #0052d4 100%) !important;
+        background-image: linear-gradient(90deg, #00d2ff 0%, #0052d4 100%) !important;
+        color: #FFFFFF !important;
+        font-weight: 700 !important;
+        border: none !important;
+        border-radius: 25px !important;
+        box-shadow: 0 8px 24px rgba(0, 82, 212, 0.38) !important;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }}
+
+    .stApp:has(.velox-id-bar) .st-key-btn_iniciar_sesion_velox .stButton > button:hover,
+    .stApp:has(.velox-id-bar) .st-key-btn_gate_iniciar_sesion .stButton > button:hover,
+    .stApp:has(.velox-id-bar) .st-key-btn_gate_registrarse .stButton > button:hover,
+    .stApp:has(.velox-id-bar) .st-key-btn_registro_enviar_otp .stButton > button:hover,
+    .stApp:has(.velox-id-bar) .st-key-btn_registro_validar_otp .stButton > button:hover,
+    .stApp:has(.velox-id-bar) .st-key-btn_registro_guardar_password_otp .stButton > button:hover,
+    .stApp:has(.velox-id-bar) .st-key-btn_registro_ir_login .stButton > button:hover,
+    .stApp:has(.velox-id-bar) .velox-btn-primary .stButton > button:hover,
+    .stApp:has(.velox-id-bar) .main .block-container [data-testid="stBaseButton-primary"] button:hover {{
+        background: linear-gradient(90deg, #33dbff 0%, #1a66e0 100%) !important;
+        color: #FFFFFF !important;
+        box-shadow: 0 10px 28px rgba(0, 82, 212, 0.48) !important;
+    }}
+
+    .stApp:has(.velox-id-bar) .st-key-btn_iniciar_sesion_velox .stButton > button:focus,
+    .stApp:has(.velox-id-bar) .st-key-btn_iniciar_sesion_velox .stButton > button:active,
+    .stApp:has(.velox-id-bar) .st-key-btn_gate_iniciar_sesion .stButton > button:focus,
+    .stApp:has(.velox-id-bar) .st-key-btn_gate_iniciar_sesion .stButton > button:active,
+    .stApp:has(.velox-id-bar) .main .block-container [data-testid="stBaseButton-primary"] button:focus,
+    .stApp:has(.velox-id-bar) .main .block-container [data-testid="stBaseButton-primary"] button:active {{
+        background: linear-gradient(90deg, #00d2ff 0%, #0052d4 100%) !important;
+        color: #FFFFFF !important;
+        outline: none !important;
+        box-shadow: 0 8px 24px rgba(0, 82, 212, 0.38) !important;
+    }}
+
+    .stApp:has(.velox-id-bar) .st-key-btn_iniciar_sesion_velox .stButton > button p,
+    .stApp:has(.velox-id-bar) .st-key-btn_iniciar_sesion_velox .stButton > button span,
+    .stApp:has(.velox-id-bar) .st-key-btn_gate_iniciar_sesion .stButton > button p,
+    .stApp:has(.velox-id-bar) .st-key-btn_gate_registrarse .stButton > button p,
+    .stApp:has(.velox-id-bar) .main .block-container [data-testid="stBaseButton-primary"] button p,
+    .stApp:has(.velox-id-bar) .main .block-container [data-testid="stBaseButton-primary"] button span {{
+        color: #FFFFFF !important;
+        font-weight: 700 !important;
+    }}
+
+    .stApp:has(.velox-id-bar) .velox-divider-or span {{
+        color: rgba(255, 255, 255, 0.55) !important;
+        background: rgba(8, 12, 22, 0.78) !important;
+    }}
+
+    .stApp:has(.velox-id-bar) .velox-back-login .stButton > button {{
+        color: rgba(255, 255, 255, 0.65) !important;
+    }}
+
+    .stApp:has(.velox-id-bar) hr {{
+        border-color: rgba(255, 255, 255, 0.12) !important;
+    }}
+</style>
+"""
+
+
+def inject_velox_auth_dark_portal_styles():
+    if st.session_state.get("_velox_auth_dark_portal_css_v3"):
+        return
+    st.markdown(_build_velox_auth_dark_portal_css(), unsafe_allow_html=True)
+    st.session_state["_velox_auth_dark_portal_css_v3"] = True
+
+
+def inject_velox_auth_portal_styles():
+    """Estilos visuales del portal login/registro (sin alterar lógica)."""
+    inject_welcome_layout()
+    inject_login_portal_brand_styles()
+    inject_olvido_password_link_styles()
+    inject_velox_auth_dark_portal_styles()
+
 # ==================== PASARELA DE BIENVENIDA veloX (Premium) ====================
 YAPE_QR_PATH = "assets/qr_pago.png"
 WHATSAPP_ADMIN_LINK = "https://wa.me/51913827482?text=Hola,%20solicito%20información%20sobre%20la%20seccion%20.........."
@@ -855,112 +1215,10 @@ LOGIN_PORTAL_BRAND_CSS = f"""
         margin: 0 auto !important;
     }}
 
-    /* Barra superior del formulario de acceso */
+    /* Barra superior del formulario de acceso (márgenes; colores en tema dark) */
     .stApp:has(.velox-id-bar) .velox-id-bar,
     .stApp:has(.velox-id-bar) .velox-id-bar--register {{
         margin: 0.65rem 0.75rem 0.25rem !important;
-    }}
-    .velox-id-bar,
-    .velox-id-bar--register,
-    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) [data-testid="stVerticalBlockBorderWrapper"] .velox-id-bar,
-    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) [data-testid="stVerticalBlockBorderWrapper"] .velox-id-bar {{
-        background: {VELOX_CIAN_MARCA} !important;
-        background-image: none !important;
-        border: none !important;
-        border-bottom: none !important;
-        color: #FFFFFF !important;
-        font-size: 1.2rem !important;
-        font-weight: bold !important;
-        border-radius: 20px !important;
-        margin: 0.65rem 0.75rem 0.85rem !important;
-        padding: 0.72rem 1rem !important;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-    }}
-
-    /* Botones principales: Iniciar Sesión y Registrarme */
-    .st-key-btn_iniciar_sesion_velox [data-testid="stBaseButton-primary"] button,
-    .st-key-btn_iniciar_sesion_velox .stButton > button,
-    .st-key-btn_registrarme_portal .stButton > button,
-    .st-key-btn_gate_iniciar_sesion [data-testid="stBaseButton-primary"] button,
-    .st-key-btn_gate_iniciar_sesion .stButton > button,
-    .st-key-btn_gate_registrarse .stButton > button,
-    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) [data-testid="stBaseButton-primary"] button,
-    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) [data-testid="stBaseButton-primary"] button,
-    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) .st-key-btn_registrarme_portal .stButton > button {{
-        background: {VELOX_CIAN_MARCA} !important;
-        background-color: {VELOX_CIAN_MARCA} !important;
-        background-image: none !important;
-        color: #FFFFFF !important;
-        font-size: 1.2rem !important;
-        font-weight: bold !important;
-        border: 1px solid {VELOX_CIAN_MARCA} !important;
-        border-radius: 20px !important;
-        box-shadow: 0 4px 14px rgba(0, 180, 216, 0.35) !important;
-        transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease !important;
-    }}
-    .st-key-btn_iniciar_sesion_velox [data-testid="stBaseButton-primary"] button p,
-    .st-key-btn_iniciar_sesion_velox .stButton > button p,
-    .st-key-btn_registrarme_portal .stButton > button p,
-    .st-key-btn_gate_iniciar_sesion [data-testid="stBaseButton-primary"] button p,
-    .st-key-btn_gate_iniciar_sesion .stButton > button p,
-    .st-key-btn_gate_registrarse .stButton > button p,
-    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) [data-testid="stBaseButton-primary"] button p,
-    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) [data-testid="stBaseButton-primary"] button p,
-    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) .st-key-btn_registrarme_portal .stButton > button p,
-    .st-key-btn_iniciar_sesion_velox [data-testid="stBaseButton-primary"] button span,
-    .st-key-btn_iniciar_sesion_velox .stButton > button span,
-    .st-key-btn_registrarme_portal .stButton > button span,
-    .st-key-btn_gate_iniciar_sesion [data-testid="stBaseButton-primary"] button span,
-    .st-key-btn_gate_iniciar_sesion .stButton > button span,
-    .st-key-btn_gate_registrarse .stButton > button span,
-    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) [data-testid="stBaseButton-primary"] button span,
-    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) [data-testid="stBaseButton-primary"] button span,
-    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) .st-key-btn_registrarme_portal .stButton > button span {{
-        color: #FFFFFF !important;
-        font-size: 1.2rem !important;
-        font-weight: bold !important;
-    }}
-
-    .st-key-btn_iniciar_sesion_velox [data-testid="stBaseButton-primary"] button:hover,
-    .st-key-btn_iniciar_sesion_velox .stButton > button:hover,
-    .st-key-btn_registrarme_portal .stButton > button:hover,
-    .st-key-btn_gate_iniciar_sesion [data-testid="stBaseButton-primary"] button:hover,
-    .st-key-btn_gate_iniciar_sesion .stButton > button:hover,
-    .st-key-btn_gate_registrarse .stButton > button:hover,
-    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) [data-testid="stBaseButton-primary"] button:hover,
-    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) [data-testid="stBaseButton-primary"] button:hover,
-    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) .st-key-btn_registrarme_portal .stButton > button:hover {{
-        background: {VELOX_CIAN_MARCA_HOVER} !important;
-        background-color: {VELOX_CIAN_MARCA_HOVER} !important;
-        color: #FFFFFF !important;
-        font-size: 1.2rem !important;
-        font-weight: bold !important;
-        border-color: {VELOX_CIAN_MARCA_HOVER} !important;
-        box-shadow: 0 6px 18px rgba(0, 150, 184, 0.42) !important;
-    }}
-
-    .st-key-btn_iniciar_sesion_velox [data-testid="stBaseButton-primary"] button:focus,
-    .st-key-btn_iniciar_sesion_velox .stButton > button:focus,
-    .st-key-btn_registrarme_portal .stButton > button:focus,
-    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) [data-testid="stBaseButton-primary"] button:focus,
-    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) [data-testid="stBaseButton-primary"] button:focus,
-    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) .st-key-btn_registrarme_portal .stButton > button:focus {{
-        background: {VELOX_CIAN_MARCA} !important;
-        color: #FFFFFF !important;
-        font-size: 1.2rem !important;
-        font-weight: bold !important;
-        border-color: {VELOX_CIAN_MARCA} !important;
-        box-shadow: 0 0 0 2px rgba(0, 180, 216, 0.35) !important;
-    }}
-
-    /* Campos del formulario de login: foco alineado con el cian de marca */
-    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) div[data-testid="stTextInput"] input:focus,
-    .main .block-container > div > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTextInput"] input:focus,
-    .velox-portal-form div[data-testid="stTextInput"] input:focus,
-    .velox-portal-form .stTextInput > div > div > input:focus {{
-        border-color: {VELOX_CIAN_MARCA} !important;
-        box-shadow: 0 0 0 1px {VELOX_CIAN_MARCA} !important;
     }}
 </style>
 """
@@ -1106,27 +1364,25 @@ def _sidebar_mascot_src() -> Optional[str]:
 
 
 def render_velox_brand_header():
-    logo_src = _velox_logo_data_uri()
-    if logo_src:
-        st.markdown(
-            f"""
-            <div style="display: flex; justify-content: center; align-items: center; width: 100%; margin-top: 10px; margin-bottom: 5px;">
-                <img src="{logo_src}" width="190" alt="veloX" style="display: block; margin: 0 auto; max-width: 190px; height: auto;">
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    else:
-        st.markdown(
-            '<div style="display: flex; justify-content: center; align-items: center; width: 100%; '
-            'margin-top: 10px; margin-bottom: 5px;">'
-            '<div class="velox-logo-fallback">⚡ veloX</div></div>',
-            unsafe_allow_html=True,
+    icon_src = _velox_logo_data_uri(VELOX_ICONO_LOGO_PATH) or _velox_logo_data_uri(VELOX_LOGO_PATH)
+    icon_html = ""
+    if icon_src:
+        icon_html = (
+            f'<div class="velox-auth-icon-ring">'
+            f'<img src="{icon_src}" alt="veloX" class="velox-auth-icon-img" />'
+            f"</div>"
         )
     st.markdown(
+        f'<div class="velox-auth-brand">{icon_html}'
+        f'<p class="velox-auth-wordmark">velo<span class="velox-auth-wordmark-x">X</span></p>'
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
         '<div class="velox-brand-stack">'
-        '<p class="velox-tagline velox-tagline--center">Accede a cursos, plantillas y herramientas '
-        "profesionales con un único pago de acceso</p>"
+        '<p class="velox-tagline velox-tagline--center velox-auth-tagline">'
+        "Accede a cursos, plantillas y herramientas "
+        "profesionales con un único pago de acceso.</p>"
         "</div>",
         unsafe_allow_html=True,
     )
@@ -1236,11 +1492,7 @@ def render_portal_id_bar():
             unsafe_allow_html=True,
         )
     elif active == WELCOME_TAB_LOGIN:
-        st.markdown(
-            '<div class="velox-id-bar">Iniciar Sesión</div>',
-            unsafe_allow_html=True,
-        )
-        st.markdown('<div class="velox-back-login">', unsafe_allow_html=True)
+        st.markdown('<div class="velox-back-login velox-back-login--gate">', unsafe_allow_html=True)
         if st.button("← Volver", key="nav_volver_gate_desde_login"):
             st.session_state.welcome_active_tab = WELCOME_TAB_GATE
             st.rerun()
@@ -1417,18 +1669,20 @@ def render_tab_login_portal(oauth_url: Optional[str] = None):
     st.markdown('<div class="velox-portal-body velox-portal-body--login">', unsafe_allow_html=True)
     st.markdown('<div class="velox-portal-form">', unsafe_allow_html=True)
 
+    st.markdown('<label class="velox-auth-field-label">CORREO</label>', unsafe_allow_html=True)
     st.text_input(
         "Correo electrónico",
         key="login_email",
         label_visibility="collapsed",
-        placeholder="Correo electrónico",
+        placeholder="tucorreo@ejemplo.com",
     )
+    st.markdown('<label class="velox-auth-field-label">CONTRASEÑA</label>', unsafe_allow_html=True)
     st.text_input(
         "Contraseña",
         type="password",
         key="login_password",
         label_visibility="collapsed",
-        placeholder="Contraseña",
+        placeholder="Ingresa tu contraseña",
     )
 
     inject_olvido_password_link_styles()
@@ -1443,7 +1697,7 @@ def render_tab_login_portal(oauth_url: Optional[str] = None):
         st.session_state.login_email_saved = st.session_state.login_email.strip()
 
     if st.button(
-        "Iniciar Sesión",
+        "INICIAR SESIÓN",
         type="primary",
         key="btn_iniciar_sesion_velox",
         use_container_width=True,
@@ -1466,6 +1720,21 @@ def render_tab_login_portal(oauth_url: Optional[str] = None):
 
     render_divider_or("o continúa con Google")
     render_google_oauth_button("Iniciar sesión con Google", oauth_url=oauth_url)
+
+    st.markdown('<div class="velox-auth-register-footer">', unsafe_allow_html=True)
+    st.markdown(
+        '<p class="velox-auth-register-prompt">¿Aún no tienes cuenta?</p>',
+        unsafe_allow_html=True,
+    )
+    if st.button(
+        "Regístrate",
+        key="btn_registrarme_portal",
+        use_container_width=True,
+    ):
+        _iniciar_registro_otp_flujo()
+        st.session_state.welcome_active_tab = WELCOME_TAB_REGISTER
+        st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_tab_setup_password_velox():
@@ -1968,9 +2237,8 @@ def render_tab_registro_velox(oauth_url: Optional[str] = None):
 
 def render_pantalla_configurar_password():
     """Pantalla obligatoria tras OAuth si la cuenta aún no tiene contraseña veloX."""
-    inject_welcome_layout()
-    inject_velox_text_input_styles()
-    inject_login_portal_brand_styles()
+    inject_velox_auth_portal_styles()
+    _render_velox_auth_portal_marker()
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
         render_velox_brand_header()
@@ -1981,9 +2249,8 @@ def render_pantalla_configurar_password():
 
 def render_pantalla_solo_recuperacion():
     """Pantalla exclusiva de restablecimiento; nunca muestra login/registro."""
-    inject_welcome_layout()
-    inject_velox_text_input_styles()
-    inject_login_portal_brand_styles()
+    inject_velox_auth_portal_styles()
+    _render_velox_auth_portal_marker()
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
         render_velox_brand_header()
@@ -1992,11 +2259,18 @@ def render_pantalla_solo_recuperacion():
     render_footer()
 
 
+def _render_velox_auth_portal_marker():
+    """Marcador oculto para activar estilos del portal en todas las vistas auth."""
+    st.markdown(
+        '<div class="velox-id-bar velox-id-bar--marker" aria-hidden="true"></div>',
+        unsafe_allow_html=True,
+    )
+
+
 def render_welcome_gateway():
     """Pantalla premium centrada: login y adquisición de acceso."""
-    inject_welcome_layout()
-    inject_velox_text_input_styles()
-    inject_login_portal_brand_styles()
+    inject_velox_auth_portal_styles()
+    _render_velox_auth_portal_marker()
     oauth_url = auth_manager.ensure_google_oauth_url(
         force_refresh=st.session_state.get("google_oauth_redirect")
         != auth_manager.obtener_redirect_url()
@@ -2046,7 +2320,7 @@ def render_footer() -> None:
     st.markdown("---")
     st.markdown(
         """
-        <div style='text-align: center; padding: 1rem 0; font-size: 0.85rem; color: #64748b;'>
+        <div class='velox-auth-footer' style='text-align: center; padding: 1rem 0; font-size: 0.85rem; color: #64748b;'>
             <a href='https://docs.google.com/forms/d/e/1FAIpQLSexps1r4DvjE4EgNYzCw6e8G7SomSupJVikKnKADA8nVhRW5w/viewform?usp=public+editor' target='_blank' style='color: #4a6fa5; text-decoration: none; margin: 0 10px;'>📖 Libro de Reclamaciones</a>
             <span style='color: #cbd5e1;'>|</span>
             <a href='https://drive.google.com/file/d/1EGm93-Y3S3RD6pbw4J1AzTyrNI2goiyg/view?usp=sharing' target='_blank' style='color: #4a6fa5; text-decoration: none; margin: 0 10px;'>📄 Términos y Condiciones</a>

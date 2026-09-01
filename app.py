@@ -1102,17 +1102,6 @@ def _build_velox_auth_dark_portal_css() -> str:
 
 
 def inject_velox_auth_dark_portal_styles():
-    if st.session_state.get("_velox_auth_dark_portal_css_v4"):
-        return
-    st.markdown(_build_velox_auth_dark_portal_css(), unsafe_allow_html=True)
-    st.session_state["_velox_auth_dark_portal_css_v4"] = True
-
-
-def inject_velox_auth_portal_styles():
-    """Estilos del portal auth: re-inyectados en cada rerun (Streamlit no persiste CSS en DOM)."""
-    st.markdown(WELCOME_LAYOUT_CSS, unsafe_allow_html=True)
-    st.markdown(LOGIN_PORTAL_BRAND_CSS, unsafe_allow_html=True)
-    st.markdown(FORGOT_PASSWORD_LINK_CSS, unsafe_allow_html=True)
     st.markdown(_build_velox_auth_dark_portal_css(), unsafe_allow_html=True)
 
 # ==================== PASARELA DE BIENVENIDA veloX (Premium) ====================
@@ -1277,6 +1266,22 @@ FORGOT_PASSWORD_LINK_CSS = f"""
     }}
 </style>
 """
+
+
+def _build_velox_auth_portal_css_bundle() -> str:
+    return (
+        WELCOME_LAYOUT_CSS
+        + LOGIN_PORTAL_BRAND_CSS
+        + FORGOT_PASSWORD_LINK_CSS
+        + _build_velox_auth_dark_portal_css()
+    )
+
+
+def inject_velox_auth_portal_styles():
+    """Estilos auth en un solo bloque por rerun (st.empty evita conflictos DOM/React)."""
+    css_slot = st.empty()
+    css_slot.markdown(_build_velox_auth_portal_css_bundle(), unsafe_allow_html=True)
+
 
 GOOGLE_SVG_ICON = (
     '<svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">'
@@ -1577,11 +1582,21 @@ def _validar_passwords_recuperacion(nueva: str, confirmar: str) -> Optional[str]
     return None
 
 
+def _transicion_login_tras_recuperacion(mensaje: str) -> None:
+    """Cierra recuperación y hace rerun limpio hacia login (evita removeChild en React)."""
+    email_guardado = (st.session_state.get("recovery_email") or "").strip().lower()
+    auth_manager.finalizar_recuperacion_password()
+    for key in ("recovery_new_password", "recovery_confirm_password"):
+        st.session_state.pop(key, None)
+    if mensaje:
+        st.session_state["login_flash_success"] = mensaje
+    if email_guardado:
+        st.session_state["login_email"] = email_guardado
+    st.rerun()
+
+
 def render_tab_recuperar_password():
     """Formulario exclusivo tras enlace de recuperación Supabase."""
-    st.markdown('<div class="velox-portal-body velox-portal-body--login">', unsafe_allow_html=True)
-    st.markdown('<div class="velox-portal-form">', unsafe_allow_html=True)
-
     st.markdown(
         '<div class="velox-id-bar velox-id-bar--register">Restablecer Contraseña</div>',
         unsafe_allow_html=True,
@@ -1618,16 +1633,9 @@ def render_tab_recuperar_password():
             with _velox_spinner("Actualizando contraseña..."):
                 ok, msg = auth_manager.completar_recuperacion_password(nueva_password.strip())
             if ok:
-                st.success(msg)
-                st.info("Redirigiendo al inicio de sesión...")
-                time.sleep(2)
-                auth_manager.finalizar_recuperacion_password()
-                st.rerun()
+                _transicion_login_tras_recuperacion(msg)
             else:
                 st.error(msg)
-
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_tab_gate_portal():
@@ -1667,12 +1675,13 @@ def render_tab_login_portal():
     """Portada: correo/contraseña, Iniciar Sesión y enlace a Registrarme."""
     _init_login_form_state()
 
+    flash_ok = st.session_state.pop("login_flash_success", None)
+    if flash_ok:
+        st.success(flash_ok)
+
     denied = st.session_state.pop("oauth_login_denied_msg", None)
     if denied:
         st.error(denied)
-
-    st.markdown('<div class="velox-portal-body velox-portal-body--login">', unsafe_allow_html=True)
-    st.markdown('<div class="velox-portal-form">', unsafe_allow_html=True)
 
     st.markdown('<label class="velox-auth-field-label">CORREO</label>', unsafe_allow_html=True)
     st.text_input(
@@ -1719,7 +1728,6 @@ def render_tab_login_portal():
         else:
             st.error(msg)
 
-    st.markdown('<div class="velox-auth-register-footer">', unsafe_allow_html=True)
     st.markdown(
         '<p class="velox-auth-register-prompt">¿Aún no tienes cuenta?</p>',
         unsafe_allow_html=True,
@@ -1732,10 +1740,6 @@ def render_tab_login_portal():
         _iniciar_registro_otp_flujo()
         st.session_state.welcome_active_tab = WELCOME_TAB_REGISTER
         st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_tab_setup_password_velox():
@@ -2237,8 +2241,7 @@ def render_tab_registro_velox():
 
 def render_pantalla_configurar_password():
     """Pantalla obligatoria tras OAuth si la cuenta aún no tiene contraseña veloX."""
-    inject_velox_auth_portal_styles()
-    _render_velox_auth_portal_marker()
+    _render_auth_portal_prefix()
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
         render_velox_brand_header()
@@ -2247,10 +2250,14 @@ def render_pantalla_configurar_password():
     render_footer()
 
 
-def render_pantalla_solo_recuperacion():
-    """Pantalla exclusiva de restablecimiento; nunca muestra login/registro."""
+def _render_auth_portal_prefix():
+    """CSS y marcador del portal auth al inicio de cada rerun (antes del árbol de widgets)."""
     inject_velox_auth_portal_styles()
     _render_velox_auth_portal_marker()
+
+
+def render_pantalla_solo_recuperacion():
+    """Pantalla exclusiva de restablecimiento; nunca muestra login/registro."""
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
         render_velox_brand_header()
@@ -2289,8 +2296,6 @@ def render_welcome_gateway():
 
 
 def login_screen():
-    inject_velox_auth_portal_styles()
-    _render_velox_auth_portal_marker()
     render_welcome_gateway()
     render_footer()
 
@@ -5691,10 +5696,12 @@ auth_manager.sincronizar_vista_auth()
 _usuario_con_acceso = st.session_state.get("autenticado")
 
 if _en_vista_recuperacion_password():
+    _render_auth_portal_prefix()
     render_pantalla_solo_recuperacion()
     st.stop()
 
 if not _usuario_con_acceso:
+    _render_auth_portal_prefix()
     login_screen()
     st.stop()
 

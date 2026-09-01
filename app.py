@@ -133,7 +133,7 @@ from ui_theme import (
     VELOX_ULTRA_COMPACT_LAYOUT_CSS,
 )
 
-VELOX_BANNER_PATH = "assets/nuevo_banner_2026.png"
+VELOX_BANNER_PATH = "assets/portada.jpeg"
 
 
 @contextlib.contextmanager

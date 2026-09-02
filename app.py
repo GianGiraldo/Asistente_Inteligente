@@ -5075,7 +5075,7 @@ def _en_vista_inicio_home() -> bool:
 
 
 INICIO_SERVICIOS_ACCESOS_CSS = """
-<style id="velox-inicio-servicios-accesos-v3">
+<style id="velox-inicio-servicios-accesos-v4">
     .st-key-inicio_servicios_row {
         margin: 0 0 1rem 0 !important;
     }
@@ -5084,16 +5084,11 @@ INICIO_SERVICIOS_ACCESOS_CSS = """
         align-items: stretch !important;
     }
 
-    /* Secundarios — Asesoría, Plantilla, Clases (link buttons) */
-    .st-key-inicio_servicios_row .st-key-inicio_svc_1 a,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_2 a,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_3 a,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_1 [data-testid="stLinkButton"],
-    .st-key-inicio_servicios_row .st-key-inicio_svc_2 [data-testid="stLinkButton"],
-    .st-key-inicio_servicios_row .st-key-inicio_svc_3 [data-testid="stLinkButton"],
-    .st-key-inicio_servicios_row .st-key-inicio_svc_1 [data-testid="baseLinkButton"],
-    .st-key-inicio_servicios_row .st-key-inicio_svc_2 [data-testid="baseLinkButton"],
-    .st-key-inicio_servicios_row .st-key-inicio_svc_3 [data-testid="baseLinkButton"] {
+    /* Secundarios — Asesoría, Plantilla, Clases (link buttons en cols 1-3) */
+    .st-key-inicio_servicios_row a[data-testid="stLinkButton"],
+    .st-key-inicio_servicios_row [data-testid="stLinkButton"],
+    .st-key-inicio_servicios_row a[data-testid="baseLinkButton"],
+    .st-key-inicio_servicios_row [data-testid="baseLinkButton"] {
         width: 100% !important;
         min-height: 2.55rem !important;
         border-radius: 20px !important;
@@ -5115,28 +5110,16 @@ INICIO_SERVICIOS_ACCESOS_CSS = """
         justify-content: center !important;
     }
 
-    .st-key-inicio_servicios_row .st-key-inicio_svc_1 a p,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_1 a span,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_2 a p,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_2 a span,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_3 a p,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_3 a span,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_1 [data-testid="stLinkButton"] p,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_1 [data-testid="stLinkButton"] span,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_2 [data-testid="stLinkButton"] p,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_2 [data-testid="stLinkButton"] span,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_3 [data-testid="stLinkButton"] p,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_3 [data-testid="stLinkButton"] span {
+    .st-key-inicio_servicios_row [data-testid="stLinkButton"] p,
+    .st-key-inicio_servicios_row [data-testid="stLinkButton"] span,
+    .st-key-inicio_servicios_row a[data-testid="stLinkButton"] p,
+    .st-key-inicio_servicios_row a[data-testid="stLinkButton"] span {
         color: #0F766E !important;
         font-weight: 600 !important;
     }
 
-    .st-key-inicio_servicios_row .st-key-inicio_svc_1 a:hover,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_2 a:hover,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_3 a:hover,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_1 [data-testid="stLinkButton"]:hover,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_2 [data-testid="stLinkButton"]:hover,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_3 [data-testid="stLinkButton"]:hover {
+    .st-key-inicio_servicios_row a[data-testid="stLinkButton"]:hover,
+    .st-key-inicio_servicios_row [data-testid="stLinkButton"]:hover {
         background: rgba(240, 253, 250, 0.98) !important;
         background-color: rgba(240, 253, 250, 0.98) !important;
         color: #0D9488 !important;
@@ -5144,27 +5127,16 @@ INICIO_SERVICIOS_ACCESOS_CSS = """
         box-shadow: 0 6px 18px rgba(0, 201, 167, 0.18) !important;
     }
 
-    .st-key-inicio_servicios_row .st-key-inicio_svc_1 a:focus,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_1 a:focus-visible,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_1 a:active,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_1 a:visited,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_2 a:focus,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_2 a:focus-visible,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_2 a:active,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_2 a:visited,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_3 a:focus,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_3 a:focus-visible,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_3 a:active,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_3 a:visited,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_1 [data-testid="stLinkButton"]:focus,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_1 [data-testid="stLinkButton"]:focus-visible,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_1 [data-testid="stLinkButton"]:active,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_2 [data-testid="stLinkButton"]:focus,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_2 [data-testid="stLinkButton"]:focus-visible,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_2 [data-testid="stLinkButton"]:active,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_3 [data-testid="stLinkButton"]:focus,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_3 [data-testid="stLinkButton"]:focus-visible,
-    .st-key-inicio_servicios_row .st-key-inicio_svc_3 [data-testid="stLinkButton"]:active {
+    .st-key-inicio_servicios_row a[data-testid="stLinkButton"]:focus,
+    .st-key-inicio_servicios_row a[data-testid="stLinkButton"]:focus-visible,
+    .st-key-inicio_servicios_row a[data-testid="stLinkButton"]:active,
+    .st-key-inicio_servicios_row a[data-testid="stLinkButton"]:visited,
+    .st-key-inicio_servicios_row [data-testid="stLinkButton"]:focus,
+    .st-key-inicio_servicios_row [data-testid="stLinkButton"]:focus-visible,
+    .st-key-inicio_servicios_row [data-testid="stLinkButton"]:active,
+    .st-key-inicio_servicios_row [data-testid="baseLinkButton"]:focus,
+    .st-key-inicio_servicios_row [data-testid="baseLinkButton"]:focus-visible,
+    .st-key-inicio_servicios_row [data-testid="baseLinkButton"]:active {
         background: rgba(255, 255, 255, 0.97) !important;
         background-color: rgba(255, 255, 255, 0.97) !important;
         background-image: none !important;
@@ -5302,7 +5274,6 @@ def _render_inicio_servicios_accesos() -> None:
                     "Hola, deseo información sobre Asesoría / Negocio en veloX."
                 ),
                 use_container_width=True,
-                key="inicio_svc_1",
             )
         with col2:
             st.link_button(
@@ -5311,7 +5282,6 @@ def _render_inicio_servicios_accesos() -> None:
                     "Hola, deseo personalizar mi plantilla en veloX."
                 ),
                 use_container_width=True,
-                key="inicio_svc_2",
             )
         with col3:
             st.link_button(
@@ -5320,7 +5290,6 @@ def _render_inicio_servicios_accesos() -> None:
                     "Hola, deseo información sobre clases personalizadas en veloX."
                 ),
                 use_container_width=True,
-                key="inicio_svc_3",
             )
         with col4:
             st.button(

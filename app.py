@@ -220,9 +220,16 @@ VELOX_POST_LOGIN_SHELL_CSS = """
 """
 
 
+def inject_inicio_servicios_accesos_css() -> None:
+    """CSS barra de servicios Inicio: re-inyectado en cada rerun post-login (sin flags)."""
+    css_slot = st.empty()
+    css_slot.markdown(INICIO_SERVICIOS_ACCESOS_CSS, unsafe_allow_html=True)
+
+
 def inject_post_login_shell_layout():
     """Ordena capas y columnas del shell autenticado (sidebar vs. contenido central)."""
     st.markdown(VELOX_POST_LOGIN_SHELL_CSS, unsafe_allow_html=True)
+    inject_inicio_servicios_accesos_css()
     inject_sidebar_theme()
 
 
@@ -5068,7 +5075,7 @@ def _en_vista_inicio_home() -> bool:
 
 
 INICIO_SERVICIOS_ACCESOS_CSS = """
-<style id="velox-inicio-servicios-accesos">
+<style id="velox-inicio-servicios-accesos-v3">
     .st-key-inicio_servicios_row {
         margin: 0 0 1rem 0 !important;
     }
@@ -5077,20 +5084,106 @@ INICIO_SERVICIOS_ACCESOS_CSS = """
         align-items: stretch !important;
     }
 
-    /* Base — botones y enlaces del catálogo de servicios */
-    .st-key-inicio_servicios_row .stButton > button,
-    .st-key-inicio_servicios_row .stButton > button[kind="primary"],
-    .st-key-inicio_servicios_row .stButton > button[kind="secondary"],
-    .st-key-inicio_servicios_row .stButton > button[data-testid="stBaseButton-primary"],
-    .st-key-inicio_servicios_row .stButton > button[data-testid="stBaseButton-secondary"],
-    .st-key-inicio_servicios_row .stButton > button[data-testid="baseButton-primary"],
-    .st-key-inicio_servicios_row .stButton > button[data-testid="baseButton-secondary"],
-    .st-key-inicio_servicios_row a[data-testid="stLinkButton"],
-    .st-key-inicio_servicios_row [data-testid="stLinkButton"],
-    .st-key-inicio_servicios_row a[data-testid="baseLinkButton"],
+    /* Secundarios — Asesoría, Plantilla, Clases (link buttons) */
+    .st-key-inicio_servicios_row .st-key-inicio_svc_1 a,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_2 a,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_3 a,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_1 [data-testid="stLinkButton"],
+    .st-key-inicio_servicios_row .st-key-inicio_svc_2 [data-testid="stLinkButton"],
+    .st-key-inicio_servicios_row .st-key-inicio_svc_3 [data-testid="stLinkButton"],
+    .st-key-inicio_servicios_row .st-key-inicio_svc_1 [data-testid="baseLinkButton"],
+    .st-key-inicio_servicios_row .st-key-inicio_svc_2 [data-testid="baseLinkButton"],
+    .st-key-inicio_servicios_row .st-key-inicio_svc_3 [data-testid="baseLinkButton"] {
+        width: 100% !important;
+        min-height: 2.55rem !important;
+        border-radius: 20px !important;
+        background: rgba(255, 255, 255, 0.97) !important;
+        background-color: rgba(255, 255, 255, 0.97) !important;
+        background-image: none !important;
+        color: #0F766E !important;
+        font-weight: 600 !important;
+        border: 1.5px solid rgba(0, 201, 167, 0.45) !important;
+        box-shadow: 0 4px 14px rgba(0, 128, 128, 0.12) !important;
+        white-space: normal !important;
+        line-height: 1.25 !important;
+        text-align: center !important;
+        text-decoration: none !important;
+        outline: none !important;
+        -webkit-tap-highlight-color: transparent !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+
+    .st-key-inicio_servicios_row .st-key-inicio_svc_1 a p,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_1 a span,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_2 a p,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_2 a span,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_3 a p,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_3 a span,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_1 [data-testid="stLinkButton"] p,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_1 [data-testid="stLinkButton"] span,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_2 [data-testid="stLinkButton"] p,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_2 [data-testid="stLinkButton"] span,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_3 [data-testid="stLinkButton"] p,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_3 [data-testid="stLinkButton"] span {
+        color: #0F766E !important;
+        font-weight: 600 !important;
+    }
+
+    .st-key-inicio_servicios_row .st-key-inicio_svc_1 a:hover,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_2 a:hover,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_3 a:hover,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_1 [data-testid="stLinkButton"]:hover,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_2 [data-testid="stLinkButton"]:hover,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_3 [data-testid="stLinkButton"]:hover {
+        background: rgba(240, 253, 250, 0.98) !important;
+        background-color: rgba(240, 253, 250, 0.98) !important;
+        color: #0D9488 !important;
+        border-color: rgba(0, 201, 167, 0.62) !important;
+        box-shadow: 0 6px 18px rgba(0, 201, 167, 0.18) !important;
+    }
+
+    .st-key-inicio_servicios_row .st-key-inicio_svc_1 a:focus,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_1 a:focus-visible,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_1 a:active,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_1 a:visited,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_2 a:focus,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_2 a:focus-visible,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_2 a:active,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_2 a:visited,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_3 a:focus,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_3 a:focus-visible,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_3 a:active,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_3 a:visited,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_1 [data-testid="stLinkButton"]:focus,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_1 [data-testid="stLinkButton"]:focus-visible,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_1 [data-testid="stLinkButton"]:active,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_2 [data-testid="stLinkButton"]:focus,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_2 [data-testid="stLinkButton"]:focus-visible,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_2 [data-testid="stLinkButton"]:active,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_3 [data-testid="stLinkButton"]:focus,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_3 [data-testid="stLinkButton"]:focus-visible,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_3 [data-testid="stLinkButton"]:active {
+        background: rgba(255, 255, 255, 0.97) !important;
+        background-color: rgba(255, 255, 255, 0.97) !important;
+        background-image: none !important;
+        color: #0F766E !important;
+        border: 1.5px solid rgba(0, 201, 167, 0.45) !important;
+        box-shadow: 0 4px 14px rgba(0, 128, 128, 0.12) !important;
+        outline: none !important;
+        filter: none !important;
+        transform: none !important;
+    }
+
+    /* Destacado — Adquirir Plan de Cursos */
+    .st-key-inicio_servicios_row .st-key-inicio_svc_4 .stButton > button,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_4 [data-testid="stBaseButton-primary"] button,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_4 [data-testid="baseButton-primary"],
     .st-key-inicio_svc_4 .stButton > button,
     .st-key-inicio_svc_4 .stButton > button[kind="primary"],
-    .st-key-inicio_svc_4 .stButton > button[data-testid="stBaseButton-primary"] {
+    .st-key-inicio_svc_4 .stButton > button[data-testid="stBaseButton-primary"],
+    .st-key-inicio_svc_4 .stButton > button[data-testid="baseButton-primary"] {
         width: 100% !important;
         min-height: 2.55rem !important;
         border-radius: 20px !important;
@@ -5098,11 +5191,10 @@ INICIO_SERVICIOS_ACCESOS_CSS = """
         background-color: transparent !important;
         background-image: linear-gradient(90deg, #008080 0%, #00C9A7 100%) !important;
         color: #FFFFFF !important;
-        font-weight: 600 !important;
-        border: 1px solid rgba(0, 229, 255, 0.35) !important;
+        font-weight: bold !important;
+        border: none !important;
         box-shadow: 0 6px 20px rgba(0, 201, 167, 0.28),
                     inset 0 1px 0 rgba(255, 255, 255, 0.18) !important;
-        transition: transform 0.18s ease, box-shadow 0.22s ease, filter 0.22s ease !important;
         white-space: normal !important;
         line-height: 1.25 !important;
         text-align: center !important;
@@ -5111,68 +5203,42 @@ INICIO_SERVICIOS_ACCESOS_CSS = """
         -webkit-tap-highlight-color: transparent !important;
     }
 
-    .st-key-inicio_servicios_row .stButton > button p,
-    .st-key-inicio_servicios_row .stButton > button span,
-    .st-key-inicio_servicios_row .stButton > button [data-testid="stMarkdownContainer"],
-    .st-key-inicio_servicios_row .stButton > button [data-testid="stMarkdownContainer"] p,
-    .st-key-inicio_servicios_row a[data-testid="stLinkButton"] p,
-    .st-key-inicio_servicios_row a[data-testid="stLinkButton"] span,
-    .st-key-inicio_servicios_row [data-testid="stLinkButton"] p,
-    .st-key-inicio_servicios_row [data-testid="stLinkButton"] span,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_4 .stButton > button p,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_4 .stButton > button span,
     .st-key-inicio_svc_4 .stButton > button p,
     .st-key-inicio_svc_4 .stButton > button span {
         color: #FFFFFF !important;
-        font-weight: 600 !important;
+        font-weight: bold !important;
         text-shadow: 0 1px 2px rgba(0, 0, 0, 0.18) !important;
     }
 
-    /* Hover — ligero realce sin perder identidad esmeralda */
-    .st-key-inicio_servicios_row .stButton > button:hover,
-    .st-key-inicio_servicios_row .stButton > button[kind="primary"]:hover,
-    .st-key-inicio_servicios_row .stButton > button[data-testid="stBaseButton-primary"]:hover,
-    .st-key-inicio_servicios_row a[data-testid="stLinkButton"]:hover,
-    .st-key-inicio_servicios_row [data-testid="stLinkButton"]:hover,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_4 .stButton > button:hover,
     .st-key-inicio_svc_4 .stButton > button:hover {
         background: linear-gradient(90deg, #00A3B1 0%, #00E5FF 100%) !important;
-        background-color: transparent !important;
         background-image: linear-gradient(90deg, #00A3B1 0%, #00E5FF 100%) !important;
-        filter: brightness(1.04) !important;
-        transform: translateY(-1px) !important;
+        color: #FFFFFF !important;
+        border: none !important;
         box-shadow: 0 8px 24px rgba(0, 229, 255, 0.32),
                     inset 0 1px 0 rgba(255, 255, 255, 0.18) !important;
-        color: #FFFFFF !important;
-        border: 1px solid rgba(0, 229, 255, 0.35) !important;
-        outline: none !important;
+        filter: none !important;
+        transform: translateY(-1px) !important;
     }
 
-    /* Focus / Active / Visited — mismo degradado esmeralda (anti-override Streamlit) */
-    .st-key-inicio_servicios_row .stButton > button:focus,
-    .st-key-inicio_servicios_row .stButton > button:focus-visible,
-    .st-key-inicio_servicios_row .stButton > button:active,
-    .st-key-inicio_servicios_row .stButton > button:visited,
-    .st-key-inicio_servicios_row .stButton > button[kind="primary"]:focus,
-    .st-key-inicio_servicios_row .stButton > button[kind="primary"]:focus-visible,
-    .st-key-inicio_servicios_row .stButton > button[kind="primary"]:active,
-    .st-key-inicio_servicios_row .stButton > button[kind="primary"]:visited,
-    .st-key-inicio_servicios_row .stButton > button[data-testid="stBaseButton-primary"]:focus,
-    .st-key-inicio_servicios_row .stButton > button[data-testid="stBaseButton-primary"]:focus-visible,
-    .st-key-inicio_servicios_row .stButton > button[data-testid="stBaseButton-primary"]:active,
-    .st-key-inicio_servicios_row .stButton > button[data-testid="stBaseButton-primary"]:visited,
-    .st-key-inicio_servicios_row .stButton > button[data-testid="baseButton-primary"]:focus,
-    .st-key-inicio_servicios_row .stButton > button[data-testid="baseButton-primary"]:focus-visible,
-    .st-key-inicio_servicios_row .stButton > button[data-testid="baseButton-primary"]:active,
-    .st-key-inicio_servicios_row a[data-testid="stLinkButton"]:focus,
-    .st-key-inicio_servicios_row a[data-testid="stLinkButton"]:focus-visible,
-    .st-key-inicio_servicios_row a[data-testid="stLinkButton"]:active,
-    .st-key-inicio_servicios_row a[data-testid="stLinkButton"]:visited,
-    .st-key-inicio_servicios_row [data-testid="stLinkButton"]:focus,
-    .st-key-inicio_servicios_row [data-testid="stLinkButton"]:focus-visible,
-    .st-key-inicio_servicios_row [data-testid="stLinkButton"]:active,
-    .st-key-inicio_servicios_row [data-testid="stLinkButton"]:visited,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_4 .stButton > button:focus,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_4 .stButton > button:focus-visible,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_4 .stButton > button:active,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_4 .stButton > button:visited,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_4 .stButton > button:disabled,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_4 [data-testid="stBaseButton-primary"] button:focus,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_4 [data-testid="stBaseButton-primary"] button:focus-visible,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_4 [data-testid="stBaseButton-primary"] button:active,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_4 [data-testid="stBaseButton-primary"] button:visited,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_4 [data-testid="stBaseButton-primary"] button:disabled,
     .st-key-inicio_svc_4 .stButton > button:focus,
     .st-key-inicio_svc_4 .stButton > button:focus-visible,
     .st-key-inicio_svc_4 .stButton > button:active,
     .st-key-inicio_svc_4 .stButton > button:visited,
+    .st-key-inicio_svc_4 .stButton > button:disabled,
     .st-key-inicio_svc_4 .stButton > button[kind="primary"]:focus,
     .st-key-inicio_svc_4 .stButton > button[kind="primary"]:focus-visible,
     .st-key-inicio_svc_4 .stButton > button[kind="primary"]:active,
@@ -5183,36 +5249,25 @@ INICIO_SERVICIOS_ACCESOS_CSS = """
         background-color: transparent !important;
         background-image: linear-gradient(90deg, #008080 0%, #00C9A7 100%) !important;
         color: #FFFFFF !important;
-        border: 1px solid rgba(0, 229, 255, 0.35) !important;
+        border: none !important;
         box-shadow: 0 6px 20px rgba(0, 201, 167, 0.28),
                     inset 0 1px 0 rgba(255, 255, 255, 0.18) !important;
         outline: none !important;
         outline-offset: 0 !important;
         filter: none !important;
-        transform: none !important;
+        opacity: 1 !important;
     }
 
-    .st-key-inicio_servicios_row .stButton > button:focus p,
-    .st-key-inicio_servicios_row .stButton > button:focus span,
-    .st-key-inicio_servicios_row .stButton > button:focus-visible p,
-    .st-key-inicio_servicios_row .stButton > button:focus-visible span,
-    .st-key-inicio_servicios_row .stButton > button:active p,
-    .st-key-inicio_servicios_row .stButton > button:active span,
-    .st-key-inicio_servicios_row .stButton > button[kind="primary"]:focus p,
-    .st-key-inicio_servicios_row .stButton > button[kind="primary"]:focus span,
-    .st-key-inicio_servicios_row .stButton > button[kind="primary"]:active p,
-    .st-key-inicio_servicios_row .stButton > button[kind="primary"]:active span,
-    .st-key-inicio_servicios_row .stButton > button[data-testid="stBaseButton-primary"]:focus p,
-    .st-key-inicio_servicios_row .stButton > button[data-testid="stBaseButton-primary"]:focus span,
-    .st-key-inicio_servicios_row .stButton > button[data-testid="stBaseButton-primary"]:active p,
-    .st-key-inicio_servicios_row .stButton > button[data-testid="stBaseButton-primary"]:active span,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_4 .stButton > button:focus p,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_4 .stButton > button:focus span,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_4 .stButton > button:active p,
+    .st-key-inicio_servicios_row .st-key-inicio_svc_4 .stButton > button:active span,
     .st-key-inicio_svc_4 .stButton > button:focus p,
     .st-key-inicio_svc_4 .stButton > button:focus span,
     .st-key-inicio_svc_4 .stButton > button:active p,
     .st-key-inicio_svc_4 .stButton > button:active span {
         color: #FFFFFF !important;
-        font-weight: 600 !important;
-        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.18) !important;
+        font-weight: bold !important;
     }
 
     @media (max-width: 1100px) {
@@ -5238,10 +5293,6 @@ INICIO_SERVICIOS_ACCESOS_CSS = """
 
 def _render_inicio_servicios_accesos() -> None:
     """Fila superior de accesos a servicios en la vista Inicio (home)."""
-    if not st.session_state.get("_velox_inicio_servicios_css_v2_injected"):
-        st.markdown(INICIO_SERVICIOS_ACCESOS_CSS, unsafe_allow_html=True)
-        st.session_state["_velox_inicio_servicios_css_v2_injected"] = True
-
     with st.container(key="inicio_servicios_row"):
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -5251,6 +5302,7 @@ def _render_inicio_servicios_accesos() -> None:
                     "Hola, deseo información sobre Asesoría / Negocio en veloX."
                 ),
                 use_container_width=True,
+                key="inicio_svc_1",
             )
         with col2:
             st.link_button(
@@ -5259,6 +5311,7 @@ def _render_inicio_servicios_accesos() -> None:
                     "Hola, deseo personalizar mi plantilla en veloX."
                 ),
                 use_container_width=True,
+                key="inicio_svc_2",
             )
         with col3:
             st.link_button(
@@ -5267,6 +5320,7 @@ def _render_inicio_servicios_accesos() -> None:
                     "Hola, deseo información sobre clases personalizadas en veloX."
                 ),
                 use_container_width=True,
+                key="inicio_svc_3",
             )
         with col4:
             st.button(

@@ -29,14 +29,18 @@ CURSOS_PLAN_VALIDOS = frozenset({
     "comercio_exterior",
     "logistico",
     "excel",
+    "comercial",
+    "laboral",
 })
 # Mapeo claves Supabase (cursos_solicitados) → ids internos de SECCIONES en app.py
 CURSO_PLAN_A_SECCION_APP = {
     "contabilidad": "contabilidad",
-    "power_bi": "laboral",
-    "comercio_exterior": "financiero",
+    "power_bi": "power_bi",
+    "comercio_exterior": "comercio_exterior",
     "logistico": "logistico",
     "excel": "excel",
+    "comercial": "comercial",
+    "laboral": "laboral",
 }
 EXTENSIONES_COMPROBANTE = ("jpg", "jpeg", "png", "pdf")
 CULQI_SCRIPT_URLS = (

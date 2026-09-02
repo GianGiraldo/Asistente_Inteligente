@@ -488,49 +488,93 @@ if not st.session_state.get("_velox_global_theme_injected"):
 
 SECCIONES = {
     "contabilidad": {
-        "nombre": "📊 Contabilidad",
+        "nombre": "Contabilidad",
         "icono": "📊",
         "color": "#2ecc71",
         "descripcion": "Facturas, balances, libros contables",
-        "subcategorias": ["Minicursos", "Formatos y Plantillas"]
+        "subcategorias": ["Minicursos", "Formatos y Plantillas"],
+        "active": True,
     },
-    "laboral": {
-        "nombre": "📉 Power BI",
+    "power_bi": {
+        "nombre": "Power BI",
         "icono": "📉",
         "color": "#3498db",
         "descripcion": "Dashboards interactivos, análisis de datos y reportes visuales",
-        "subcategorias": ["Minicursos", "Formatos y Plantillas"]
+        "subcategorias": ["Minicursos", "Formatos y Plantillas"],
+        "active": False,
     },
-    "financiero": {
-        "nombre": "🌐 Comercio Exterior",
+    "comercio_exterior": {
+        "nombre": "Comercio Exterior",
         "icono": "🌐",
         "color": "#f1c40f",
         "descripcion": "Importaciones, exportaciones, aduanas y operaciones internacionales",
-        "subcategorias": ["Minicursos", "Formatos y Plantillas"]
+        "subcategorias": ["Minicursos", "Formatos y Plantillas"],
+        "active": False,
     },
     "logistico": {
-        "nombre": "🚚 Logístico",
+        "nombre": "Logístico",
         "icono": "🚚",
         "color": "#e67e22",
         "descripcion": "Guías, inventarios, despachos",
-        "subcategorias": ["Minicursos", "Formatos y Plantillas"]
+        "subcategorias": ["Minicursos", "Formatos y Plantillas"],
+        "active": True,
     },
     "excel": {
-        "nombre": "📈 Excel",
+        "nombre": "Excel",
         "icono": "📈",
         "color": "#1abc9c",
         "descripcion": "Plantillas, reportes, análisis",
-        "subcategorias": ["Minicursos", "Formatos y Plantillas"]
-    }
+        "subcategorias": ["Minicursos", "Formatos y Plantillas"],
+        "active": True,
+    },
+    "comercial": {
+        "nombre": "Comercial",
+        "icono": "💼",
+        "color": "#9b59b6",
+        "descripcion": "Ventas, clientes, KPIs y proyecciones.",
+        "subcategorias": ["Minicursos", "Formatos y Plantillas"],
+        "active": True,
+    },
+    "laboral": {
+        "nombre": "Laboral",
+        "icono": "👥",
+        "color": "#e74c3c",
+        "descripcion": "Contratos, planillas, normativas y beneficios.",
+        "subcategorias": ["Minicursos", "Formatos y Plantillas"],
+        "active": True,
+    },
+}
+
+# Ids legacy en Supabase / publicaciones → id canónico en SECCIONES
+SECCION_LEGACY_IDS = {
+    "financiero": "comercio_exterior",
 }
 
 SECCION_BANNER_PATHS = {
     "contabilidad": "assets/banner_contabilidad.svg",
-    "laboral": "assets/banner_power_bi.svg",
-    "financiero": "assets/banner_comercio_exterior.svg",
+    "power_bi": "assets/banner_power_bi.svg",
+    "comercio_exterior": "assets/banner_comercio_exterior.svg",
     "logistico": "assets/banner_logistica.svg",
     "excel": "assets/banner_excel.svg",
+    "comercial": "assets/banner_comercial_ventas.svg",
+    "laboral": "assets/banner_laboral.svg",
 }
+
+
+def _seccion_esta_activa(seccion_id: str) -> bool:
+    info = SECCIONES.get(seccion_id)
+    if not info:
+        return False
+    return bool(info.get("active", True))
+
+
+def _secciones_catalogo_visibles() -> list[tuple[str, dict]]:
+    return [(k, v) for k, v in SECCIONES.items() if _seccion_esta_activa(k)]
+
+
+def _resolver_seccion_id(seccion_id: str) -> str:
+    sid = (seccion_id or "").strip().lower()
+    return SECCION_LEGACY_IDS.get(sid, sid)
 
 MENU_SIDEBAR_MASTER = [
     ("Inicio", "house", "🏠 Inicio"),
@@ -2985,11 +3029,17 @@ def _secciones_efectivas() -> list:
         return list(SECCIONES.keys())
     if AuthManager.es_rol_administrador(rol):
         secciones = st.session_state.get("secciones_staff") or []
-        return [s for s in secciones if s in SECCIONES]
-    return cached_obtener_secciones_usuario(
+        return [_resolver_seccion_id(s) for s in secciones if _resolver_seccion_id(s) in SECCIONES]
+    raw = cached_obtener_secciones_usuario(
         st.session_state["usuario"],
         data_cache_version=_velox_data_cache_version(),
     )
+    resueltas = []
+    for s in raw:
+        canon = _resolver_seccion_id(s)
+        if canon in SECCIONES and canon not in resueltas:
+            resueltas.append(canon)
+    return resueltas
 
 
 def _puede_publicar_documentos() -> bool:
@@ -3005,7 +3055,11 @@ def _contar_documentos_seccion(seccion_id: str) -> int:
         conteos = cached_contar_publicaciones_por_seccion(
             data_cache_version=_velox_data_cache_version(),
         )
-        return int(conteos.get(seccion_id, 0))
+        total = int(conteos.get(seccion_id, 0))
+        for legacy_id, canon_id in SECCION_LEGACY_IDS.items():
+            if canon_id == seccion_id:
+                total += int(conteos.get(legacy_id, 0))
+        return total
     except Exception:
         return 0
 
@@ -3039,7 +3093,8 @@ def _html_tarjeta_catalogo_seccion(
 
     if tiene_acceso:
         titulo_html = f'<div class="velox-section-card__title">{icono} {nombre_seguro}</div>'
-        meta = f"✅ {num_docs} documentos disponibles"
+        doc_label = "documento disponible" if num_docs == 1 else "documentos disponibles"
+        meta = f"✅ {num_docs} {doc_label}"
         watermark = ""
     else:
         titulo_html = (
@@ -3345,7 +3400,7 @@ def render_catalogo_secciones_freemium(
         )
 
     cols = st.columns(3)
-    for i, (seccion_id, sec_info) in enumerate(SECCIONES.items()):
+    for i, (seccion_id, sec_info) in enumerate(_secciones_catalogo_visibles()):
         tiene_acceso = seccion_id in autorizadas
         num_docs = _contar_documentos_seccion(seccion_id)
         nombre_limpio = _nombre_seccion_sin_icono(sec_info)
@@ -4876,13 +4931,11 @@ PLANES_COMPRA_CURSOS = {
     },
 }
 
-# Claves homologadas con Supabase (columna cursos_solicitados)
+# Claves homologadas con Supabase (columna cursos_solicitados) — solo secciones activas
 CURSOS_PLAN_CATALOGO: Dict[str, str] = {
-    "contabilidad": "Contabilidad",
-    "power_bi": "Power BI",
-    "comercio_exterior": "Comercio Exterior",
-    "logistico": "Logístico",
-    "excel": "Excel",
+    sec_id: sec_info["nombre"]
+    for sec_id, sec_info in SECCIONES.items()
+    if sec_info.get("active", True)
 }
 
 VELOX_PLAN_AZUL_OSCURO = "#1A365D"
@@ -5637,7 +5690,8 @@ def _render_documentos_seccion_inicio(seccion_id, secciones_usuario, busqueda_ke
 
 
 def render_vista_seccion_inicio(seccion_id):
-    if seccion_id not in SECCIONES:
+    seccion_id = _resolver_seccion_id(seccion_id)
+    if seccion_id not in SECCIONES or not _seccion_esta_activa(seccion_id):
         st.session_state.seccion_activa = "inicio"
         st.rerun()
         return
@@ -5666,7 +5720,7 @@ def render_vista_seccion_inicio(seccion_id):
         busqueda_key=f"buscador_inicio_{seccion_id}",
     )
 
-    if seccion_id == "laboral":
+    if seccion_id == "power_bi":
         st.markdown("---")
         with st.expander("📊 Diseñador de Dashboards", expanded=False):
             mostrar_modulo_dashboard_interactivo()

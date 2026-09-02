@@ -2423,6 +2423,8 @@ def mostrar_politica_privacidad() -> None:
 
 
 # ==================== CHATBOT ASISTENTE IA (flotante) ====================
+SHOW_CHATBOT = False
+
 CHATBOT_MENUS_PERMITIDOS = frozenset({"🏠 Inicio", "📁 Mis Documentos"})
 
 MOCK_CATALOGO_CHATBOT = [
@@ -2461,7 +2463,20 @@ CHATBOT_MSG_BLOQUEADO = (
 )
 
 
+def _chatbot_habilitado() -> bool:
+    """Interruptor global del asistente flotante. Prioriza st.secrets['app']['show_chatbot'] si existe."""
+    try:
+        secret_val = st.secrets.get("app", {}).get("show_chatbot")
+        if secret_val is not None:
+            return bool(secret_val)
+    except Exception:
+        pass
+    return SHOW_CHATBOT
+
+
 def _chatbot_visible_en_modulo_actual() -> bool:
+    if not _chatbot_habilitado():
+        return False
     menu = st.session_state.get("menu_principal", "🏠 Inicio")
     return menu in CHATBOT_MENUS_PERMITIDOS
 
@@ -2641,6 +2656,8 @@ def _build_chatbot_panel_css() -> str:
 
 
 def _init_chatbot_state():
+    if not _chatbot_habilitado():
+        return
     if "chat_abierto" not in st.session_state:
         st.session_state.chat_abierto = False
     if "chat_historial" not in st.session_state:
@@ -2907,7 +2924,7 @@ def _render_chatbot_panel_abierto(logo_src: str):
 @st.fragment
 def render_chatbot_asistente():
     """Chat flotante con IA simulada — solo en Inicio y Mis Documentos."""
-    if not _chatbot_visible_en_modulo_actual():
+    if not _chatbot_habilitado() or not _chatbot_visible_en_modulo_actual():
         return
 
     _init_chatbot_state()
@@ -4711,7 +4728,7 @@ def _render_bloque_publicaciones_compacto(
         subcategoria=None,
         data_cache_version=_cache_v,
     )
-    if sincronizar_chatbot and seccion_info:
+    if sincronizar_chatbot and _chatbot_habilitado() and seccion_info:
         _actualizar_catalogo_chatbot_seccion(
             seccion_info, seccion_id, secciones_usuario
         )
@@ -4739,6 +4756,8 @@ def _render_bloque_publicaciones_compacto(
 
 
 def _actualizar_catalogo_chatbot_seccion(seccion_info, seccion_id, secciones_usuario):
+    if not _chatbot_habilitado():
+        return []
     catalogo = cached_listar_catalogo_seccion(
         seccion_id,
         subcategoria=None,
@@ -6256,7 +6275,7 @@ else:
                         else:
                             st.error(msg)
 
-    if _chatbot_visible_en_modulo_actual():
+    if _chatbot_habilitado() and _chatbot_visible_en_modulo_actual():
         render_chatbot_asistente()
 
     render_footer()

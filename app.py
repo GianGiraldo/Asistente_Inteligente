@@ -915,7 +915,7 @@ def _build_velox_auth_dark_portal_css() -> str:
 
     .velox-auth-tagline,
     .velox-brand-stack .velox-tagline--center {{
-        color: #E2F1FF !important;
+        color: #F8FAFC !important;
         font-size: 0.92rem !important;
         line-height: 1.5 !important;
         max-width: 22rem;
@@ -971,9 +971,41 @@ def _build_velox_auth_dark_portal_css() -> str:
     }}
 
     .velox-auth-register-prompt {{
-        color: #E2F1FF !important;
+        color: #F8FAFC !important;
         font-size: 0.88rem;
         margin: 0 0 0.45rem;
+    }}
+
+    .velox-login-recordarme-label {{
+        color: #F8FAFC !important;
+        font-size: 0.9rem !important;
+        font-weight: 500 !important;
+        line-height: 1.2 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        white-space: nowrap;
+    }}
+
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_wrap,
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_wrap {{
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.55rem !important;
+        min-height: 2.4rem;
+    }}
+
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_wrap [data-testid="stToggle"] label,
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_wrap [data-testid="stToggle"] label p,
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_wrap [data-testid="stToggle"] label span,
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_wrap [data-testid="stToggle"] label,
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_wrap [data-testid="stToggle"] label p,
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_wrap [data-testid="stToggle"] label span {{
+        display: none !important;
+        visibility: hidden !important;
+        width: 0 !important;
+        height: 0 !important;
+        overflow: hidden !important;
+        opacity: 0 !important;
     }}
 
     .stApp:has(.velox-id-bar) .st-key-btn_registrarme_portal .stButton > button,
@@ -1019,7 +1051,7 @@ def _build_velox_auth_dark_portal_css() -> str:
     .stApp:has(.velox-auth-brand) [data-testid="stToggle"] label,
     .stApp:has(.velox-auth-brand) [data-testid="stToggle"] label p,
     .stApp:has(.velox-auth-brand) [data-testid="stToggle"] label span {{
-        color: #E2F1FF !important;
+        color: #F8FAFC !important;
     }}
 
     .stApp:has(.velox-id-bar) .google-btn-wrap a {{
@@ -1755,7 +1787,12 @@ def render_tab_login_portal():
 
     recordarme_col, forgot_col = st.columns([3, 1], vertical_alignment="center")
     with recordarme_col:
-        st.toggle("Recordarme", key="login_recordarme")
+        with st.container(key="login_recordarme_wrap"):
+            st.markdown(
+                '<span class="velox-login-recordarme-label">Recordarme</span>',
+                unsafe_allow_html=True,
+            )
+            st.toggle("Recordarme", key="login_recordarme", label_visibility="collapsed")
     with forgot_col:
         if st.button("¿Olvidaste tu contraseña?", key="btn_olvido_password"):
             _dialog_recuperar_password()

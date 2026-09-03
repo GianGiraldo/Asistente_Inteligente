@@ -915,7 +915,8 @@ def _build_velox_auth_dark_portal_css() -> str:
 
     .velox-auth-tagline,
     .velox-brand-stack .velox-tagline--center {{
-        color: #E2E8F0 !important;
+        color: #F1F5F9 !important;
+        opacity: 1 !important;
         font-size: 0.92rem !important;
         line-height: 1.5 !important;
         max-width: 22rem;
@@ -971,10 +972,24 @@ def _build_velox_auth_dark_portal_css() -> str:
         border-top: 1px solid rgba(255, 255, 255, 0.12);
     }}
 
+    .stApp:has(.velox-auth-brand) .velox-login-form p.velox-auth-register-prompt,
+    .stApp:has(.velox-id-bar) .velox-login-form p.velox-auth-register-prompt,
     .velox-auth-register-prompt {{
-        color: #CBD5E1 !important;
+        color: #F1F5F9 !important;
+        opacity: 1 !important;
         font-size: 0.88rem;
         margin: 0 0 0.45rem;
+    }}
+
+    /* Textos secundarios del formulario de login */
+    .stApp:has(.velox-auth-brand) .velox-login-form p,
+    .stApp:has(.velox-id-bar) .velox-login-form p,
+    .stApp:has(.velox-auth-brand) .velox-portal-form p,
+    .stApp:has(.velox-id-bar) .velox-portal-form p,
+    .stApp:has(.velox-auth-brand) [data-testid="stForm"] p,
+    .stApp:has(.velox-id-bar) [data-testid="stForm"] p {{
+        color: #FFFFFF !important;
+        opacity: 1 !important;
     }}
 
     .velox-login-recordarme-label {{
@@ -1799,6 +1814,8 @@ def render_tab_login_portal():
     if denied:
         st.error(denied)
 
+    st.markdown('<div class="velox-portal-form velox-login-form">', unsafe_allow_html=True)
+
     st.markdown('<label class="velox-auth-field-label">CORREO</label>', unsafe_allow_html=True)
     st.text_input(
         "Correo electrónico",
@@ -1819,9 +1836,9 @@ def render_tab_login_portal():
         recordarme_col, forgot_col = st.columns([3, 1], vertical_alignment="center")
         with recordarme_col:
             with st.container(key="login_recordarme_wrap"):
-                st.toggle(" ", key="login_recordarme", label_visibility="collapsed")
+                st.toggle("", key="login_recordarme", label_visibility="collapsed")
                 st.markdown(
-                    '<span class="velox-login-recordarme-label">Recordarme</span>',
+                    '<span style="color: #FFFFFF !important; font-weight: 500;">Recordarme</span>',
                     unsafe_allow_html=True,
                 )
         with forgot_col:
@@ -1862,6 +1879,8 @@ def render_tab_login_portal():
         _iniciar_registro_otp_flujo()
         st.session_state.welcome_active_tab = WELCOME_TAB_REGISTER
         st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_tab_setup_password_velox():

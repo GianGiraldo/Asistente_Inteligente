@@ -1387,13 +1387,15 @@ SECTION_DETAIL_BANNER_CSS = """
     }
 
     .velox-section-detail-banner__title {
-        font-size: 2.35rem;
-        font-weight: 800;
+        text-align: center;
+        font-size: 2rem;
+        font-weight: bold;
         line-height: 1.15;
         margin: 0;
         padding: 0;
-        letter-spacing: 0.01em;
-        background: linear-gradient(135deg, #00A896 0%, #02C39A 100%);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        background: linear-gradient(90deg, #00B4DB 0%, #00C9A7 55%, #00F2FE 100%);
         -webkit-background-clip: text;
         background-clip: text;
         -webkit-text-fill-color: transparent;
@@ -1415,10 +1417,7 @@ def inject_section_detail_banner_css() -> None:
     """CSS del banner de detalle de sección (Mis Documentos / Inicio interno)."""
     import streamlit as st
 
-    if st.session_state.get("_velox_section_banner_css_injected"):
-        return
     st.markdown(SECTION_DETAIL_BANNER_CSS, unsafe_allow_html=True)
-    st.session_state["_velox_section_banner_css_injected"] = True
 
 
 def inject_global_theme():

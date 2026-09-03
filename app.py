@@ -3139,10 +3139,33 @@ def _nombre_seccion_sin_icono(seccion_info: dict) -> str:
     return nombre
 
 
+def _mis_docs_busqueda_key(seccion_id: str) -> str:
+    return f"buscador_mis_docs_{seccion_id}"
+
+
+def _inicializar_selector_seccion_documentos(opciones_ids: list, seccion_preseleccionada_norm: Optional[str] = None) -> None:
+    """Sincroniza session_state del selectbox con IDs de sección (reactivo en cada rerun)."""
+    widget_key = "selector_seccion_documentos"
+    if not opciones_ids:
+        return
+    if seccion_preseleccionada_norm and seccion_preseleccionada_norm in opciones_ids:
+        st.session_state[widget_key] = seccion_preseleccionada_norm
+    elif st.session_state.get(widget_key) not in opciones_ids:
+        st.session_state[widget_key] = opciones_ids[0]
+
+
+def _sincronizar_cambio_seccion_mis_docs(seccion_id: str) -> None:
+    """Al cambiar de sección, reinicia paginación para mostrar datos de la nueva sección."""
+    prev_key = "_mis_docs_seccion_anterior"
+    if st.session_state.get(prev_key) != seccion_id:
+        st.session_state[prev_key] = seccion_id
+        st.session_state[_docs_pagina_session_key(seccion_id, prefijo="pub")] = 1
+
+
 def _render_banner_seccion_detalle(seccion_info: dict) -> None:
     """Banner centrado del detalle de sección (Mis Documentos e Inicio interno)."""
     inject_section_detail_banner_css()
-    titulo = html_module.escape(_nombre_seccion_sin_icono(seccion_info))
+    titulo = html_module.escape(_nombre_seccion_sin_icono(seccion_info).upper())
     descripcion = html_module.escape(seccion_info.get("descripcion") or "")
     st.markdown(
         f'<div class="velox-section-detail-banner">'
@@ -4862,7 +4885,8 @@ def abrir_notificacion(
     if titulo:
         st.session_state["notif_redirect_mensaje"] = f"✅ Has sido redirigido a la publicación: {titulo}"
         nombre_busqueda = titulo.rsplit(".", 1)[0] if "." in titulo else titulo
-        st.session_state["buscador_mis_docs"] = nombre_busqueda
+        if seccion_norm:
+            st.session_state[_mis_docs_busqueda_key(seccion_norm)] = nombre_busqueda
     if publicacion_id:
         st.session_state["notif_redirect_publicacion_id"] = publicacion_id
 
@@ -6034,26 +6058,27 @@ else:
         if not secciones_usuario:
             st.warning("⚠️ No tienes acceso a ninguna sección. Contacta al administrador.")
         else:
-            opciones_secciones = [(s, SECCIONES[s]['nombre']) for s in secciones_usuario]
+            opciones_ids = [s for s in secciones_usuario if s in SECCIONES]
             seccion_preseleccionada_norm = (
-                normalizar_seccion(seccion_preseleccionada) if seccion_preseleccionada else None
+                _resolver_seccion_id(normalizar_seccion(seccion_preseleccionada))
+                if seccion_preseleccionada
+                else None
             )
+            if seccion_preseleccionada_norm and seccion_preseleccionada_norm in opciones_ids:
+                st.session_state[
+                    _docs_pagina_session_key(seccion_preseleccionada_norm, prefijo="pub")
+                ] = 1
+                _invalidar_cache_datos()
 
-            indice_preseleccionado = 0
-            if seccion_preseleccionada_norm:
-                for idx, (sec_id, _) in enumerate(opciones_secciones):
-                    if sec_id == seccion_preseleccionada_norm:
-                        indice_preseleccionado = idx
-                        st.session_state["selector_seccion_documentos"] = opciones_secciones[idx]
-                        break
+            _inicializar_selector_seccion_documentos(opciones_ids, seccion_preseleccionada_norm)
 
             seccion_seleccionada = st.selectbox(
                 "Seleccionar sección:",
-                options=opciones_secciones,
-                format_func=lambda x: x[1],
-                index=indice_preseleccionado,
+                options=opciones_ids,
+                format_func=lambda sid: SECCIONES[sid]["nombre"],
                 key="selector_seccion_documentos",
-            )[0]
+            )
+            _sincronizar_cambio_seccion_mis_docs(seccion_seleccionada)
             seccion_info = SECCIONES[seccion_seleccionada]
 
             _render_banner_seccion_detalle(seccion_info)
@@ -6063,20 +6088,14 @@ else:
 
             subcategorias_disponibles = seccion_info.get("subcategorias", ["General"])
 
-            if seccion_preseleccionada_norm:
-                st.session_state[
-                    _docs_pagina_session_key(seccion_seleccionada, prefijo="pub")
-                ] = 1
-                _invalidar_cache_datos()
-
             st.markdown(MIS_DOCS_COMPACT_CSS, unsafe_allow_html=True)
             busqueda = st.text_input(
                 "🔍 Buscar documentos",
                 placeholder="Filtra por nombre, descripción o palabra clave…",
-                key="buscador_mis_docs",
+                key=_mis_docs_busqueda_key(seccion_seleccionada),
                 label_visibility="collapsed",
             )
-            st.caption("Búsqueda instantánea sobre todos los documentos de la sección.")
+            st.caption("Búsqueda instantánea sobre los documentos de esta sección.")
 
             if (
                 _puede_publicar_documentos()

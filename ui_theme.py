@@ -1982,44 +1982,23 @@ VELOX_LOADING_BRAND_CSS = f"""
         to {{ transform: rotate(360deg); }}
     }}
 
-    /* stStatusWidget — reruns y operaciones async */
-    .stApp [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningIcon"] svg,
-    .stApp [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningIcon"] img,
-    .stApp [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningIcon"] span,
-    .stApp [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningManIcon"],
-    .stApp [data-testid="stStatusWidget"] [data-testid="stStatusWidgetNewYearsIcon"],
-    .stApp [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningIcon"] > * {{
-        opacity: 0 !important;
-        width: 0 !important;
-        height: 0 !important;
-        visibility: hidden !important;
+    /* Ocultar chrome nativo de Streamlit (Stop, menú ⋮, footer) */
+    [data-testid="stStatusWidget"],
+    .stStatusWidget,
+    #MainMenu,
+    [data-testid="stMainMenu"],
+    footer,
+    .stApp footer {{
         display: none !important;
+        visibility: hidden !important;
+        height: 0 !important;
+        width: 0 !important;
+        overflow: hidden !important;
+        opacity: 0 !important;
         pointer-events: none !important;
     }}
 
-    .stApp [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningIcon"] {{
-        position: relative !important;
-        width: 26px !important;
-        height: 26px !important;
-        min-width: 26px !important;
-        min-height: 26px !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-    }}
-
-    .stApp [data-testid="stStatusWidget"] [data-testid="stStatusWidgetRunningIcon"]::after {{
-        content: "" !important;
-        display: block !important;
-        width: 20px !important;
-        height: 20px !important;
-        border: 2.5px solid rgba(0, 180, 216, 0.28) !important;
-        border-top-color: {VELOX_CIAN_MARCA} !important;
-        border-radius: 50% !important;
-        animation: velox-brand-spin 0.75s linear infinite !important;
-    }}
-
-    /* st.spinner() */
+    /* st.spinner() — círculo CSS ultraligero + texto de marca */
     .stApp [data-testid="stSpinner"] [data-testid="stSpinnerIcon"],
     .stApp [data-testid="stSpinner"] svg,
     .stApp [data-testid="stSpinner"] img {{
@@ -2034,6 +2013,7 @@ VELOX_LOADING_BRAND_CSS = f"""
     .stApp [data-testid="stSpinner"] > div {{
         display: flex !important;
         align-items: center !important;
+        justify-content: center !important;
         gap: 0.65rem !important;
     }}
 
@@ -2055,24 +2035,19 @@ VELOX_LOADING_BRAND_CSS = f"""
         font-weight: 600 !important;
     }}
 
-    /* Esqueleto de carga inicial */
-    .stApp [data-testid="stAppSkeleton"]::before,
-    .stApp [data-testid="stAppViewContainer"]:has([data-testid="stAppSkeleton"])::before {{
-        content: "⚡ Cargando veloX..." !important;
+    /* Indicador fijo discreto mientras hay un st.spinner activo */
+    .stApp:has([data-testid="stSpinner"])::before {{
+        content: "" !important;
         position: fixed !important;
         top: 14px !important;
         right: 16px !important;
-        z-index: 999999 !important;
-        display: inline-flex !important;
-        align-items: center !important;
-        padding: 0.45rem 0.85rem !important;
-        background: rgba(255, 255, 255, 0.96) !important;
-        border: 1px solid rgba(0, 180, 216, 0.35) !important;
-        border-radius: 999px !important;
-        box-shadow: 0 4px 14px rgba(15, 61, 60, 0.12) !important;
-        color: {VELOX_VERDE_OSCURO} !important;
-        font-size: 0.88rem !important;
-        font-weight: 700 !important;
+        width: 20px !important;
+        height: 20px !important;
+        border: 2.5px solid rgba(0, 180, 216, 0.28) !important;
+        border-top-color: {VELOX_CIAN_MARCA} !important;
+        border-radius: 50% !important;
+        animation: velox-brand-spin 0.75s linear infinite !important;
+        z-index: 999998 !important;
         pointer-events: none !important;
     }}
 </style>
@@ -2080,13 +2055,10 @@ VELOX_LOADING_BRAND_CSS = f"""
 
 
 def inject_velox_loading_brand() -> None:
-    """Inyecta el spinner personalizado de veloX usando st.html() para mayor robustez."""
+    """Oculta el status widget nativo y aplica spinner CSS ligero (st.spinner)."""
     import streamlit as st
 
-    if st.session_state.get("_velox_loading_brand_css_injected"):
-        return
-    st.html(VELOX_LOADING_BRAND_CSS)
-    st.session_state["_velox_loading_brand_css_injected"] = True
+    st.markdown(VELOX_LOADING_BRAND_CSS, unsafe_allow_html=True)
 
 
 __all__ = [

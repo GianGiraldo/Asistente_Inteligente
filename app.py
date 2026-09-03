@@ -89,9 +89,7 @@ st.markdown(
 
 from ui_theme import inject_velox_loading_brand
 
-if not st.session_state.get("_velox_loading_brand_injected"):
-    inject_velox_loading_brand()
-    st.session_state["_velox_loading_brand_injected"] = True
+inject_velox_loading_brand()
 
 import base64
 import contextlib

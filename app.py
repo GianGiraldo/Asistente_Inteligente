@@ -981,7 +981,7 @@ def _build_velox_auth_dark_portal_css() -> str:
         font-weight: 400 !important;
         opacity: 1 !important;
         font-size: 0.88rem;
-        margin: 0 0 0.45rem;
+        margin: 0 0 0.45rem !important;
     }}
 
     /* Textos del formulario de login (campos) */
@@ -1823,18 +1823,19 @@ def render_tab_login_portal():
         else:
             st.error(msg)
 
-    st.markdown(
-        '<p class="velox-auth-register-prompt" translate="no">¿Aún no tienes cuenta?</p>',
-        unsafe_allow_html=True,
-    )
-    if st.button(
-        "Regístrate",
-        key="btn_registrarme_portal",
-        use_container_width=True,
-    ):
-        _iniciar_registro_otp_flujo()
-        st.session_state.welcome_active_tab = WELCOME_TAB_REGISTER
-        st.rerun()
+    with st.container(key="login_register_footer"):
+        st.markdown(
+            '<p class="velox-auth-register-prompt" translate="no">¿Aún no tienes cuenta?</p>',
+            unsafe_allow_html=True,
+        )
+        if st.button(
+            "Regístrate",
+            key="btn_registrarme_portal",
+            use_container_width=True,
+        ):
+            _iniciar_registro_otp_flujo()
+            st.session_state.welcome_active_tab = WELCOME_TAB_REGISTER
+            st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
 

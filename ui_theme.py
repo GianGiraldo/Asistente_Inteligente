@@ -2145,6 +2145,26 @@ VELOX_LOGIN_AUTH_TEXT_CSS = """
         align-items: center !important;
     }
 
+    /* Espaciado vertical — botón INICIAR SESIÓN */
+    .stApp:has(.velox-auth-brand) .st-key-btn_iniciar_sesion_velox,
+    .stApp:has(.velox-id-bar) .st-key-btn_iniciar_sesion_velox {
+        margin-top: 1.25rem !important;
+        padding-top: 0 !important;
+    }
+
+    /* Espaciado vertical — bloque registro inferior */
+    .stApp:has(.velox-auth-brand) .st-key-login_register_footer,
+    .stApp:has(.velox-id-bar) .st-key-login_register_footer {
+        margin-top: 1rem !important;
+        padding-top: 0 !important;
+    }
+
+    .stApp:has(.velox-auth-brand) .st-key-login_register_footer .velox-auth-register-prompt,
+    .stApp:has(.velox-id-bar) .st-key-login_register_footer .velox-auth-register-prompt {
+        margin-top: 0 !important;
+        margin-bottom: 0.45rem !important;
+    }
+
     @media (max-width: 480px) {
         .velox-login-recordarme-label {
             font-size: 0.85rem !important;

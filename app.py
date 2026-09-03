@@ -4828,7 +4828,6 @@ def abrir_notificacion(
         st.session_state["buscador_mis_docs"] = nombre_busqueda
     if publicacion_id:
         st.session_state["notif_redirect_publicacion_id"] = publicacion_id
-    st.rerun()
 
 def render_campana_notificaciones():
     usuario = st.session_state["usuario"]
@@ -4914,11 +4913,10 @@ def render_campana_notificaciones():
         )
 
     with st.popover("🔔", use_container_width=True, help="Notificaciones pendientes"):
-        _fragment_campana_notificaciones_lista(usuario)
+        _campana_notificaciones_lista(usuario)
 
 
-@st.fragment
-def _fragment_campana_notificaciones_lista(usuario: str):
+def _campana_notificaciones_lista(usuario: str):
     st.markdown('<p class="notif-panel-title">Notificaciones</p>', unsafe_allow_html=True)
     st.caption("Publicaciones pendientes de leer")
     notificaciones = _obtener_notificaciones_visibles_usuario(

@@ -130,6 +130,7 @@ from ui_theme import (
     WELCOME_LAYOUT_CSS,
     MAIN_CONTENT_AREA_CSS,
     VELOX_ULTRA_COMPACT_LAYOUT_CSS,
+    VELOX_LOGIN_AUTH_TEXT_CSS,
 )
 
 VELOX_BANNER_PATH = "assets/portada.jpeg"
@@ -915,7 +916,8 @@ def _build_velox_auth_dark_portal_css() -> str:
 
     .velox-auth-tagline,
     .velox-brand-stack .velox-tagline--center {{
-        color: #F1F5F9 !important;
+        color: #E2E8F0 !important;
+        font-weight: 400 !important;
         opacity: 1 !important;
         font-size: 0.92rem !important;
         line-height: 1.5 !important;
@@ -975,13 +977,14 @@ def _build_velox_auth_dark_portal_css() -> str:
     .stApp:has(.velox-auth-brand) .velox-login-form p.velox-auth-register-prompt,
     .stApp:has(.velox-id-bar) .velox-login-form p.velox-auth-register-prompt,
     .velox-auth-register-prompt {{
-        color: #F1F5F9 !important;
+        color: #E2E8F0 !important;
+        font-weight: 400 !important;
         opacity: 1 !important;
         font-size: 0.88rem;
         margin: 0 0 0.45rem;
     }}
 
-    /* Textos secundarios del formulario de login */
+    /* Textos del formulario de login (campos) */
     .stApp:has(.velox-auth-brand) .velox-login-form p,
     .stApp:has(.velox-id-bar) .velox-login-form p,
     .stApp:has(.velox-auth-brand) .velox-portal-form p,
@@ -994,63 +997,12 @@ def _build_velox_auth_dark_portal_css() -> str:
 
     .velox-login-recordarme-label {{
         color: #FFFFFF !important;
-        font-size: 0.9rem !important;
         font-weight: 500 !important;
+        font-size: 0.9rem !important;
         line-height: 1.2 !important;
         margin: 0 !important;
         padding: 0 !important;
         white-space: nowrap;
-    }}
-
-    .stApp:has(.velox-id-bar) .st-key-login_recordarme_row [data-testid="stHorizontalBlock"],
-    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row [data-testid="stHorizontalBlock"] {{
-        align-items: center !important;
-    }}
-
-    .stApp:has(.velox-id-bar) .st-key-login_recordarme_row div[data-testid="column"]:last-child,
-    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row div[data-testid="column"]:last-child,
-    .stApp:has(.velox-id-bar) .st-key-login_recordarme_row div[data-testid="stColumn"]:last-child,
-    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row div[data-testid="stColumn"]:last-child {{
-        display: flex !important;
-        justify-content: flex-end !important;
-        align-items: center !important;
-    }}
-
-    .stApp:has(.velox-id-bar) .st-key-login_recordarme_wrap [data-testid="stVerticalBlock"],
-    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_wrap [data-testid="stVerticalBlock"] {{
-        display: flex !important;
-        flex-direction: row !important;
-        align-items: center !important;
-        justify-content: flex-start !important;
-        gap: 0.5rem !important;
-        min-height: 2.4rem;
-    }}
-
-    .stApp:has(.velox-id-bar) .st-key-login_recordarme_wrap [data-testid="stElementContainer"],
-    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_wrap [data-testid="stElementContainer"] {{
-        width: auto !important;
-        flex: 0 0 auto !important;
-    }}
-
-    .stApp:has(.velox-id-bar) .st-key-login_recordarme_wrap [data-testid="stToggle"],
-    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_wrap [data-testid="stToggle"] {{
-        margin: 0 !important;
-        padding: 0 !important;
-    }}
-
-    .stApp:has(.velox-id-bar) .st-key-login_recordarme_wrap [data-testid="stToggle"] label,
-    .stApp:has(.velox-id-bar) .st-key-login_recordarme_wrap [data-testid="stToggle"] label p,
-    .stApp:has(.velox-id-bar) .st-key-login_recordarme_wrap [data-testid="stToggle"] label span,
-    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_wrap [data-testid="stToggle"] label,
-    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_wrap [data-testid="stToggle"] label p,
-    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_wrap [data-testid="stToggle"] label span {{
-        display: none !important;
-        visibility: hidden !important;
-        width: 0 !important;
-        height: 0 !important;
-        overflow: hidden !important;
-        opacity: 0 !important;
-        pointer-events: none !important;
     }}
 
     .stApp:has(.velox-id-bar) .st-key-btn_registrarme_portal .stButton > button,
@@ -1403,6 +1355,7 @@ def _build_velox_auth_portal_css_bundle() -> str:
         WELCOME_LAYOUT_CSS
         + LOGIN_PORTAL_BRAND_CSS
         + FORGOT_PASSWORD_LINK_CSS
+        + VELOX_LOGIN_AUTH_TEXT_CSS
         + _build_velox_auth_dark_portal_css()
     )
 
@@ -1530,7 +1483,7 @@ def render_velox_brand_header():
     )
     st.markdown(
         '<div class="velox-brand-stack">'
-        '<p class="velox-tagline velox-tagline--center velox-auth-tagline">'
+        '<p class="velox-tagline velox-tagline--center velox-auth-tagline" translate="no">'
         "Accede a cursos, plantillas y herramientas "
         "profesionales con un único pago de acceso.</p>"
         "</div>",
@@ -1833,14 +1786,17 @@ def render_tab_login_portal():
     )
 
     with st.container(key="login_recordarme_row"):
-        recordarme_col, forgot_col = st.columns([3, 1], vertical_alignment="center")
+        recordarme_col, forgot_col = st.columns([1.55, 1], vertical_alignment="center")
         with recordarme_col:
-            with st.container(key="login_recordarme_wrap"):
-                st.toggle("", key="login_recordarme", label_visibility="collapsed")
-                st.markdown(
-                    '<span style="color: #FFFFFF !important; font-weight: 500;">Recordarme</span>',
-                    unsafe_allow_html=True,
-                )
+            with st.container(key="login_recordarme_left"):
+                toggle_col, label_col = st.columns([0.16, 0.84], vertical_alignment="center", gap="small")
+                with toggle_col:
+                    st.toggle(label="", key="login_recordarme", label_visibility="collapsed")
+                with label_col:
+                    st.markdown(
+                        '<span class="velox-login-recordarme-label" translate="no">Recordarme</span>',
+                        unsafe_allow_html=True,
+                    )
         with forgot_col:
             if st.button("¿Olvidaste tu contraseña?", key="btn_olvido_password"):
                 _dialog_recuperar_password()
@@ -1868,7 +1824,7 @@ def render_tab_login_portal():
             st.error(msg)
 
     st.markdown(
-        '<p class="velox-auth-register-prompt">¿Aún no tienes cuenta?</p>',
+        '<p class="velox-auth-register-prompt" translate="no">¿Aún no tienes cuenta?</p>',
         unsafe_allow_html=True,
     )
     if st.button(

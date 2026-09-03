@@ -2053,6 +2053,112 @@ VELOX_LOADING_BRAND_CSS = f"""
 """
 
 
+VELOX_LOGIN_AUTH_TEXT_CSS = """
+<style id="velox-login-auth-text">
+    /* Subtítulo login */
+    .stApp:has(.velox-auth-brand) .velox-auth-tagline,
+    .stApp:has(.velox-id-bar) .velox-auth-tagline,
+    .stApp:has(.velox-auth-brand) .velox-brand-stack .velox-tagline--center,
+    .stApp:has(.velox-id-bar) .velox-brand-stack .velox-tagline--center {
+        color: #E2E8F0 !important;
+        font-weight: 400 !important;
+        opacity: 1 !important;
+    }
+
+    /* Recordarme — sin traducción del navegador */
+    .velox-login-recordarme-label,
+    .stApp:has(.velox-auth-brand) .velox-login-recordarme-label,
+    .stApp:has(.velox-id-bar) .velox-login-recordarme-label {
+        color: #FFFFFF !important;
+        font-weight: 500 !important;
+        font-size: 0.9rem !important;
+        line-height: 1.2 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        white-space: nowrap;
+    }
+
+    /* Pregunta inferior registro */
+    .stApp:has(.velox-auth-brand) .velox-auth-register-prompt,
+    .stApp:has(.velox-id-bar) .velox-auth-register-prompt,
+    .stApp:has(.velox-auth-brand) .velox-login-form p.velox-auth-register-prompt,
+    .stApp:has(.velox-id-bar) .velox-login-form p.velox-auth-register-prompt {
+        color: #E2E8F0 !important;
+        font-weight: 400 !important;
+        opacity: 1 !important;
+    }
+
+    /* Fila Recordarme + ¿Olvidaste...? */
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row [data-testid="stHorizontalBlock"],
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_row [data-testid="stHorizontalBlock"] {
+        align-items: center !important;
+        flex-wrap: nowrap !important;
+        gap: 0.35rem !important;
+    }
+
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_left [data-testid="stHorizontalBlock"],
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_left [data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        gap: 0.45rem !important;
+        width: auto !important;
+    }
+
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_left [data-testid="stElementContainer"],
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_left [data-testid="stElementContainer"] {
+        width: auto !important;
+        flex: 0 0 auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_left [data-testid="stToggle"],
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_left [data-testid="stToggle"] {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_left [data-testid="stToggle"] label,
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_left [data-testid="stToggle"] label,
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_left [data-testid="stToggle"] label p,
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_left [data-testid="stToggle"] label p,
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_left [data-testid="stToggle"] label span,
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_left [data-testid="stToggle"] label span {
+        display: none !important;
+        visibility: hidden !important;
+        width: 0 !important;
+        height: 0 !important;
+        overflow: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+    }
+
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row div[data-testid="column"]:last-child,
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_row div[data-testid="column"]:last-child,
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row div[data-testid="stColumn"]:last-child,
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_row div[data-testid="stColumn"]:last-child {
+        display: flex !important;
+        justify-content: flex-end !important;
+        align-items: center !important;
+    }
+
+    @media (max-width: 480px) {
+        .velox-login-recordarme-label {
+            font-size: 0.85rem !important;
+        }
+        .stApp:has(.velox-auth-brand) .st-key-btn_olvido_password .stButton > button,
+        .stApp:has(.velox-id-bar) .st-key-btn_olvido_password .stButton > button {
+            font-size: 0.78rem !important;
+            padding: 0.2rem 0.35rem !important;
+        }
+    }
+</style>
+"""
+
+
 def inject_velox_loading_brand() -> None:
     """Oculta el status widget nativo y aplica spinner CSS ligero (st.spinner)."""
     import streamlit as st
@@ -2073,4 +2179,5 @@ __all__ = [
     "inject_sidebar_theme",
     "inject_section_detail_banner_css",
     "SECTION_DETAIL_BANNER_CSS",
+    "VELOX_LOGIN_AUTH_TEXT_CSS",
 ]

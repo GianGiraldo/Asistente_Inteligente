@@ -1146,6 +1146,15 @@ def inject_velox_auth_dark_portal_styles():
 
 # ==================== PASARELA DE BIENVENIDA veloX (Premium) ====================
 YAPE_QR_PATH = "assets/qr_pago.png"
+YAPE_TITULAR = "Gian Pier Giraldo Pariona"
+MSG_YAPE_SUBIR_COMPROBANTE = "Sube tu comprobante para validar tu acceso."
+MSG_YAPE_COMPROBANTE_OK = "✅ Comprobante enviado. Activaremos tu acceso a la brevedad."
+YAPE_QR_SEGURIDAD_HTML = f"""
+<div style="text-align:center;font-size:0.86rem;color:#334155;line-height:1.45;margin-top:0.5rem;">
+<p style="margin:0.35rem 0;"><strong>Titular:</strong> {YAPE_TITULAR}</p>
+<p style="margin:0.35rem 0;">⚠️ <em>Verifica que el nombre del destinatario en Yape sea exacto antes de confirmar.</em></p>
+</div>
+"""
 WHATSAPP_ADMIN_LINK = "https://wa.me/51913827482?text=Hola,%20solicito%20información%20sobre%20la%20seccion%20.........."
 YAPE_OAUTH_KEYS = ["yape_oauth_celular", "yape_comprobante_upload"]
 WELCOME_TAB_GATE = -1
@@ -1971,30 +1980,21 @@ def _render_yape_plim_section(seccion_id: str = "", key_prefix: str = "yape"):
         st.markdown('<div class="velox-qr-panel">', unsafe_allow_html=True)
         with st.container(border=True):
             st.markdown('<p class="velox-section-title">Escanea y paga</p>', unsafe_allow_html=True)
-            st.markdown(
-                '<p class="velox-section-caption">Transferencia con Yape o Plim. '
-                "El pago puede ser tuyo o de un tercero.</p>",
-                unsafe_allow_html=True,
-            )
             if os.path.exists(YAPE_QR_PATH):
-                st.image(YAPE_QR_PATH, caption="Escanea con Yape o Plim", use_container_width=True)
+                st.image(YAPE_QR_PATH, caption="Yape / Plim", use_container_width=True)
             else:
                 st.warning(f"No se encontró `{YAPE_QR_PATH}`")
-            st.caption("💡 Conserva la captura de tu comprobante.")
+            st.markdown(YAPE_QR_SEGURIDAD_HTML, unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
     with col_form:
         with st.container(border=True):
-            st.markdown(
-                '<p class="velox-section-title">Datos de verificación</p>',
-                unsafe_allow_html=True,
-            )
             if seccion_nombre:
-                st.caption(f"Curso / sección: **{seccion_nombre}**")
+                st.caption(f"Curso: **{seccion_nombre}**")
             st.text_input("Nombre", value=nombre, disabled=True, key=f"{key_prefix}_nombre_display")
 
             comprobante = st.file_uploader(
-                "📸 Adjunta la captura o foto de tu comprobante de pago",
+                "Comprobante (JPG)",
                 type=["jpg", "jpeg"],
                 key=f"{key_prefix}_comprobante_upload",
             )
@@ -2006,9 +2006,10 @@ def _render_yape_plim_section(seccion_id: str = "", key_prefix: str = "yape"):
                 key=f"{key_prefix}_celular",
             )
 
+            st.caption(MSG_YAPE_SUBIR_COMPROBANTE)
             puede_enviar = comprobante is not None and bool(str(celular or "").strip())
             if st.button(
-                "🚀 Enviar comprobante y solicitar desbloqueo",
+                "Enviar comprobante",
                 use_container_width=True,
                 type="primary",
                 key=f"{key_prefix}_btn_enviar",
@@ -2026,16 +2027,12 @@ def _render_yape_plim_section(seccion_id: str = "", key_prefix: str = "yape"):
                     progress.progress(100, text="Listo")
                     if exito:
                         st.session_state.pop("seccion_paywall", None)
-                        st.success(f"✅ {msg}")
+                        st.success(MSG_YAPE_COMPROBANTE_OK)
                         st.rerun()
                     else:
                         st.error(f"❌ {msg}")
                 except Exception as e:
                     st.error(f"❌ Error inesperado: {e}")
-            elif not comprobante:
-                st.caption("Adjunta tu captura JPEG para habilitar el envío.")
-            elif not str(celular or "").strip():
-                st.caption("Ingresa el celular de la operación para continuar.")
 
 
 def _render_registro_paso_password():
@@ -5087,6 +5084,16 @@ PLAN_COMPRA_MODAL_CSS = f"""
         line-height: 1.5;
         margin-top: 0.5rem;
     }}
+    .velox-yape-seguridad {{
+        text-align: center;
+        font-size: 0.86rem;
+        color: #334155;
+        line-height: 1.45;
+        margin-top: 0.5rem;
+    }}
+    .velox-yape-seguridad p {{
+        margin: 0.35rem 0;
+    }}
     .st-key-btn_plan_compra_confirmar .stButton > button {{
         background: {VELOX_PLAN_AZUL_PASTEL} !important;
         border: none !important;
@@ -5424,22 +5431,15 @@ def _dialog_adquirir_plan_cursos():
             st.image(YAPE_QR_PATH, width=220, caption="Yape / Plin")
         else:
             st.warning(f"QR no disponible (`{YAPE_QR_PATH}`)")
+        st.markdown(YAPE_QR_SEGURIDAD_HTML, unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
-        st.markdown(
-            """
-            <div class="velox-plan-inst">
-            Transfiere el <strong>monto exacto</strong> y conserva la captura (JPG, PNG o PDF).
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
     with col_upload:
         comprobante = st.file_uploader(
             "Comprobante de pago",
             type=["jpg", "jpeg", "png", "pdf"],
             key="plan_compra_comprobante",
-            help="Adjunta la captura de tu transferencia Yape o Plin.",
         )
+        st.caption(MSG_YAPE_SUBIR_COMPROBANTE)
 
     puede_enviar = seleccion_valida and comprobante is not None
     col_enviar, col_cerrar = st.columns([2, 1])
@@ -5461,7 +5461,7 @@ def _dialog_adquirir_plan_cursos():
                 )
             if ok:
                 _cerrar_dialog_plan_cursos()
-                st.session_state["plan_compra_exito_msg"] = msg
+                st.session_state["plan_compra_exito_msg"] = MSG_YAPE_COMPROBANTE_OK
                 st.session_state.pop("plan_compra_cursos_sel", None)
                 st.session_state.pop("plan_compra_comprobante", None)
                 _invalidar_cache_datos()

@@ -1974,81 +1974,25 @@ def inject_sidebar_theme():
     st.markdown(SIDEBAR_CSS, unsafe_allow_html=True)
 
 
-VELOX_LOADING_BRAND_CSS = f"""
+VELOX_LOADING_BRAND_CSS = """
 <style id="velox-loading-brand">
-    @keyframes velox-brand-spin {{
-        from {{ transform: rotate(0deg); }}
-        to {{ transform: rotate(360deg); }}
-    }}
-
-    /* Ocultar chrome nativo de Streamlit (Stop, menú ⋮, footer) */
+    header[data-testid="stHeader"],
     [data-testid="stStatusWidget"],
     .stStatusWidget,
     #MainMenu,
-    [data-testid="stMainMenu"],
-    footer,
-    .stApp footer {{
+    [data-testid="stMainMenu"] {
         display: none !important;
         visibility: hidden !important;
         height: 0 !important;
-        width: 0 !important;
-        overflow: hidden !important;
-        opacity: 0 !important;
-        pointer-events: none !important;
-    }}
+    }
 
-    /* st.spinner() — círculo CSS ultraligero + texto de marca */
-    .stApp [data-testid="stSpinner"] [data-testid="stSpinnerIcon"],
-    .stApp [data-testid="stSpinner"] svg,
-    .stApp [data-testid="stSpinner"] img {{
-        opacity: 0 !important;
-        width: 0 !important;
-        height: 0 !important;
-        visibility: hidden !important;
-        display: none !important;
-        pointer-events: none !important;
-    }}
-
-    .stApp [data-testid="stSpinner"] > div {{
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        gap: 0.65rem !important;
-    }}
-
-    .stApp [data-testid="stSpinner"] > div::before {{
-        content: "" !important;
-        flex-shrink: 0 !important;
-        display: block !important;
-        width: 22px !important;
-        height: 22px !important;
-        border: 2.5px solid rgba(0, 180, 216, 0.28) !important;
-        border-top-color: {VELOX_CIAN_MARCA} !important;
+    div[data-testid="stSpinner"] > div {
+        border: 3px solid rgba(255, 255, 255, 0.2) !important;
+        border-top-color: #00F2FE !important;
         border-radius: 50% !important;
-        animation: velox-brand-spin 0.75s linear infinite !important;
-    }}
-
-    .stApp [data-testid="stSpinner"] [data-testid="stMarkdownContainer"] p,
-    .stApp [data-testid="stSpinner"] [data-testid="stMarkdownContainer"] {{
-        color: {VELOX_VERDE_OSCURO} !important;
-        font-weight: 600 !important;
-    }}
-
-    /* Indicador fijo discreto mientras hay un st.spinner activo */
-    .stApp:has([data-testid="stSpinner"])::before {{
-        content: "" !important;
-        position: fixed !important;
-        top: 14px !important;
-        right: 16px !important;
-        width: 20px !important;
-        height: 20px !important;
-        border: 2.5px solid rgba(0, 180, 216, 0.28) !important;
-        border-top-color: {VELOX_CIAN_MARCA} !important;
-        border-radius: 50% !important;
-        animation: velox-brand-spin 0.75s linear infinite !important;
-        z-index: 999998 !important;
-        pointer-events: none !important;
-    }}
+        width: 36px !important;
+        height: 36px !important;
+    }
 </style>
 """
 

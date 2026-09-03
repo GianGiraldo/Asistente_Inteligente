@@ -915,7 +915,7 @@ def _build_velox_auth_dark_portal_css() -> str:
 
     .velox-auth-tagline,
     .velox-brand-stack .velox-tagline--center {{
-        color: #F8FAFC !important;
+        color: #E2E8F0 !important;
         font-size: 0.92rem !important;
         line-height: 1.5 !important;
         max-width: 22rem;
@@ -923,13 +923,14 @@ def _build_velox_auth_dark_portal_css() -> str:
         text-align: center !important;
     }}
 
-    .stApp:has(.velox-id-bar) .velox-auth-field-label {{
+    .stApp:has(.velox-id-bar) .velox-auth-field-label,
+    .stApp:has(.velox-auth-brand) .velox-auth-field-label {{
         display: block;
         margin: 0.65rem 0 0.35rem;
         font-size: 0.72rem;
         font-weight: 700;
         letter-spacing: 0.1em;
-        color: rgba(255, 255, 255, 0.82);
+        color: #FFFFFF !important;
         text-transform: uppercase;
     }}
 
@@ -971,13 +972,13 @@ def _build_velox_auth_dark_portal_css() -> str:
     }}
 
     .velox-auth-register-prompt {{
-        color: #F8FAFC !important;
+        color: #CBD5E1 !important;
         font-size: 0.88rem;
         margin: 0 0 0.45rem;
     }}
 
     .velox-login-recordarme-label {{
-        color: #F8FAFC !important;
+        color: #FFFFFF !important;
         font-size: 0.9rem !important;
         font-weight: 500 !important;
         line-height: 1.2 !important;
@@ -986,12 +987,40 @@ def _build_velox_auth_dark_portal_css() -> str:
         white-space: nowrap;
     }}
 
-    .stApp:has(.velox-id-bar) .st-key-login_recordarme_wrap,
-    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_wrap {{
-        display: flex !important;
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_row [data-testid="stHorizontalBlock"],
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row [data-testid="stHorizontalBlock"] {{
         align-items: center !important;
-        gap: 0.55rem !important;
+    }}
+
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_row div[data-testid="column"]:last-child,
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row div[data-testid="column"]:last-child,
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_row div[data-testid="stColumn"]:last-child,
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row div[data-testid="stColumn"]:last-child {{
+        display: flex !important;
+        justify-content: flex-end !important;
+        align-items: center !important;
+    }}
+
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_wrap [data-testid="stVerticalBlock"],
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_wrap [data-testid="stVerticalBlock"] {{
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        gap: 0.5rem !important;
         min-height: 2.4rem;
+    }}
+
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_wrap [data-testid="stElementContainer"],
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_wrap [data-testid="stElementContainer"] {{
+        width: auto !important;
+        flex: 0 0 auto !important;
+    }}
+
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_wrap [data-testid="stToggle"],
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_wrap [data-testid="stToggle"] {{
+        margin: 0 !important;
+        padding: 0 !important;
     }}
 
     .stApp:has(.velox-id-bar) .st-key-login_recordarme_wrap [data-testid="stToggle"] label,
@@ -1006,6 +1035,7 @@ def _build_velox_auth_dark_portal_css() -> str:
         height: 0 !important;
         overflow: hidden !important;
         opacity: 0 !important;
+        pointer-events: none !important;
     }}
 
     .stApp:has(.velox-id-bar) .st-key-btn_registrarme_portal .stButton > button,
@@ -1785,17 +1815,18 @@ def render_tab_login_portal():
         placeholder="Ingresa tu contraseña",
     )
 
-    recordarme_col, forgot_col = st.columns([3, 1], vertical_alignment="center")
-    with recordarme_col:
-        with st.container(key="login_recordarme_wrap"):
-            st.markdown(
-                '<span class="velox-login-recordarme-label">Recordarme</span>',
-                unsafe_allow_html=True,
-            )
-            st.toggle("Recordarme", key="login_recordarme", label_visibility="collapsed")
-    with forgot_col:
-        if st.button("¿Olvidaste tu contraseña?", key="btn_olvido_password"):
-            _dialog_recuperar_password()
+    with st.container(key="login_recordarme_row"):
+        recordarme_col, forgot_col = st.columns([3, 1], vertical_alignment="center")
+        with recordarme_col:
+            with st.container(key="login_recordarme_wrap"):
+                st.toggle(" ", key="login_recordarme", label_visibility="collapsed")
+                st.markdown(
+                    '<span class="velox-login-recordarme-label">Recordarme</span>',
+                    unsafe_allow_html=True,
+                )
+        with forgot_col:
+            if st.button("¿Olvidaste tu contraseña?", key="btn_olvido_password"):
+                _dialog_recuperar_password()
 
     if st.session_state.get("login_recordarme") and st.session_state.get("login_email"):
         st.session_state.login_email_saved = st.session_state.login_email.strip()

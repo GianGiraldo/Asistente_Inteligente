@@ -331,8 +331,7 @@ def _invalidar_cache_datos():
         cached_contar_consultas_no_leidas.clear()
         cached_contar_pagos_pendientes.clear()
         cached_contar_consultas_soporte_master.clear()
-        cached_contar_notificaciones_no_leidas.clear()
-        cached_obtener_ultimas_notificaciones.clear()
+        cached_obtener_notificaciones_no_leidas.clear()
         cached_obtener_consultas_pendientes_master.clear()
         cached_obtener_consultas_respondidas_master.clear()
         cached_obtener_historial_consultas_usuario.clear()
@@ -434,19 +433,9 @@ def cached_contar_consultas_soporte_master(data_cache_version: int = 0) -> int:
 
 
 @st.cache_data(show_spinner=False, ttl=300)
-def cached_contar_notificaciones_no_leidas(email: str, data_cache_version: int = 0) -> int:
+def cached_obtener_notificaciones_no_leidas(email: str, data_cache_version: int = 0):
     _, _, notifications, _ = init_data_managers()
-    return notifications.contar_no_leidas(email)
-
-
-@st.cache_data(show_spinner=False, ttl=300)
-def cached_obtener_ultimas_notificaciones(
-    email: str,
-    limite: int,
-    data_cache_version: int = 0,
-):
-    _, _, notifications, _ = init_data_managers()
-    return notifications.obtener_ultimas_no_leidas(email, limite=limite)
+    return notifications.obtener_notificaciones_no_leidas(email)
 
 
 @st.cache_data(show_spinner=False, ttl=300)
@@ -4786,6 +4775,39 @@ def _seccion_desde_notificacion(notif):
     return normalizar_seccion(metadata.get("seccion"))
 
 
+def _notificacion_accesible_para_usuario(notif: dict, secciones_permitidas: frozenset) -> bool:
+    """Avisos con sección solo si el usuario tiene acceso activo a ese curso."""
+    seccion = _seccion_desde_notificacion(notif)
+    if not seccion:
+        return True
+    return _resolver_seccion_id(seccion) in secciones_permitidas
+
+
+def _filtrar_notificaciones_por_acceso_usuario(notificaciones: list) -> list:
+    if _es_staff():
+        return list(notificaciones or [])
+    permitidas = frozenset(_secciones_efectivas())
+    if not permitidas:
+        return []
+    return [
+        n for n in (notificaciones or [])
+        if _notificacion_accesible_para_usuario(n, permitidas)
+    ]
+
+
+def _obtener_notificaciones_visibles_usuario(usuario: str, limite: int | None = None) -> list:
+    cache_v = _velox_data_cache_version()
+    todas = cached_obtener_notificaciones_no_leidas(usuario, data_cache_version=cache_v)
+    visibles = _filtrar_notificaciones_por_acceso_usuario(todas)
+    if limite is None:
+        return visibles
+    limite_seguro = max(1, min(int(limite or LIMITE_NOTIFICACIONES_CAMPANA), 8))
+    return visibles[:limite_seguro]
+
+
+MASTER_CATEGORIA_PUBLICACION_FIJA = "Formatos y Plantillas"
+
+
 def abrir_notificacion(
     notificacion_id,
     seccion,
@@ -4795,8 +4817,8 @@ def abrir_notificacion(
 ):
     notification_manager.marcar_como_leida(notificacion_id, st.session_state["usuario"])
     _invalidar_cache_datos()
-    st.session_state["menu_principal"] = "📁 Mis Documentos"
-    seccion_norm = normalizar_seccion(seccion) if seccion else None
+    st.session_state["menu_principal"] = AuthManager.MODULO_DOCUMENTOS
+    seccion_norm = _resolver_seccion_id(normalizar_seccion(seccion)) if seccion else None
     st.session_state.seccion_activa = seccion_norm or "inicio"
     if seccion_norm:
         st.session_state["seccion_seleccionada_documentos"] = seccion_norm
@@ -4806,11 +4828,11 @@ def abrir_notificacion(
         st.session_state["buscador_mis_docs"] = nombre_busqueda
     if publicacion_id:
         st.session_state["notif_redirect_publicacion_id"] = publicacion_id
+    st.rerun()
 
 def render_campana_notificaciones():
     usuario = st.session_state["usuario"]
-    cache_v = _velox_data_cache_version()
-    no_leidas = cached_contar_notificaciones_no_leidas(usuario, data_cache_version=cache_v)
+    no_leidas = len(_obtener_notificaciones_visibles_usuario(usuario))
     badge_text = str(no_leidas) if no_leidas < 100 else "99+"
 
     st.markdown("""
@@ -4897,13 +4919,11 @@ def render_campana_notificaciones():
 
 @st.fragment
 def _fragment_campana_notificaciones_lista(usuario: str):
-    cache_v = _velox_data_cache_version()
     st.markdown('<p class="notif-panel-title">Notificaciones</p>', unsafe_allow_html=True)
     st.caption("Publicaciones pendientes de leer")
-    notificaciones = cached_obtener_ultimas_notificaciones(
+    notificaciones = _obtener_notificaciones_visibles_usuario(
         usuario,
         LIMITE_NOTIFICACIONES_CAMPANA,
-        data_cache_version=cache_v,
     )
 
     if not notificaciones:
@@ -4914,7 +4934,8 @@ def _fragment_campana_notificaciones_lista(usuario: str):
         metadata = _parsear_metadata_notif(notif.get("metadata"))
         seccion = _seccion_desde_notificacion(notif)
         categoria = metadata.get("subcategoria") or metadata.get("categoria") or "General"
-        seccion_nombre = SECCIONES.get(seccion, {}).get("nombre", seccion.capitalize() if seccion else "General")
+        seccion_id = _resolver_seccion_id(seccion) if seccion else ""
+        seccion_nombre = SECCIONES.get(seccion_id, {}).get("nombre", seccion.capitalize() if seccion else "General")
         fecha_str = _formatear_fecha_notif(notif.get("fecha_creacion"))
         titulo = notif.get("titulo", "Nueva publicación")
         mensaje = notif.get("mensaje", "")
@@ -6030,11 +6051,21 @@ else:
                         key=f"form_pub_{seccion_seleccionada}",
                         clear_on_submit=True,
                     ):
-                        categoria_publicar = st.selectbox(
-                            "Categoría de destino",
-                            options=subcategorias_disponibles,
-                            key=f"mis_docs_pub_categoria_{seccion_seleccionada}",
-                        )
+                        if _es_master():
+                            st.markdown("**Categoría de destino**")
+                            st.markdown(
+                                '<p style="font-weight:700;letter-spacing:0.06em;'
+                                'color:#1e2a3e;margin:0.15rem 0 0.75rem 0;">'
+                                "FORMATOS Y PLANTILLAS</p>",
+                                unsafe_allow_html=True,
+                            )
+                            categoria_publicar = MASTER_CATEGORIA_PUBLICACION_FIJA
+                        else:
+                            categoria_publicar = st.selectbox(
+                                "Categoría de destino",
+                                options=subcategorias_disponibles,
+                                key=f"mis_docs_pub_categoria_{seccion_seleccionada}",
+                            )
                         archivo_pub = st.file_uploader(
                             "Seleccionar archivo",
                             type=["pdf", "xlsx", "xls", "docx", "doc"],

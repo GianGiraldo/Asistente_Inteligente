@@ -4795,7 +4795,7 @@ def _filtrar_notificaciones_por_acceso_usuario(notificaciones: list) -> list:
     ]
 
 
-def _obtener_notificaciones_visibles_usuario(usuario: str, limite: int | None = None) -> list:
+def _obtener_notificaciones_visibles_usuario(usuario: str, limite: Optional[int] = None) -> list:
     cache_v = _velox_data_cache_version()
     todas = cached_obtener_notificaciones_no_leidas(usuario, data_cache_version=cache_v)
     visibles = _filtrar_notificaciones_por_acceso_usuario(todas)

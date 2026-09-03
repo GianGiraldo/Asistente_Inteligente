@@ -28,10 +28,4 @@ USER appuser
 
 EXPOSE 8080
 
-CMD ["streamlit", "run", "app.py", \
-     "--server.port=8080", \
-     "--server.address=0.0.0.0", \
-     "--server.headless=true", \
-     "--browser.gatherUsageStats=false", \
-     "--server.enableCORS=false", \
-     "--server.enableXsrfProtection=false"]
+CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT:-8080} --proxy-headers --forwarded-allow-ips '*'"]

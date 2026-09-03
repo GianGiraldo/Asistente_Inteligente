@@ -18,9 +18,7 @@ def _resolve_supabase_credentials() -> tuple[str, str]:
     return url, key
 
 
-@st.cache_resource
-def get_supabase() -> Client:
-    url, key = _resolve_supabase_credentials()
+def _build_supabase_client(url: str, key: str) -> Client:
     try:
         from supabase.lib.client_options import ClientOptions
 
@@ -31,3 +29,20 @@ def get_supabase() -> Client:
         )
     except Exception:
         return create_client(url, key)
+
+
+def get_supabase_server() -> Client:
+    """Cliente Supabase para procesos sin runtime Streamlit (p. ej. webhooks FastAPI)."""
+    url = (os.getenv("SUPABASE_URL") or "").strip()
+    key = (os.getenv("SUPABASE_KEY") or "").strip()
+    if not url or not key:
+        raise RuntimeError(
+            "SUPABASE_URL y SUPABASE_KEY deben estar definidos en variables de entorno."
+        )
+    return _build_supabase_client(url, key)
+
+
+@st.cache_resource
+def get_supabase() -> Client:
+    url, key = _resolve_supabase_credentials()
+    return _build_supabase_client(url, key)

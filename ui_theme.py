@@ -404,6 +404,22 @@ VELOX_ULTRA_COMPACT_LAYOUT_CSS = """
         min-height: 0 !important;
     }
 
+    .stApp:not(:has(.velox-id-bar)) section[data-testid="stSidebar"] [data-testid="stSidebarCollapse"] svg,
+    .stApp:not(:has(.velox-id-bar)) section[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] svg,
+    .stApp:not(:has(.velox-id-bar)) section[data-testid="stSidebar"] [data-testid="stSidebarCollapse"] [data-testid="stIconMaterial"],
+    .stApp:not(:has(.velox-id-bar)) section[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] [data-testid="stIconMaterial"] {
+        fill: #FFFFFF !important;
+        color: #FFFFFF !important;
+        width: 20px !important;
+        height: 20px !important;
+        font-size: 1.3rem !important;
+    }
+
+    .stApp:not(:has(.velox-id-bar)) section[data-testid="stSidebar"] [data-testid="stSidebarCollapse"] button,
+    .stApp:not(:has(.velox-id-bar)) section[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] button {
+        color: #FFFFFF !important;
+    }
+
     /* Header: altura cero cuando sidebar abierto; visible al colapsar */
     .stApp:not(:has(.velox-id-bar)):has(section[data-testid="stSidebar"][aria-expanded="true"]) [data-testid="stHeader"] {
         background-color: transparent !important;

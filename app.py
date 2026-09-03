@@ -903,8 +903,11 @@ def _build_velox_auth_dark_portal_css() -> str:
         font-size: 2.15rem;
         font-weight: 800;
         letter-spacing: 0.06em;
-        color: #FFFFFF;
         line-height: 1.1;
+    }}
+
+    .velox-auth-wordmark-velo {{
+        color: #E2F1FF !important;
     }}
 
     .velox-auth-wordmark-x {{
@@ -914,7 +917,7 @@ def _build_velox_auth_dark_portal_css() -> str:
 
     .velox-auth-tagline,
     .velox-brand-stack .velox-tagline--center {{
-        color: rgba(255, 255, 255, 0.88) !important;
+        color: #E2F1FF !important;
         font-size: 0.92rem !important;
         line-height: 1.5 !important;
         max-width: 22rem;
@@ -970,7 +973,7 @@ def _build_velox_auth_dark_portal_css() -> str:
     }}
 
     .velox-auth-register-prompt {{
-        color: rgba(255, 255, 255, 0.78);
+        color: #E2F1FF !important;
         font-size: 0.88rem;
         margin: 0 0 0.45rem;
     }}
@@ -1014,8 +1017,11 @@ def _build_velox_auth_dark_portal_css() -> str:
 
     .stApp:has(.velox-id-bar) [data-testid="stToggle"] label,
     .stApp:has(.velox-id-bar) [data-testid="stToggle"] label p,
-    .stApp:has(.velox-id-bar) [data-testid="stToggle"] label span {{
-        color: rgba(255, 255, 255, 0.78) !important;
+    .stApp:has(.velox-id-bar) [data-testid="stToggle"] label span,
+    .stApp:has(.velox-auth-brand) [data-testid="stToggle"] label,
+    .stApp:has(.velox-auth-brand) [data-testid="stToggle"] label p,
+    .stApp:has(.velox-auth-brand) [data-testid="stToggle"] label span {{
+        color: #E2F1FF !important;
     }}
 
     .stApp:has(.velox-id-bar) .google-btn-wrap a {{
@@ -1442,7 +1448,8 @@ def render_velox_brand_header():
         )
     st.markdown(
         f'<div class="velox-auth-brand">{icon_html}'
-        f'<p class="velox-auth-wordmark">velo<span class="velox-auth-wordmark-x">X</span></p>'
+        f'<p class="velox-auth-wordmark"><span class="velox-auth-wordmark-velo">velo</span>'
+        f'<span class="velox-auth-wordmark-x">X</span></p>'
         f"</div>",
         unsafe_allow_html=True,
     )
@@ -4565,6 +4572,43 @@ def _html_celda_documento_compacto(meta):
     return f'<p class="velox-doc-row__name document-row-title">{nombre}</p>'
 
 
+def _solicitar_eliminar_publicacion(pub_id: str):
+    st.session_state["velox_confirm_del_pub_id"] = pub_id
+
+
+def _cancelar_eliminar_publicacion():
+    st.session_state.pop("velox_confirm_del_pub_id", None)
+
+
+@st.dialog("Eliminar documento")
+def _dialog_confirmar_eliminar_publicacion():
+    pub_id = st.session_state.get("velox_confirm_del_pub_id", "")
+    st.markdown("¿Estás seguro de eliminar este documento?")
+    col_si, col_no = st.columns(2)
+    with col_si:
+        if st.button("Sí", type="primary", use_container_width=True, key="velox_del_pub_si"):
+            try:
+                exito, msg = storage_manager.eliminar_publicacion(pub_id)
+                if exito:
+                    st.session_state.pop(f"editando_{pub_id}", None)
+                    _invalidar_cache_datos()
+                    _cancelar_eliminar_publicacion()
+                    st.rerun()
+                else:
+                    st.error(f"❌ {msg}")
+            except Exception as err:
+                st.error(f"❌ Error al eliminar: {err}")
+    with col_no:
+        if st.button("No", use_container_width=True, key="velox_del_pub_no"):
+            _cancelar_eliminar_publicacion()
+            st.rerun()
+
+
+def _abrir_dialog_eliminar_publicacion_si_pendiente():
+    if st.session_state.get("velox_confirm_del_pub_id"):
+        _dialog_confirmar_eliminar_publicacion()
+
+
 def _render_fila_documento_publicacion(pub, meta, seccion_seleccionada, secciones_usuario, indice, es_master):
     if es_master:
         cols = st.columns([0.35, 4.5, 1.2, 0.75, 0.65, 0.65])
@@ -4600,17 +4644,13 @@ def _render_fila_documento_publicacion(pub, meta, seccion_seleccionada, seccione
                 st.session_state[f"editando_{pub['id']}"] = True
                 st.rerun()
         with cols[5]:
-            if st.button("🗑️", key=f"del_{pub['id']}_{indice}", help="Eliminar"):
-                try:
-                    exito, msg = storage_manager.eliminar_publicacion(pub["id"])
-                    if exito:
-                        st.session_state.pop(f"editando_{pub['id']}", None)
-                        _invalidar_cache_datos()
-                        st.rerun()
-                    else:
-                        st.error(f"❌ {msg}")
-                except Exception as err:
-                    st.error(f"❌ Error al eliminar: {err}")
+            st.button(
+                "🗑️",
+                key=f"del_{pub['id']}_{indice}",
+                help="Eliminar",
+                on_click=_solicitar_eliminar_publicacion,
+                kwargs={"pub_id": pub["id"]},
+            )
 
     if es_master and st.session_state.get(f"editando_{pub['id']}", False):
         nueva_desc = st.text_area(
@@ -4739,6 +4779,8 @@ def _render_bloque_publicaciones_compacto(
         mensaje_vacio=mensaje_vacio,
         es_master=_es_master(),
     )
+    if _es_master():
+        _abrir_dialog_eliminar_publicacion_si_pendiente()
 
 
 def _actualizar_catalogo_chatbot_seccion(seccion_info, seccion_id, secciones_usuario):

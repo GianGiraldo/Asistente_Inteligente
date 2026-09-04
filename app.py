@@ -4320,6 +4320,26 @@ def _fragment_consultas_staff_pendientes():
 
 @st.fragment
 def _fragment_consultas_usuario_form():
+    st.markdown(
+        """
+        <style>
+        .st-key-btn_enviar_consulta_usuario .stButton > button,
+        .st-key-btn_enviar_consulta_usuario .stButton > button p,
+        .st-key-btn_enviar_consulta_usuario .stButton > button span,
+        .st-key-btn_enviar_consulta_usuario [data-testid="stBaseButton-primary"] button,
+        .st-key-btn_enviar_consulta_usuario [data-testid="stBaseButton-primary"] button p,
+        .st-key-btn_enviar_consulta_usuario [data-testid="stBaseButton-primary"] button span {
+            color: #FFFFFF !important;
+            font-weight: 700 !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if st.session_state.pop("consulta_enviada_ok", False):
+        st.success("Mensaje enviado!")
+
     secciones_usuario = cached_obtener_secciones_usuario(
         st.session_state["usuario"],
         data_cache_version=_velox_data_cache_version(),
@@ -4335,6 +4355,7 @@ def _fragment_consultas_usuario_form():
                 "Tu consulta",
                 height=150,
                 placeholder="Escribe tu pregunta aquí...",
+                key="input_consulta_usuario",
             )
             if st.button("Enviar consulta", type="primary", key="btn_enviar_consulta_usuario"):
                 if mensaje.strip():
@@ -4346,7 +4367,8 @@ def _fragment_consultas_usuario_form():
                     )
                     if exito:
                         _invalidar_cache_datos()
-                        st.success(texto)
+                        st.session_state["input_consulta_usuario"] = ""
+                        st.session_state["consulta_enviada_ok"] = True
                         _rerun_velox(scope_fragment=True)
                     else:
                         st.error(texto)

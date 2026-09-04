@@ -3929,29 +3929,62 @@ def activar_seccion_inicio(seccion_id):
 def volver_al_inicio():
     st.session_state.seccion_activa = "inicio"
 
+def _parse_fecha_utc_ui(fecha_raw) -> Optional[datetime]:
+    """Interpreta fechas Supabase/ISO como UTC para mostrarlas en America/Lima."""
+    if fecha_raw is None or fecha_raw == "":
+        return None
+    if isinstance(fecha_raw, datetime):
+        dt = fecha_raw
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=ZoneInfo("UTC"))
+        return dt
+    if isinstance(fecha_raw, (int, float)):
+        ts = float(fecha_raw)
+        if ts > 1e12:
+            ts /= 1000.0
+        return datetime.fromtimestamp(ts, tz=ZoneInfo("UTC"))
+
+    texto = str(fecha_raw).strip()
+    if not texto:
+        return None
+
+    normalizado = texto.replace("Z", "+00:00")
+    if "T" not in normalizado and " " in normalizado:
+        normalizado = normalizado.replace(" ", "T", 1)
+    if re.search(r"[+-]\d{2}$", normalizado):
+        normalizado = f"{normalizado}:00"
+
+    try:
+        dt = datetime.fromisoformat(normalizado)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+        return dt
+    except (ValueError, TypeError):
+        pass
+
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            dt = datetime.strptime(texto[:19], fmt)
+            return dt.replace(tzinfo=ZoneInfo("UTC"))
+        except ValueError:
+            continue
+    return None
+
+
 def _formatear_fecha_notif(fecha_raw):
     if not fecha_raw:
         return "Fecha desconocida"
-    try:
-        from message_manager import MessageManager
-
-        return MessageManager.formatear_fecha_lima(fecha_raw)
-    except Exception:
-        try:
-            texto = str(fecha_raw).replace("Z", "+00:00")
-            dt = datetime.fromisoformat(texto)
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=ZoneInfo("UTC"))
-            return dt.astimezone(ZoneInfo("America/Lima")).strftime("%d/%m/%Y %H:%M")
-        except (ValueError, TypeError):
-            return str(fecha_raw)[:16].replace("T", " ")
+    dt = _parse_fecha_utc_ui(fecha_raw)
+    if dt is None:
+        return "Sin fecha"
+    return dt.astimezone(ZoneInfo("America/Lima")).strftime("%d/%m/%Y %H:%M")
 
 
 def _formatear_fecha_consulta(msg_or_fecha) -> str:
     if isinstance(msg_or_fecha, dict):
         fecha_raw = (
-            msg_or_fecha.get("fecha")
-            or msg_or_fecha.get("created_at")
+            msg_or_fecha.get("created_at")
+            or msg_or_fecha.get("fecha")
             or msg_or_fecha.get("fecha_respuesta")
         )
     else:

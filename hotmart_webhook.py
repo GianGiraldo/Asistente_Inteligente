@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+import secrets
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -167,15 +168,23 @@ def _asegurar_usuario(
         return True, "usuario_existente"
 
     display = (nombre or email.split("@")[0]).strip() or email.split("@")[0]
+    temp_password = secrets.token_urlsafe(16)
+    password_hash, salt = bridge._hash_password(temp_password)
     data = {
         "email": email,
+        "password": password_hash,
+        "password_salt": salt,
         "nombre": display,
         "rol": "usuario",
         "secciones": ["excel"],
         "creado": datetime.now().isoformat(),
         "activo": False,
         "pago_confirmado": False,
-        "perfil": {"origen_registro": "hotmart_webhook"},
+        "perfil": {
+            "origen_registro": "hotmart_webhook",
+            "velox_password_temp": True,
+            "velox_password_configured": False,
+        },
     }
     try:
         result = bridge.supabase.table("users").insert(data).execute()

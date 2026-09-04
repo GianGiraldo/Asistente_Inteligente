@@ -19,16 +19,7 @@ def _resolve_supabase_credentials() -> tuple[str, str]:
 
 
 def _build_supabase_client(url: str, key: str) -> Client:
-    try:
-        from supabase.lib.client_options import ClientOptions
-
-        return create_client(
-            url,
-            key,
-            options=ClientOptions(flow_type="pkce"),
-        )
-    except Exception:
-        return create_client(url, key)
+    return create_client(url, key)
 
 
 def get_supabase_server() -> Client:

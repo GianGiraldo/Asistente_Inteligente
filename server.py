@@ -125,9 +125,20 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="veloX API", lifespan=lifespan)
 
+WEBHOOK_PATH = "/api/v1/hotmart-webhook"
 
-@app.post("/api/v1/hotmart-webhook")
-async def hotmart_webhook(
+
+@app.get(WEBHOOK_PATH, include_in_schema=True)
+async def hotmart_webhook_get():
+    """Ping de verificación Hotmart (evita 405 Method Not Allowed)."""
+    return JSONResponse(
+        content={"status": "ok", "message": "Webhook endpoint is active"},
+        status_code=200,
+    )
+
+
+@app.post(WEBHOOK_PATH, include_in_schema=True)
+async def hotmart_webhook_post(
     request: Request,
     x_hotmart_hottok: Optional[str] = Header(default=None, alias="X-Hotmart-Hottok"),
 ):
@@ -149,10 +160,14 @@ async def hotmart_webhook(
     if not isinstance(payload, dict):
         raise HTTPException(status_code=400, detail="Payload must be a JSON object")
 
+    event = str(payload.get("event") or "").strip().upper()
     ok, message = process_hotmart_webhook(payload)
     if not ok:
-        logger.warning("Hotmart webhook rechazado: %s", message)
+        logger.warning("Hotmart webhook rechazado (event=%s): %s", event or "?", message)
         raise HTTPException(status_code=422, detail=message)
+
+    if event == "PURCHASE_APPROVED":
+        logger.info("Hotmart PURCHASE_APPROVED procesado correctamente")
 
     return JSONResponse(content={"status": "ok"}, status_code=200)
 
@@ -163,6 +178,12 @@ async def hotmart_webhook(
     include_in_schema=False,
 )
 async def proxy_streamlit(request: Request, full_path: str) -> Response:
+    if full_path.rstrip("/") == WEBHOOK_PATH.lstrip("/"):
+        raise HTTPException(
+            status_code=405,
+            detail="Use GET or POST on /api/v1/hotmart-webhook",
+        )
+
     if http_client is None:
         raise HTTPException(status_code=503, detail="Streamlit proxy not ready")
 

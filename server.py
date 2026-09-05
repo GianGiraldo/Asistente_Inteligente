@@ -241,17 +241,16 @@ async def health_check():
 
 @app.middleware("http")
 async def streamlit_proxy_guard(request: Request, call_next):
-    path = request.url.path
+    path = request.url.path.lower()
 
-    # 1. Si es cualquier ruta de la API o documentación, NUNCA la envíes a Streamlit
-    if _is_fastapi_reserved_path(path):
+    # 1. Aislamiento estricto: Rutas API y de sistema nunca pasan por el proxy
+    if path.startswith("/api") or path in ("/health", "/docs", "/redoc", "/openapi.json"):
         return await call_next(request)
 
-    # 2. Si no es GET ni HEAD (y no es API), responder con 405 directo de FastAPI o dejar pasar a FastAPI
+    # 2. Proxy de Streamlit para tráfico web convencional
     if request.method not in ("GET", "HEAD"):
-        return await call_next(request)
+        return await _proxy_request_to_streamlit(request)
 
-    # 3. Solo las peticiones GET/HEAD de la interfaz se delegan a Streamlit
     return await call_next(request)
 
 

@@ -251,11 +251,7 @@ def _ensure_streamlit_secrets() -> None:
     supabase_key = (
         (os.getenv("SUPABASE_ANON_KEY") or os.getenv("SUPABASE_KEY") or "").strip()
     )
-    base_url = (
-        os.getenv("VELOX_BASE_URL")
-        or os.getenv("APP_BASE_URL")
-        or "https://velox-727827073430.us-central1.run.app"
-    ).strip()
+    base_url = _public_app_url()
 
     lines = [
         "[supabase]",
@@ -284,6 +280,42 @@ def _ensure_streamlit_secrets() -> None:
     logger.info("secrets.toml generado para Streamlit")
 
 
+def _public_app_url() -> str:
+    return (
+        os.getenv("VELOX_BASE_URL")
+        or os.getenv("APP_BASE_URL")
+        or "https://velox-727827073430.us-central1.run.app"
+    ).strip()
+
+
+def _ensure_streamlit_config() -> None:
+    """Configura URL pública para CORS/WebSocket detrás del proxy Cloud Run."""
+    from urllib.parse import urlparse
+
+    secrets_dir = os.path.join(os.getcwd(), ".streamlit")
+    os.makedirs(secrets_dir, exist_ok=True)
+    config_path = os.path.join(secrets_dir, "config.toml")
+
+    parsed = urlparse(_public_app_url())
+    host = parsed.hostname or "velox-727827073430.us-central1.run.app"
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+
+    content = f"""[server]
+headless = true
+enableCORS = false
+enableXsrfProtection = false
+enableWebsocketCompression = false
+
+[browser]
+gatherUsageStats = false
+serverAddress = "{host}"
+serverPort = {port}
+"""
+    with open(config_path, "w", encoding="utf-8") as fh:
+        fh.write(content)
+    logger.info("config.toml Streamlit → %s:%s", host, port)
+
+
 def _streamlit_cmd() -> list[str]:
     return [
         sys.executable,
@@ -297,6 +329,7 @@ def _streamlit_cmd() -> list[str]:
         "--browser.gatherUsageStats=false",
         "--server.enableCORS=false",
         "--server.enableXsrfProtection=false",
+        "--server.enableWebsocketCompression=false",
     ]
 
 
@@ -316,6 +349,7 @@ async def _bootstrap_streamlit() -> None:
     import time
 
     logger.info("Bootstrap Streamlit en %s:%s (background)", STREAMLIT_HOST, STREAMLIT_PORT)
+    _ensure_streamlit_config()
     _ensure_streamlit_secrets()
     streamlit_proc = subprocess.Popen(
         _streamlit_cmd(),
@@ -353,6 +387,11 @@ async def _bootstrap_streamlit() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if os.getenv("NGINX_PROXY") == "1":
+        logger.info("NGINX_PROXY=1: API en :8502; UI vía nginx → Streamlit :8501")
+        yield
+        return
+
     bootstrap_task = asyncio.create_task(_bootstrap_streamlit())
     logger.info("FastAPI API lista en puerto %s (Streamlit en background)", PORT)
     try:
@@ -422,10 +461,14 @@ app.include_router(api_router)
 
 @app.get("/health", tags=["system"])
 async def health_check():
+    ready = streamlit_ready
+    if os.getenv("NGINX_PROXY") == "1":
+        ready = await _probe_streamlit_health()
     return {
         "status": "ok",
         "service": "velox-api",
-        "streamlit_ready": streamlit_ready,
+        "streamlit_ready": ready,
+        "mode": "nginx" if os.getenv("NGINX_PROXY") == "1" else "proxy",
     }
 
 

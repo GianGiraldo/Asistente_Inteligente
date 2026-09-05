@@ -23,10 +23,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 RUN useradd --create-home --shell /bin/bash --uid 1000 appuser \
-    && chown -R appuser:appuser /app \
-    && chmod +x /app/start.sh
+    && chown -R appuser:appuser /app
 USER appuser
 
 EXPOSE 8080
 
-CMD ["./start.sh"]
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8080", "--proxy-headers", "--forwarded-allow-ips", "*"]

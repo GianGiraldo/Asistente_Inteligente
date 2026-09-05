@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 from typing import Dict, Iterable, Optional
 
 import httpx
-from fastapi import FastAPI, Header, HTTPException, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
@@ -126,24 +126,35 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="veloX API", lifespan=lifespan)
 
 WEBHOOK_PATH = "/api/v1/hotmart-webhook"
+WEBHOOK_ALLOW_METHODS = "GET, POST, HEAD, OPTIONS"
+WEBHOOK_PING_BODY = {
+    "status": "ok",
+    "message": "Webhook endpoint is active",
+}
 
 
-@app.get(WEBHOOK_PATH, include_in_schema=True)
-async def hotmart_webhook_get():
-    """Ping de verificación Hotmart (evita 405 Method Not Allowed)."""
-    return JSONResponse(
-        content={"status": "ok", "message": "Webhook endpoint is active"},
+def _webhook_ping_response() -> JSONResponse:
+    return JSONResponse(content=WEBHOOK_PING_BODY, status_code=200)
+
+
+def _webhook_options_response() -> Response:
+    return Response(
         status_code=200,
+        headers={
+            "Allow": WEBHOOK_ALLOW_METHODS,
+            "Access-Control-Allow-Methods": WEBHOOK_ALLOW_METHODS,
+            "Access-Control-Allow-Headers": "Content-Type, X-Hotmart-Hottok, X-HOTMART-HOTTOK",
+        },
     )
 
 
-@app.post(WEBHOOK_PATH, include_in_schema=True)
-async def hotmart_webhook_post(
-    request: Request,
-    x_hotmart_hottok: Optional[str] = Header(default=None, alias="X-Hotmart-Hottok"),
-):
+async def _handle_hotmart_webhook_post(request: Request) -> JSONResponse:
     secret = (os.getenv("HOTMART_WEBHOOK_SECRET") or "").strip()
-    token = (x_hotmart_hottok or request.headers.get("X-Hotmart-Hottok") or "").strip()
+    token = (
+        request.headers.get("X-Hotmart-Hottok")
+        or request.headers.get("X-HOTMART-HOTTOK")
+        or ""
+    ).strip()
 
     if not secret:
         logger.error("HOTMART_WEBHOOK_SECRET no configurado")
@@ -172,17 +183,36 @@ async def hotmart_webhook_post(
     return JSONResponse(content={"status": "ok"}, status_code=200)
 
 
+@app.api_route(WEBHOOK_PATH, methods=["GET", "HEAD", "OPTIONS"], include_in_schema=True)
+@app.api_route(f"{WEBHOOK_PATH}/", methods=["GET", "HEAD", "OPTIONS"], include_in_schema=False)
+async def hotmart_webhook_ping(request: Request):
+    """Ping/verificación Hotmart (GET/HEAD/OPTIONS) — evita 405 Method Not Allowed."""
+    if request.method == "OPTIONS":
+        return _webhook_options_response()
+    return _webhook_ping_response()
+
+
+@app.api_route(WEBHOOK_PATH, methods=["POST"], include_in_schema=True)
+@app.api_route(f"{WEBHOOK_PATH}/", methods=["POST"], include_in_schema=False)
+async def hotmart_webhook_post(request: Request):
+    """Recibe eventos Hotmart (POST) y responde 200 OK al procesar PURCHASE_APPROVED."""
+    return await _handle_hotmart_webhook_post(request)
+
+
 @app.api_route(
     "/{full_path:path}",
     methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
     include_in_schema=False,
 )
 async def proxy_streamlit(request: Request, full_path: str) -> Response:
-    if full_path.rstrip("/") == WEBHOOK_PATH.lstrip("/"):
-        raise HTTPException(
-            status_code=405,
-            detail="Use GET or POST on /api/v1/hotmart-webhook",
-        )
+    normalized = full_path.rstrip("/")
+    if normalized == WEBHOOK_PATH.lstrip("/"):
+        if request.method == "OPTIONS":
+            return _webhook_options_response()
+        if request.method in ("GET", "HEAD"):
+            return _webhook_ping_response()
+        if request.method == "POST":
+            return await _handle_hotmart_webhook_post(request)
 
     if http_client is None:
         raise HTTPException(status_code=503, detail="Streamlit proxy not ready")

@@ -1,10 +1,8 @@
 """
-Servidor ASGI: FastAPI (API backend) + proxy reverso hacia Streamlit (UI).
+Servidor ASGI: FastAPI (API) + proxy hacia Streamlit (UI).
 
-Orden crítico:
-  1) Rutas API (/api/v1/hotmart-webhook, /health) registradas primero.
-  2) Middleware excluye /api, /docs, /openapi.json del proxy.
-  3) Catch-all GET/HEAD al final para Streamlit.
+La API arranca INMEDIATamente (sin esperar Streamlit) para que Cloud Run
+acepte POST /api/* en el puerto $PORT. Streamlit corre en segundo plano.
 """
 from __future__ import annotations
 
@@ -17,7 +15,7 @@ from contextlib import asynccontextmanager
 from typing import Any, Dict, Iterable, Optional
 
 import httpx
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, Response
+from fastapi import APIRouter, BackgroundTasks, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
@@ -34,6 +32,8 @@ STREAMLIT_HOST = os.getenv("STREAMLIT_INTERNAL_HOST", "127.0.0.1")
 STREAMLIT_PORT = int(os.getenv("STREAMLIT_INTERNAL_PORT", "8501"))
 STREAMLIT_BASE = f"http://{STREAMLIT_HOST}:{STREAMLIT_PORT}"
 STREAMLIT_WS = f"ws://{STREAMLIT_HOST}:{STREAMLIT_PORT}"
+
+WEBHOOK_PATH = "/api/v1/hotmart-webhook"
 
 HOP_BY_HOP_HEADERS = frozenset(
     {
@@ -52,15 +52,16 @@ HOP_BY_HOP_HEADERS = frozenset(
 
 streamlit_proc: Optional[subprocess.Popen] = None
 http_client: Optional[httpx.AsyncClient] = None
+streamlit_ready = False
 
 
-def _is_fastapi_reserved_path(path: str) -> bool:
+def _is_api_or_system_path(path: str) -> bool:
+    normalized = (path or "/").lower().split("?", 1)[0]
     return (
-        path.startswith("/api")
-        or path.startswith("/docs")
-        or path.startswith("/openapi.json")
-        or path == "/health"
-        or path == "/redoc"
+        normalized.startswith("/api")
+        or normalized.startswith("/docs")
+        or normalized.startswith("/openapi.json")
+        or normalized in ("/health", "/redoc")
     )
 
 
@@ -104,12 +105,13 @@ def _filtered_headers(headers: Iterable[tuple[str, str]]) -> Dict[str, str]:
 async def _proxy_request_to_streamlit(request: Request) -> Response:
     if http_client is None:
         raise HTTPException(status_code=503, detail="Streamlit proxy not ready")
+    if not streamlit_ready:
+        raise HTTPException(status_code=503, detail="Streamlit aún iniciando")
 
     path = request.url.path or "/"
     body = await request.body()
     headers = _filtered_headers(request.headers.items())
 
-    logger.debug("Proxy Streamlit %s %s", request.method, path)
     upstream = await http_client.request(
         request.method,
         path,
@@ -117,11 +119,10 @@ async def _proxy_request_to_streamlit(request: Request) -> Response:
         content=body,
         headers=headers,
     )
-    response_headers = _filtered_headers(upstream.headers.items())
     return Response(
         content=upstream.content,
         status_code=upstream.status_code,
-        headers=response_headers,
+        headers=_filtered_headers(upstream.headers.items()),
         media_type=upstream.headers.get("content-type"),
     )
 
@@ -142,48 +143,48 @@ def _streamlit_cmd() -> list[str]:
     ]
 
 
-async def _wait_streamlit_ready(timeout: float = 90.0) -> None:
+async def _bootstrap_streamlit() -> None:
+    """Arranca Streamlit en background; la API no espera bloqueada."""
+    global streamlit_proc, http_client, streamlit_ready
+
     import time
 
-    deadline = time.monotonic() + timeout
-    health_urls = (
-        f"{STREAMLIT_BASE}/_stcore/health",
-        f"{STREAMLIT_BASE}/",
-    )
-    async with httpx.AsyncClient(timeout=2.0) as client:
-        while time.monotonic() < deadline:
-            for url in health_urls:
-                try:
-                    resp = await client.get(url)
-                    if resp.status_code < 500:
-                        logger.info("Streamlit listo en %s", url)
-                        return
-                except httpx.HTTPError:
-                    pass
-            await asyncio.sleep(0.5)
-    raise RuntimeError("Streamlit no respondió a tiempo en el puerto interno.")
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    global streamlit_proc, http_client
-
-    logger.info("Iniciando Streamlit en %s:%s", STREAMLIT_HOST, STREAMLIT_PORT)
+    logger.info("Bootstrap Streamlit en %s:%s (background)", STREAMLIT_HOST, STREAMLIT_PORT)
     streamlit_proc = subprocess.Popen(
         _streamlit_cmd(),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
     )
-    await _wait_streamlit_ready()
     http_client = httpx.AsyncClient(
         base_url=STREAMLIT_BASE,
         timeout=httpx.Timeout(120.0, connect=10.0),
         follow_redirects=False,
     )
-    logger.info("FastAPI escuchando en puerto %s", PORT)
+
+    deadline = time.monotonic() + 120.0
+    async with httpx.AsyncClient(timeout=3.0) as probe:
+        while time.monotonic() < deadline:
+            try:
+                resp = await probe.get(f"{STREAMLIT_BASE}/_stcore/health")
+                if resp.status_code < 500:
+                    streamlit_ready = True
+                    logger.info("Streamlit listo (background)")
+                    return
+            except httpx.HTTPError:
+                pass
+            await asyncio.sleep(1.0)
+
+    logger.error("Streamlit no respondió en 120s — la UI puede no estar disponible")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    bootstrap_task = asyncio.create_task(_bootstrap_streamlit())
+    logger.info("FastAPI API lista en puerto %s (Streamlit en background)", PORT)
     try:
         yield
     finally:
+        bootstrap_task.cancel()
         if http_client is not None:
             await http_client.aclose()
         if streamlit_proc is not None:
@@ -196,23 +197,24 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="veloX API", lifespan=lifespan, redirect_slashes=False)
 
-
 # ---------------------------------------------------------------------------
-# RUTAS API — declaradas ANTES del middleware/catch-all (orden crítico)
+# ROUTER API — montado con prefijo /api (aislamiento total del proxy UI)
 # ---------------------------------------------------------------------------
+api_router = APIRouter(prefix="/api", tags=["api"])
 
-@app.api_route("/api/v1/hotmart-webhook", methods=["GET", "POST"], tags=["hotmart"])
-@app.api_route("/api/v1/hotmart-webhook/", methods=["GET", "POST"], include_in_schema=False)
-async def hotmart_webhook(request: Request, background_tasks: BackgroundTasks):
-    path = request.url.path
-    logger.info("Hotmart webhook handler method=%s path=%s", request.method, path)
 
-    if request.method == "GET":
-        return JSONResponse(
-            status_code=200,
-            content={"status": "ok", "message": "Webhook active"},
-        )
+@api_router.get("/v1/hotmart-webhook")
+async def hotmart_webhook_get():
+    logger.info("Hotmart GET ping → 200 JSON")
+    return JSONResponse(
+        status_code=200,
+        content={"status": "ok", "message": "Webhook active"},
+    )
 
+
+@api_router.post("/v1/hotmart-webhook")
+async def hotmart_webhook_post(request: Request, background_tasks: BackgroundTasks):
+    logger.info("Hotmart POST recibido path=%s", request.url.path)
     try:
         data = await request.json()
     except Exception:
@@ -221,7 +223,7 @@ async def hotmart_webhook(request: Request, background_tasks: BackgroundTasks):
     if isinstance(data, dict) and data:
         event = str(data.get("event") or "").strip().upper() or "UNKNOWN"
         token = _extract_hotmart_token(request)
-        logger.info("Hotmart POST event=%s path=%s", event, path)
+        logger.info("Hotmart POST event=%s", event)
         background_tasks.add_task(_process_hotmart_event_background, data, token)
 
     return JSONResponse(
@@ -230,51 +232,62 @@ async def hotmart_webhook(request: Request, background_tasks: BackgroundTasks):
     )
 
 
+# Variante con barra final (redirect_slashes=False)
+@api_router.get("/v1/hotmart-webhook/")
+async def hotmart_webhook_get_slash():
+    return await hotmart_webhook_get()
+
+
+@api_router.post("/v1/hotmart-webhook/")
+async def hotmart_webhook_post_slash(request: Request, background_tasks: BackgroundTasks):
+    return await hotmart_webhook_post(request, background_tasks)
+
+
+app.include_router(api_router)
+
+
 @app.get("/health", tags=["system"])
 async def health_check():
-    return {"status": "ok", "service": "velox-api"}
+    return {
+        "status": "ok",
+        "service": "velox-api",
+        "streamlit_ready": streamlit_ready,
+    }
 
 
 # ---------------------------------------------------------------------------
-# MIDDLEWARE — excluye rutas API del proxy Streamlit
+# MIDDLEWARE — /api/* NUNCA va a Streamlit
 # ---------------------------------------------------------------------------
-
 @app.middleware("http")
 async def streamlit_proxy_guard(request: Request, call_next):
     path = request.url.path.lower()
 
-    # 1. Aislamiento estricto: Rutas API y de sistema nunca pasan por el proxy
-    if path.startswith("/api") or path in ("/health", "/docs", "/redoc", "/openapi.json"):
+    if _is_api_or_system_path(path):
+        logger.info("FastAPI route: %s %s", request.method, path)
         return await call_next(request)
 
-    # 2. Proxy de Streamlit para tráfico web convencional
     if request.method not in ("GET", "HEAD"):
+        logger.debug("Proxy Streamlit (non-API): %s %s", request.method, path)
         return await _proxy_request_to_streamlit(request)
 
     return await call_next(request)
 
 
 # ---------------------------------------------------------------------------
-# CATCH-ALL — AL FINAL, solo GET/HEAD hacia Streamlit
+# CATCH-ALL UI — solo GET/HEAD, al final del archivo
 # ---------------------------------------------------------------------------
-
 @app.api_route("/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
 async def proxy_streamlit_get(request: Request, full_path: str) -> Response:
     path = request.url.path
-
-    if _is_fastapi_reserved_path(path):
+    if _is_api_or_system_path(path):
         return JSONResponse(status_code=404, content={"detail": "Not Found"})
-
-    if not path.startswith("/api"):
-        return await _proxy_request_to_streamlit(request)
-
-    return JSONResponse(status_code=404, content={"detail": "Not Found"})
+    return await _proxy_request_to_streamlit(request)
 
 
 @app.websocket("/{full_path:path}")
 async def proxy_streamlit_ws(websocket: WebSocket, full_path: str) -> None:
     path = f"/{full_path}" if full_path else "/"
-    if _is_fastapi_reserved_path(path):
+    if _is_api_or_system_path(path):
         await websocket.close(code=1008)
         return
 
@@ -303,8 +316,7 @@ async def proxy_streamlit_ws(websocket: WebSocket, full_path: str) -> None:
             async def client_to_upstream() -> None:
                 while True:
                     message = await websocket.receive()
-                    msg_type = message.get("type")
-                    if msg_type == "websocket.disconnect":
+                    if message.get("type") == "websocket.disconnect":
                         await upstream.close()
                         break
                     if "text" in message:

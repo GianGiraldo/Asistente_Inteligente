@@ -18,8 +18,17 @@ def _resolve_supabase_credentials() -> tuple[str, str]:
     return url, key
 
 
+def _normalize_supabase_url(url: str) -> str:
+    """Acepta https://xxx.supabase.co o https://xxx.supabase.co/rest/v1 sin duplicar path."""
+    normalized = (url or "").strip().rstrip("/")
+    suffix = "/rest/v1"
+    while normalized.endswith(suffix):
+        normalized = normalized[: -len(suffix)].rstrip("/")
+    return normalized
+
+
 def _build_supabase_client(url: str, key: str) -> Client:
-    return create_client(url, key)
+    return create_client(_normalize_supabase_url(url), key)
 
 
 def get_supabase_server() -> Client:

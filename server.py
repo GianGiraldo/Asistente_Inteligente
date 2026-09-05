@@ -53,6 +53,39 @@ HOP_BY_HOP_HEADERS = frozenset(
 streamlit_proc: Optional[subprocess.Popen] = None
 http_client: Optional[httpx.AsyncClient] = None
 streamlit_ready = False
+STREAMLIT_BOOT_TIMEOUT = float(os.getenv("STREAMLIT_BOOT_TIMEOUT", "180"))
+STREAMLIT_PROXY_WAIT = float(os.getenv("STREAMLIT_PROXY_WAIT", "90"))
+
+_LOADING_HTML = """<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta http-equiv="refresh" content="2"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>veloX — Cargando</title>
+  <style>
+    body {{
+      margin: 0; min-height: 100vh; display: grid; place-items: center;
+      font-family: system-ui, sans-serif; background: #0b1220; color: #e5e7eb;
+    }}
+    .box {{ text-align: center; padding: 2rem; }}
+    .spinner {{
+      width: 48px; height: 48px; border: 4px solid #334155;
+      border-top-color: #38bdf8; border-radius: 50%;
+      animation: spin 1s linear infinite; margin: 0 auto 1rem;
+    }}
+    @keyframes spin {{ to {{ transform: rotate(360deg); }} }}
+  </style>
+</head>
+<body>
+  <div class="box">
+    <div class="spinner"></div>
+    <h1>veloX</h1>
+    <p>Iniciando plataforma…</p>
+    <p><small>La página se actualizará automáticamente.</small></p>
+  </div>
+</body>
+</html>"""
 
 
 def _is_api_or_system_path(path: str) -> bool:
@@ -102,11 +135,58 @@ def _filtered_headers(headers: Iterable[tuple[str, str]]) -> Dict[str, str]:
     return out
 
 
+async def _probe_streamlit_health() -> bool:
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as probe:
+            resp = await probe.get(f"{STREAMLIT_BASE}/_stcore/health")
+            return resp.status_code < 500
+    except httpx.HTTPError:
+        return False
+
+
+async def _wait_for_streamlit_ready(timeout: float) -> bool:
+    global streamlit_ready
+    if streamlit_ready:
+        return True
+    import time
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if streamlit_proc is not None and streamlit_proc.poll() is not None:
+            logger.error(
+                "Streamlit terminó inesperadamente (exit=%s)",
+                streamlit_proc.returncode,
+            )
+            return False
+        if await _probe_streamlit_health():
+            streamlit_ready = True
+            logger.info("Streamlit listo (proxy wait)")
+            return True
+        await asyncio.sleep(1.0)
+    return streamlit_ready
+
+
+def _loading_page_response() -> Response:
+    return Response(
+        content=_LOADING_HTML,
+        status_code=200,
+        media_type="text/html; charset=utf-8",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 async def _proxy_request_to_streamlit(request: Request) -> Response:
     if http_client is None:
+        if request.method in ("GET", "HEAD") and (request.url.path or "/") == "/":
+            return _loading_page_response()
         raise HTTPException(status_code=503, detail="Streamlit proxy not ready")
+
     if not streamlit_ready:
-        raise HTTPException(status_code=503, detail="Streamlit aún iniciando")
+        ready = await _wait_for_streamlit_ready(STREAMLIT_PROXY_WAIT)
+        if not ready:
+            if request.method in ("GET", "HEAD"):
+                return _loading_page_response()
+            raise HTTPException(status_code=503, detail="Streamlit aún iniciando")
 
     path = request.url.path or "/"
     body = await request.body()
@@ -161,8 +241,8 @@ async def _bootstrap_streamlit() -> None:
     logger.info("Bootstrap Streamlit en %s:%s (background)", STREAMLIT_HOST, STREAMLIT_PORT)
     streamlit_proc = subprocess.Popen(
         _streamlit_cmd(),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
         env=_streamlit_env(),
     )
     http_client = httpx.AsyncClient(
@@ -171,20 +251,24 @@ async def _bootstrap_streamlit() -> None:
         follow_redirects=False,
     )
 
-    deadline = time.monotonic() + 120.0
-    async with httpx.AsyncClient(timeout=3.0) as probe:
-        while time.monotonic() < deadline:
-            try:
-                resp = await probe.get(f"{STREAMLIT_BASE}/_stcore/health")
-                if resp.status_code < 500:
-                    streamlit_ready = True
-                    logger.info("Streamlit listo (background)")
-                    return
-            except httpx.HTTPError:
-                pass
-            await asyncio.sleep(1.0)
+    deadline = time.monotonic() + STREAMLIT_BOOT_TIMEOUT
+    while time.monotonic() < deadline:
+        if streamlit_proc.poll() is not None:
+            logger.error(
+                "Streamlit falló al arrancar (exit=%s)",
+                streamlit_proc.returncode,
+            )
+            return
+        if await _probe_streamlit_health():
+            streamlit_ready = True
+            logger.info("Streamlit listo (background)")
+            return
+        await asyncio.sleep(1.0)
 
-    logger.error("Streamlit no respondió en 120s — la UI puede no estar disponible")
+    logger.error(
+        "Streamlit no respondió en %ss — la UI puede no estar disponible",
+        int(STREAMLIT_BOOT_TIMEOUT),
+    )
 
 
 @asynccontextmanager

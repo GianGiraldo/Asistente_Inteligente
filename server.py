@@ -1,8 +1,8 @@
 """
 Servidor ASGI: FastAPI (API backend) + proxy reverso controlado hacia Streamlit (UI).
 
-Rutas reservadas a FastAPI (nunca proxied a Streamlit):
-  /api/*, /health, /docs, /redoc, /openapi.json
+Rutas procesadas SOLO por FastAPI (nunca proxied a Streamlit):
+  /api/*, /health, /docs, /openapi.json
 """
 from __future__ import annotations
 
@@ -34,18 +34,8 @@ STREAMLIT_BASE = f"http://{STREAMLIT_HOST}:{STREAMLIT_PORT}"
 STREAMLIT_WS = f"ws://{STREAMLIT_HOST}:{STREAMLIT_PORT}"
 
 WEBHOOK_PATH = "/api/v1/hotmart-webhook"
-WEBHOOK_PATH_SLASH = f"{WEBHOOK_PATH}/"
 WEBHOOK_GET_BODY = {"status": "ok", "message": "Webhook active"}
 WEBHOOK_POST_ACK = {"status": "ok", "message": "Event received"}
-
-FASTAPI_ONLY_EXACT_PATHS = frozenset(
-    {
-        "/health",
-        "/docs",
-        "/redoc",
-        "/openapi.json",
-    }
-)
 
 HOP_BY_HOP_HEADERS = frozenset(
     {
@@ -66,14 +56,13 @@ streamlit_proc: Optional[subprocess.Popen] = None
 http_client: Optional[httpx.AsyncClient] = None
 
 
-def _is_fastapi_reserved_path(path: str) -> bool:
-    """True si la ruta pertenece exclusivamente al backend FastAPI."""
-    normalized = (path or "/").split("?", 1)[0]
-    if normalized.startswith("/api"):
+def _is_fastapi_only_path(path: str) -> bool:
+    """Rutas que FastAPI reserva y que jamás deben ir al proxy de Streamlit."""
+    if path.startswith("/api"):
         return True
-    if normalized in FASTAPI_ONLY_EXACT_PATHS:
+    if path in ("/health", "/docs", "/openapi.json", "/redoc"):
         return True
-    if normalized.startswith("/docs/"):
+    if path.startswith("/docs/"):
         return True
     return False
 
@@ -87,99 +76,53 @@ def _extract_hotmart_token(request: Request) -> str:
 
 
 def _process_hotmart_event_background(payload: Dict[str, Any], token: str) -> None:
-    """Procesamiento pesado del webhook (Supabase) fuera del ciclo de respuesta HTTP."""
     event = str(payload.get("event") or "").strip().upper() or "UNKNOWN"
     secret = (os.getenv("HOTMART_WEBHOOK_SECRET") or "").strip()
 
     if not secret:
-        logger.error(
-            "Hotmart webhook background: HOTMART_WEBHOOK_SECRET no configurado (event=%s)",
-            event,
-        )
+        logger.error("Hotmart background: HOTMART_WEBHOOK_SECRET no configurado (event=%s)", event)
         return
-
     if not token or token != secret:
-        logger.error(
-            "Hotmart webhook background: token inválido (event=%s path=POST)",
-            event,
-        )
+        logger.error("Hotmart background: token inválido (event=%s)", event)
         return
 
-    logger.info("Hotmart webhook background: procesando event=%s", event)
+    logger.info("Hotmart background: procesando event=%s", event)
     try:
         ok, message = process_hotmart_webhook(payload)
         if ok:
-            logger.info(
-                "Hotmart webhook background: OK event=%s detail=%s",
-                event,
-                message,
-            )
+            logger.info("Hotmart background: OK event=%s detail=%s", event, message)
         else:
-            logger.error(
-                "Hotmart webhook background: fallo event=%s detail=%s",
-                event,
-                message,
-            )
+            logger.error("Hotmart background: fallo event=%s detail=%s", event, message)
     except Exception:
-        logger.exception(
-            "Hotmart webhook background: excepción no controlada event=%s",
-            event,
-        )
+        logger.exception("Hotmart background: excepción event=%s", event)
 
 
-async def _handle_hotmart_webhook(
+async def _handle_hotmart_webhook_post(
     request: Request,
     background_tasks: BackgroundTasks,
 ) -> JSONResponse:
-    method = request.method.upper()
     path = request.url.path
-
-    logger.info("Hotmart webhook entrante method=%s path=%s", method, path)
-
-    if method == "GET":
-        logger.info("Hotmart webhook ping GET respondido 200 path=%s", path)
-        return JSONResponse(content=WEBHOOK_GET_BODY, status_code=200)
-
-    if method != "POST":
-        logger.error(
-            "Hotmart webhook método no permitido method=%s path=%s",
-            method,
-            path,
-        )
-        raise HTTPException(status_code=405, detail="Method Not Allowed")
-
     token = _extract_hotmart_token(request)
 
     try:
         payload = await request.json()
     except Exception as exc:
-        logger.error(
-            "Hotmart webhook POST JSON inválido path=%s error=%s",
-            path,
-            exc,
-        )
-        # Ack rápido para evitar reintentos agresivos por timeout/formato.
+        logger.error("Hotmart POST JSON inválido path=%s error=%s", path, exc)
         return JSONResponse(content=WEBHOOK_POST_ACK, status_code=200)
 
     if not isinstance(payload, dict):
-        logger.error("Hotmart webhook POST payload no es objeto JSON path=%s", path)
+        logger.error("Hotmart POST payload no es objeto JSON path=%s", path)
         return JSONResponse(content=WEBHOOK_POST_ACK, status_code=200)
 
     event = str(payload.get("event") or "").strip().upper() or "UNKNOWN"
     logger.info(
-        "Hotmart webhook POST recibido path=%s event=%s token_present=%s",
+        "Hotmart POST recibido path=%s event=%s token_present=%s",
         path,
         event,
         bool(token),
     )
-
     background_tasks.add_task(_process_hotmart_event_background, payload, token)
-
-    logger.info(
-        "Hotmart webhook POST ack inmediato 200 path=%s event=%s",
-        path,
-        event,
-    )
+    logger.info("Hotmart POST ack 200 path=%s event=%s", path, event)
     return JSONResponse(content=WEBHOOK_POST_ACK, status_code=200)
 
 
@@ -263,36 +206,23 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="veloX API", lifespan=lifespan, redirect_slashes=False)
 
 
-@app.get("/health", include_in_schema=True, tags=["system"])
+@app.get("/health", tags=["system"])
 async def health_check():
     return {"status": "ok", "service": "velox-api"}
 
 
-@app.api_route(
-    WEBHOOK_PATH,
-    methods=["GET", "POST", "OPTIONS"],
-    include_in_schema=True,
-    tags=["hotmart"],
-)
-@app.api_route(
-    WEBHOOK_PATH_SLASH,
-    methods=["GET", "POST", "OPTIONS"],
-    include_in_schema=False,
-    tags=["hotmart"],
-)
+@app.api_route(WEBHOOK_PATH, methods=["GET", "POST"], tags=["hotmart"])
+@app.api_route(f"{WEBHOOK_PATH}/", methods=["GET", "POST"], include_in_schema=False)
 async def hotmart_webhook(request: Request, background_tasks: BackgroundTasks):
-    if request.method == "OPTIONS":
-        return Response(
-            status_code=200,
-            headers={
-                "Allow": "GET, POST, OPTIONS",
-                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-                "Access-Control-Allow-Headers": (
-                    "Content-Type, X-Hotmart-Hottok, X-HOTMART-HOTTOK"
-                ),
-            },
-        )
-    return await _handle_hotmart_webhook(request, background_tasks)
+    path = request.url.path
+    method = request.method.upper()
+    logger.info("Hotmart webhook method=%s path=%s", method, path)
+
+    if method == "GET":
+        logger.info("Hotmart GET ping 200 path=%s", path)
+        return JSONResponse(content=WEBHOOK_GET_BODY, status_code=200)
+
+    return await _handle_hotmart_webhook_post(request, background_tasks)
 
 
 @app.api_route(
@@ -303,15 +233,12 @@ async def hotmart_webhook(request: Request, background_tasks: BackgroundTasks):
 async def proxy_streamlit(request: Request, full_path: str) -> Response:
     path = request.url.path
 
-    # Aislamiento riguroso: rutas API/sistema nunca van a Streamlit.
-    if _is_fastapi_reserved_path(path):
-        logger.error(
-            "Ruta API no registrada en FastAPI (no proxy Streamlit): %s %s",
-            request.method,
-            path,
-        )
+    # 1) Aislamiento riguroso: /api/*, /health, /docs, /openapi.json → solo FastAPI.
+    if _is_fastapi_only_path(path):
+        logger.error("Ruta FastAPI no registrada (sin proxy Streamlit): %s %s", request.method, path)
         return JSONResponse(status_code=404, content={"detail": "Not Found"})
 
+    # 2) Proxy a Streamlit únicamente fuera de /api/*
     if not path.startswith("/api"):
         if http_client is None:
             raise HTTPException(status_code=503, detail="Streamlit proxy not ready")
@@ -343,7 +270,7 @@ async def proxy_streamlit(request: Request, full_path: str) -> Response:
 @app.websocket("/{full_path:path}")
 async def proxy_streamlit_ws(websocket: WebSocket, full_path: str) -> None:
     path = f"/{full_path}" if full_path else "/"
-    if _is_fastapi_reserved_path(path):
+    if _is_fastapi_only_path(path):
         await websocket.close(code=1008)
         return
 

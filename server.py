@@ -20,6 +20,7 @@ from fastapi.responses import JSONResponse
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from hotmart_webhook import process_hotmart_webhook
+from supabase_client import _normalize_supabase_url
 
 logging.basicConfig(
     level=logging.INFO,
@@ -53,8 +54,9 @@ HOP_BY_HOP_HEADERS = frozenset(
 streamlit_proc: Optional[subprocess.Popen] = None
 http_client: Optional[httpx.AsyncClient] = None
 streamlit_ready = False
-STREAMLIT_BOOT_TIMEOUT = float(os.getenv("STREAMLIT_BOOT_TIMEOUT", "180"))
-STREAMLIT_PROXY_WAIT = float(os.getenv("STREAMLIT_PROXY_WAIT", "90"))
+STREAMLIT_BOOT_TIMEOUT = float(os.getenv("STREAMLIT_BOOT_TIMEOUT", "300"))
+STREAMLIT_PROXY_WAIT = float(os.getenv("STREAMLIT_PROXY_WAIT", "120"))
+STREAMLIT_LOG_PATH = os.getenv("STREAMLIT_LOG_PATH", "/tmp/streamlit.log")
 
 _LOADING_HTML = """<!DOCTYPE html>
 <html lang="es">
@@ -137,11 +139,23 @@ def _filtered_headers(headers: Iterable[tuple[str, str]]) -> Dict[str, str]:
 
 async def _probe_streamlit_health() -> bool:
     try:
-        async with httpx.AsyncClient(timeout=3.0) as probe:
+        async with httpx.AsyncClient(timeout=5.0) as probe:
             resp = await probe.get(f"{STREAMLIT_BASE}/_stcore/health")
-            return resp.status_code < 500
+            return resp.status_code == 200
     except httpx.HTTPError:
         return False
+
+
+def _log_streamlit_output_tail() -> None:
+    try:
+        if os.path.isfile(STREAMLIT_LOG_PATH):
+            with open(STREAMLIT_LOG_PATH, "r", encoding="utf-8", errors="replace") as fh:
+                lines = fh.readlines()
+            if lines:
+                tail = "".join(lines[-20:])
+                logger.error("Streamlit log (últimas líneas):\n%s", tail)
+    except OSError as exc:
+        logger.debug("No se pudo leer log Streamlit: %s", exc)
 
 
 async def _wait_for_streamlit_ready(timeout: float) -> bool:
@@ -207,6 +221,53 @@ async def _proxy_request_to_streamlit(request: Request) -> Response:
     )
 
 
+def _toml_escape(value: str) -> str:
+    return (value or "").replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _ensure_streamlit_secrets() -> None:
+    """Genera secrets.toml en runtime (Cloud Run no incluye el archivo local)."""
+    secrets_dir = os.path.join(os.getcwd(), ".streamlit")
+    os.makedirs(secrets_dir, exist_ok=True)
+    secrets_path = os.path.join(secrets_dir, "secrets.toml")
+
+    supabase_url = _normalize_supabase_url(os.getenv("SUPABASE_URL", ""))
+    supabase_key = (
+        (os.getenv("SUPABASE_ANON_KEY") or os.getenv("SUPABASE_KEY") or "").strip()
+    )
+    base_url = (
+        os.getenv("VELOX_BASE_URL")
+        or os.getenv("APP_BASE_URL")
+        or "https://velox-727827073430.us-central1.run.app"
+    ).strip()
+
+    lines = [
+        "[supabase]",
+        f'url = "{_toml_escape(supabase_url)}"',
+        f'key = "{_toml_escape(supabase_key)}"',
+        "",
+        "[app]",
+        f'base_url = "{_toml_escape(base_url)}"',
+        "",
+    ]
+
+    culqi_pk = (os.getenv("CULQI_PUBLIC_KEY") or "").strip()
+    culqi_sk = (os.getenv("CULQI_SECRET_KEY") or "").strip()
+    if culqi_pk or culqi_sk:
+        lines.extend(
+            [
+                "[culqi]",
+                f'public_key = "{_toml_escape(culqi_pk)}"',
+                f'secret_key = "{_toml_escape(culqi_sk)}"',
+                "",
+            ]
+        )
+
+    with open(secrets_path, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(lines))
+    logger.info("secrets.toml generado para Streamlit")
+
+
 def _streamlit_cmd() -> list[str]:
     return [
         sys.executable,
@@ -239,10 +300,12 @@ async def _bootstrap_streamlit() -> None:
     import time
 
     logger.info("Bootstrap Streamlit en %s:%s (background)", STREAMLIT_HOST, STREAMLIT_PORT)
+    _ensure_streamlit_secrets()
+    log_file = open(STREAMLIT_LOG_PATH, "a", encoding="utf-8")
     streamlit_proc = subprocess.Popen(
         _streamlit_cmd(),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=log_file,
+        stderr=subprocess.STDOUT,
         env=_streamlit_env(),
     )
     http_client = httpx.AsyncClient(
@@ -258,6 +321,7 @@ async def _bootstrap_streamlit() -> None:
                 "Streamlit falló al arrancar (exit=%s)",
                 streamlit_proc.returncode,
             )
+            _log_streamlit_output_tail()
             return
         if await _probe_streamlit_health():
             streamlit_ready = True
@@ -269,6 +333,7 @@ async def _bootstrap_streamlit() -> None:
         "Streamlit no respondió en %ss — la UI puede no estar disponible",
         int(STREAMLIT_BOOT_TIMEOUT),
     )
+    _log_streamlit_output_tail()
 
 
 @asynccontextmanager
@@ -385,6 +450,12 @@ async def proxy_streamlit_ws(websocket: WebSocket, full_path: str) -> None:
         await websocket.close(code=1008)
         return
 
+    if not streamlit_ready:
+        ready = await _wait_for_streamlit_ready(STREAMLIT_PROXY_WAIT)
+        if not ready:
+            await websocket.close(code=1013)
+            return
+
     import websockets
 
     query = websocket.scope.get("query_string", b"").decode()
@@ -395,17 +466,17 @@ async def proxy_streamlit_ws(websocket: WebSocket, full_path: str) -> None:
     subprotocols = websocket.scope.get("subprotocols") or []
     await websocket.accept(subprotocol=subprotocols[0] if subprotocols else None)
 
-    extra_headers = _filtered_headers(
-        (name.decode(), value.decode())
-        for name, value in websocket.headers.raw
-    )
+    upstream_headers = {
+        "Host": f"{STREAMLIT_HOST}:{STREAMLIT_PORT}",
+    }
 
     try:
         async with websockets.connect(
             target,
-            additional_headers=extra_headers,
+            additional_headers=upstream_headers,
             subprotocols=subprotocols or None,
-            open_timeout=15,
+            open_timeout=30,
+            max_size=None,
         ) as upstream:
             async def client_to_upstream() -> None:
                 while True:

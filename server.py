@@ -127,14 +127,6 @@ app = FastAPI(title="veloX API", lifespan=lifespan)
 
 WEBHOOK_PATH = "/api/v1/hotmart-webhook"
 WEBHOOK_ALLOW_METHODS = "GET, POST, HEAD, OPTIONS"
-WEBHOOK_PING_BODY = {
-    "status": "ok",
-    "message": "Webhook endpoint is active",
-}
-
-
-def _webhook_ping_response() -> JSONResponse:
-    return JSONResponse(content=WEBHOOK_PING_BODY, status_code=200)
 
 
 def _webhook_options_response() -> Response:
@@ -183,20 +175,22 @@ async def _handle_hotmart_webhook_post(request: Request) -> JSONResponse:
     return JSONResponse(content={"status": "ok"}, status_code=200)
 
 
-@app.api_route(WEBHOOK_PATH, methods=["GET", "HEAD", "OPTIONS"], include_in_schema=True)
-@app.api_route(f"{WEBHOOK_PATH}/", methods=["GET", "HEAD", "OPTIONS"], include_in_schema=False)
-async def hotmart_webhook_ping(request: Request):
-    """Ping/verificación Hotmart (GET/HEAD/OPTIONS) — evita 405 Method Not Allowed."""
-    if request.method == "OPTIONS":
-        return _webhook_options_response()
-    return _webhook_ping_response()
+@app.get(WEBHOOK_PATH, include_in_schema=True)
+async def hotmart_webhook_get():
+    """Ping de verificación Hotmart."""
+    return JSONResponse(content={"status": "ok"}, status_code=200)
 
 
-@app.api_route(WEBHOOK_PATH, methods=["POST"], include_in_schema=True)
-@app.api_route(f"{WEBHOOK_PATH}/", methods=["POST"], include_in_schema=False)
+@app.post(WEBHOOK_PATH, include_in_schema=True)
 async def hotmart_webhook_post(request: Request):
-    """Recibe eventos Hotmart (POST) y responde 200 OK al procesar PURCHASE_APPROVED."""
+    """Recibe eventos de compra Hotmart (JSON) y responde 200 OK."""
     return await _handle_hotmart_webhook_post(request)
+
+
+@app.options(WEBHOOK_PATH, include_in_schema=False)
+async def hotmart_webhook_options():
+    """Preflight CORS — evita 405 en verificaciones intermedias."""
+    return _webhook_options_response()
 
 
 @app.api_route(
@@ -209,8 +203,8 @@ async def proxy_streamlit(request: Request, full_path: str) -> Response:
     if normalized == WEBHOOK_PATH.lstrip("/"):
         if request.method == "OPTIONS":
             return _webhook_options_response()
-        if request.method in ("GET", "HEAD"):
-            return _webhook_ping_response()
+        if request.method == "GET":
+            return JSONResponse(content={"status": "ok"}, status_code=200)
         if request.method == "POST":
             return await _handle_hotmart_webhook_post(request)
 

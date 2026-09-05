@@ -139,11 +139,27 @@ def _filtered_headers(headers: Iterable[tuple[str, str]]) -> Dict[str, str]:
 
 async def _probe_streamlit_health() -> bool:
     try:
-        async with httpx.AsyncClient(timeout=5.0) as probe:
+        async with httpx.AsyncClient(timeout=10.0) as probe:
             resp = await probe.get(f"{STREAMLIT_BASE}/_stcore/health")
-            return resp.status_code == 200
+            if resp.status_code == 200:
+                return True
+            # Servidor arriba pero app aún compilando scripts pesados
+            root = await probe.get(f"{STREAMLIT_BASE}/")
+            return (
+                root.status_code == 200
+                and b"streamlit" in root.content.lower()
+            )
     except httpx.HTTPError:
         return False
+
+
+def _proxy_headers_to_streamlit(request: Request) -> Dict[str, str]:
+    headers = _filtered_headers(request.headers.items())
+    headers["X-Forwarded-Proto"] = request.headers.get("x-forwarded-proto", "https")
+    headers["X-Forwarded-Host"] = request.headers.get("host", "")
+    if request.client and request.client.host:
+        headers["X-Forwarded-For"] = request.client.host
+    return headers
 
 
 def _log_streamlit_output_tail() -> None:
@@ -204,7 +220,7 @@ async def _proxy_request_to_streamlit(request: Request) -> Response:
 
     path = request.url.path or "/"
     body = await request.body()
-    headers = _filtered_headers(request.headers.items())
+    headers = _proxy_headers_to_streamlit(request)
 
     upstream = await http_client.request(
         request.method,
@@ -301,11 +317,10 @@ async def _bootstrap_streamlit() -> None:
 
     logger.info("Bootstrap Streamlit en %s:%s (background)", STREAMLIT_HOST, STREAMLIT_PORT)
     _ensure_streamlit_secrets()
-    log_file = open(STREAMLIT_LOG_PATH, "a", encoding="utf-8")
     streamlit_proc = subprocess.Popen(
         _streamlit_cmd(),
-        stdout=log_file,
-        stderr=subprocess.STDOUT,
+        stdout=sys.stderr,
+        stderr=sys.stderr,
         env=_streamlit_env(),
     )
     http_client = httpx.AsyncClient(
@@ -468,7 +483,11 @@ async def proxy_streamlit_ws(websocket: WebSocket, full_path: str) -> None:
 
     upstream_headers = {
         "Host": f"{STREAMLIT_HOST}:{STREAMLIT_PORT}",
+        "Origin": f"http://{STREAMLIT_HOST}:{STREAMLIT_PORT}",
     }
+    forwarded_proto = websocket.headers.get("x-forwarded-proto")
+    if forwarded_proto:
+        upstream_headers["X-Forwarded-Proto"] = forwarded_proto
 
     try:
         async with websockets.connect(

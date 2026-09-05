@@ -143,6 +143,15 @@ def _streamlit_cmd() -> list[str]:
     ]
 
 
+def _streamlit_env() -> Dict[str, str]:
+    """Evita que Streamlit herede PORT=8080 de Cloud Run (conflicto con Uvicorn)."""
+    env = os.environ.copy()
+    env.pop("PORT", None)
+    env["STREAMLIT_SERVER_PORT"] = str(STREAMLIT_PORT)
+    env["STREAMLIT_SERVER_ADDRESS"] = STREAMLIT_HOST
+    return env
+
+
 async def _bootstrap_streamlit() -> None:
     """Arranca Streamlit en background; la API no espera bloqueada."""
     global streamlit_proc, http_client, streamlit_ready
@@ -154,6 +163,7 @@ async def _bootstrap_streamlit() -> None:
         _streamlit_cmd(),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
+        env=_streamlit_env(),
     )
     http_client = httpx.AsyncClient(
         base_url=STREAMLIT_BASE,

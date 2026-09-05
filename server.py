@@ -462,14 +462,26 @@ app.include_router(api_router)
 @app.get("/health", tags=["system"])
 async def health_check():
     ready = streamlit_ready
+    st_log_tail = ""
     if os.getenv("NGINX_PROXY") == "1":
         ready = await _probe_streamlit_health()
-    return {
+        if not ready and os.path.isfile("/tmp/streamlit.log"):
+            try:
+                with open("/tmp/streamlit.log", "r", encoding="utf-8", errors="replace") as fh:
+                    lines = fh.readlines()
+                if lines:
+                    st_log_tail = "".join(lines[-8:]).strip()
+            except OSError:
+                pass
+    payload = {
         "status": "ok",
         "service": "velox-api",
         "streamlit_ready": ready,
         "mode": "nginx" if os.getenv("NGINX_PROXY") == "1" else "proxy",
     }
+    if st_log_tail and not ready:
+        payload["streamlit_log_tail"] = st_log_tail
+    return payload
 
 
 # ---------------------------------------------------------------------------

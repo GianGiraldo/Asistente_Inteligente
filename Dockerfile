@@ -14,6 +14,7 @@ WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         nginx \
+        tini \
         libfreetype6 \
         libjpeg62-turbo \
     && rm -rf /var/lib/apt/lists/* \
@@ -29,4 +30,5 @@ RUN sed -i 's/\r$//' /app/start.sh && chmod +x /app/start.sh
 
 EXPOSE 8080
 
+ENTRYPOINT ["/usr/bin/tini", "-s", "--"]
 CMD ["/app/start.sh"]

@@ -22,45 +22,109 @@ TELEFONO_REGEX = re.compile(r"^9\d{8}$")
 
 LIBRO_RECLAMACIONES_CSS = """
 <style>
-    .velox-libro-header {
+    .velox-libro-reclamaciones {
+        color: #ffffff;
+    }
+
+    .stApp:has(.velox-libro-reclamaciones) .velox-libro-header {
         text-align: center;
         margin: 0 0 1.25rem 0;
         padding: 0 0.5rem;
     }
-    .velox-libro-header h1 {
+
+    .stApp:has(.velox-libro-reclamaciones) .velox-libro-header h1 {
         font-size: 1.35rem;
         font-weight: 700;
-        color: #1e293b;
+        color: #ffffff !important;
         margin: 0 0 0.5rem 0;
         line-height: 1.3;
     }
-    .velox-libro-header p {
+
+    .stApp:has(.velox-libro-reclamaciones) .velox-libro-header p {
         font-size: 0.82rem;
-        color: #64748b;
+        color: #ffffff !important;
+        opacity: 0.92;
         margin: 0;
         line-height: 1.45;
     }
-    .velox-libro-success {
+
+    .stApp:has(.velox-libro-reclamaciones) .velox-libro-success,
+    .stApp:has(.velox-libro-reclamaciones) .velox-libro-success p,
+    .stApp:has(.velox-libro-reclamaciones) .velox-libro-success strong {
         text-align: center;
         padding: 1rem 0.5rem 0.25rem;
+        color: #ffffff !important;
     }
-    .velox-libro-success__code {
+
+    .stApp:has(.velox-libro-reclamaciones) .velox-libro-success__code {
         display: inline-block;
         margin: 0.75rem 0;
         padding: 0.5rem 1rem;
         border-radius: 8px;
-        background: #ecfdf5;
-        color: #047857;
+        background: rgba(0, 180, 216, 0.18);
+        border: 1px solid rgba(0, 229, 255, 0.35);
+        color: #ffffff !important;
         font-weight: 700;
         font-size: 1.05rem;
         letter-spacing: 0.03em;
     }
-    .stApp:has(.velox-id-bar) .velox-libro-form .stTextArea textarea {
+
+    /* Labels nativos de Streamlit en esta vista */
+    .stApp:has(.velox-libro-reclamaciones) .velox-libro-form label,
+    .stApp:has(.velox-libro-reclamaciones) .velox-libro-form [data-testid="stWidgetLabel"],
+    .stApp:has(.velox-libro-reclamaciones) .velox-libro-form [data-testid="stWidgetLabel"] p,
+    .stApp:has(.velox-libro-reclamaciones) .velox-libro-form [data-testid="stWidgetLabel"] span,
+    .stApp:has(.velox-libro-reclamaciones) .velox-libro-form [data-testid="stWidgetLabel"] label,
+    .stApp:has(.velox-libro-reclamaciones) .velox-libro-form [data-testid="stMarkdownContainer"] p,
+    .stApp:has(.velox-libro-reclamaciones) .velox-libro-form .stSelectbox label,
+    .stApp:has(.velox-libro-reclamaciones) .velox-libro-form .stTextInput label,
+    .stApp:has(.velox-libro-reclamaciones) .velox-libro-form .stTextArea label {
+        color: #ffffff !important;
+        opacity: 1 !important;
+        -webkit-text-fill-color: #ffffff !important;
+    }
+
+    .stApp:has(.velox-libro-reclamaciones) .velox-libro-form .stTextArea textarea {
         min-height: 96px;
     }
-    .stApp:has(.velox-id-bar) .main .block-container {
+
+    .stApp:has(.velox-libro-reclamaciones) .main .block-container {
         max-width: 520px !important;
         width: min(520px, calc(100vw - 1.5rem)) !important;
+    }
+
+    /* Botón superior: Volver al inicio de sesión */
+    .stApp:has(.velox-libro-reclamaciones) .st-key-libro_volver_login .stButton > button,
+    .stApp:has(.velox-libro-reclamaciones) .st-key-libro_volver_login .stButton > button p,
+    .stApp:has(.velox-libro-reclamaciones) .st-key-libro_volver_login .stButton > button span,
+    .stApp:has(.velox-libro-reclamaciones) .velox-libro-reclamaciones .velox-back-login .stButton > button,
+    .stApp:has(.velox-libro-reclamaciones) .velox-libro-reclamaciones .velox-back-login .stButton > button p,
+    .stApp:has(.velox-libro-reclamaciones) .velox-libro-reclamaciones .velox-back-login .stButton > button span {
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+        background: transparent !important;
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        font-weight: 600 !important;
+    }
+
+    .stApp:has(.velox-libro-reclamaciones) .st-key-libro_volver_login .stButton > button:hover,
+    .stApp:has(.velox-libro-reclamaciones) .velox-libro-reclamaciones .velox-back-login .stButton > button:hover {
+        color: #ffffff !important;
+        opacity: 0.88 !important;
+    }
+
+    /* Botón de envío y acciones secundarias */
+    .stApp:has(.velox-libro-reclamaciones) .st-key-libro_btn_registrar .stButton > button,
+    .stApp:has(.velox-libro-reclamaciones) .st-key-libro_btn_registrar .stButton > button p,
+    .stApp:has(.velox-libro-reclamaciones) .st-key-libro_btn_registrar .stButton > button span,
+    .stApp:has(.velox-libro-reclamaciones) .st-key-libro_nueva_reclamacion .stButton > button,
+    .stApp:has(.velox-libro-reclamaciones) .st-key-libro_nueva_reclamacion .stButton > button p,
+    .stApp:has(.velox-libro-reclamaciones) .st-key-libro_nueva_reclamacion .stButton > button span {
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+        font-weight: 700 !important;
     }
 </style>
 """
@@ -158,6 +222,7 @@ def registrar_reclamacion(datos: Dict[str, str]) -> Tuple[bool, str, Optional[st
 def render_libro_reclamaciones_auth_view() -> None:
     """Formulario nativo del Libro de Reclamaciones (vista de acceso)."""
     st.markdown(LIBRO_RECLAMACIONES_CSS, unsafe_allow_html=True)
+    st.markdown('<div class="velox-libro-reclamaciones">', unsafe_allow_html=True)
 
     st.markdown(
         """
@@ -191,6 +256,7 @@ def render_libro_reclamaciones_auth_view() -> None:
         if st.button("Registrar otra reclamación", key="libro_nueva_reclamacion"):
             st.session_state.pop("libro_reclamacion_codigo", None)
             st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
         return
 
     st.markdown('<div class="velox-libro-form">', unsafe_allow_html=True)
@@ -260,4 +326,5 @@ def render_libro_reclamaciones_auth_view() -> None:
             st.rerun()
         st.error(mensaje)
 
+    st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)

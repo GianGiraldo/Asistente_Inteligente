@@ -121,6 +121,7 @@ from notification_manager import (
 )
 from payment_manager import PaymentManager, MONTO_SOLES
 from storage_manager import StorageManager
+from libro_reclamaciones import render_libro_reclamaciones_auth_view
 from ui_theme import (
     inject_global_theme,
     inject_section_catalog_css,
@@ -2333,7 +2334,7 @@ def render_pantalla_configurar_password():
         render_velox_brand_header()
         with st.container(border=True):
             render_tab_setup_password_velox()
-    render_footer()
+    render_footer(auth_portal=True)
 
 
 def _render_auth_portal_prefix():
@@ -2349,7 +2350,7 @@ def render_pantalla_solo_recuperacion():
         render_velox_brand_header()
         with st.container(border=True):
             render_tab_recuperar_password()
-    render_footer()
+    render_footer(auth_portal=True)
 
 
 def _render_velox_auth_portal_marker():
@@ -2383,7 +2384,7 @@ def render_welcome_gateway():
 
 def login_screen():
     render_welcome_gateway()
-    render_footer()
+    render_footer(auth_portal=True)
 
 
 # ==================== FOOTER LEGAL Y PÁGINAS INTERNAS ====================
@@ -2402,13 +2403,13 @@ def _leer_documento_legal(nombre_archivo: str) -> str:
         return f.read()
 
 
-def render_footer() -> None:
+def render_footer(auth_portal: bool = False) -> None:
     """Footer legal centrado para login y dashboard."""
     st.markdown("---")
     st.markdown(
-        """
+        f"""
         <div class='velox-auth-footer' style='text-align: center; padding: 1rem 0; font-size: 0.85rem; color: #64748b;'>
-            <a href='https://docs.google.com/forms/d/e/1FAIpQLSexps1r4DvjE4EgNYzCw6e8G7SomSupJVikKnKADA8nVhRW5w/viewform?usp=public+editor' target='_blank' style='color: #4a6fa5; text-decoration: none; margin: 0 10px;'>📖 Libro de Reclamaciones</a>
+            <a href='?page=libro_reclamaciones' style='color: #4a6fa5; text-decoration: none; margin: 0 10px;'>📖 Libro de Reclamaciones</a>
             <span style='color: #cbd5e1;'>|</span>
             <a href='https://drive.google.com/file/d/1EGm93-Y3S3RD6pbw4J1AzTyrNI2goiyg/view?usp=sharing' target='_blank' style='color: #4a6fa5; text-decoration: none; margin: 0 10px;'>📄 Términos y Condiciones</a>
             <span style='color: #cbd5e1;'>|</span>
@@ -2436,7 +2437,7 @@ def mostrar_terminos_condiciones() -> None:
     )
     st.markdown(_leer_documento_legal("terminos_condiciones.txt"))
     st.markdown("</div>", unsafe_allow_html=True)
-    render_footer()
+    render_footer(auth_portal=True)
 
 
 def mostrar_politica_privacidad() -> None:
@@ -2454,7 +2455,17 @@ def mostrar_politica_privacidad() -> None:
     )
     st.markdown(_leer_documento_legal("politica_privacidad.txt"))
     st.markdown("</div>", unsafe_allow_html=True)
-    render_footer()
+    render_footer(auth_portal=True)
+
+
+def mostrar_libro_reclamaciones() -> None:
+    """Vista nativa del Libro de Reclamaciones (acceso público, pre-login)."""
+    _render_auth_portal_prefix()
+    col1, col2, col3 = st.columns([0.6, 2, 0.6])
+    with col2:
+        with st.container(border=True):
+            render_libro_reclamaciones_auth_view()
+    render_footer(auth_portal=True)
 
 
 # ==================== CHATBOT ASISTENTE IA (flotante) ====================
@@ -5956,6 +5967,9 @@ if _legal_page == "terminos":
     st.stop()
 if _legal_page == "privacidad":
     mostrar_politica_privacidad()
+    st.stop()
+if _legal_page == "libro_reclamaciones":
+    mostrar_libro_reclamaciones()
     st.stop()
 
 auth_manager.inicializar_estado_auth()

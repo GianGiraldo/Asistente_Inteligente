@@ -109,12 +109,120 @@ class PaymentManager:
         return key.hex(), salt
 
     def _obtener_usuario(self, email: str) -> Optional[Dict[str, Any]]:
+        email_norm = (email or "").strip().lower()
+        if not email_norm:
+            return None
         try:
-            result = self.supabase.table(TABLA_USUARIOS).select("*").eq("email", email).execute()
+            result = (
+                self.supabase.table(TABLA_USUARIOS)
+                .select("*")
+                .eq("email", email_norm)
+                .limit(1)
+                .execute()
+            )
+            if result.data:
+                return result.data[0]
+            result = (
+                self.supabase.table(TABLA_USUARIOS)
+                .select("*")
+                .ilike("email", email_norm)
+                .limit(1)
+                .execute()
+            )
             return result.data[0] if result.data else None
         except Exception as e:
             print(f"Error obteniendo usuario: {_format_error(e)}")
             return None
+
+    def _restaurar_sesion_supabase_app(self) -> None:
+        """Reaplica tokens OAuth al cliente Supabase antes de operaciones sensibles."""
+        try:
+            import streamlit as st
+        except Exception:
+            return
+        access = st.session_state.get("access_token")
+        refresh = st.session_state.get("refresh_token")
+        if not access or not refresh:
+            session_string = st.session_state.get("session_string")
+            if session_string:
+                try:
+                    data = json.loads(session_string)
+                    access = data.get("access_token")
+                    refresh = data.get("refresh_token")
+                except json.JSONDecodeError:
+                    pass
+        if access and refresh:
+            try:
+                self.supabase.auth.set_session(access, refresh)
+            except Exception as e:
+                print(f"Aviso restaurando sesión Supabase: {_format_error(e)}")
+
+    def _email_desde_auth_supabase(self) -> str:
+        try:
+            self._restaurar_sesion_supabase_app()
+            auth_res = self.supabase.auth.get_user()
+            auth_user = getattr(auth_res, "user", None)
+            if auth_user is None and isinstance(auth_res, dict):
+                auth_user = auth_res.get("user")
+            if auth_user is None:
+                return ""
+            return (getattr(auth_user, "email", None) or auth_user.get("email") or "").strip().lower()
+        except Exception as e:
+            print(f"Aviso leyendo email auth: {_format_error(e)}")
+            return ""
+
+    def _resolver_usuario_compra(
+        self,
+        email: str,
+        user_hint: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[Optional[Dict[str, Any]], str, str]:
+        """
+        Resuelve el usuario autenticado para registrar compras/comprobantes.
+        Retorna (user, mensaje_error, email_canonico).
+        """
+        self._restaurar_sesion_supabase_app()
+        email_norm = (email or "").strip().lower()
+        auth_email = self._email_desde_auth_supabase()
+        if auth_email:
+            email_norm = auth_email
+
+        if not email_norm:
+            return None, "No hay sesión activa. Vuelve a iniciar sesión.", ""
+
+        if user_hint:
+            hint_email = (user_hint.get("email") or "").strip().lower()
+            if hint_email and hint_email == email_norm:
+                return user_hint, "", email_norm
+
+        user = self._obtener_usuario(email_norm)
+        if user:
+            canon = (user.get("email") or email_norm).strip().lower()
+            return user, "", canon
+
+        return (
+            None,
+            "No encontramos tu perfil. Vuelve a iniciar sesión.",
+            email_norm,
+        )
+
+    @staticmethod
+    def _normalizar_lista_secciones(valor: Any) -> List[str]:
+        if valor is None:
+            return []
+        if isinstance(valor, str):
+            texto = valor.strip()
+            if not texto:
+                return []
+            try:
+                parsed = json.loads(texto)
+                if isinstance(parsed, list):
+                    return [str(x).strip() for x in parsed if str(x).strip()]
+            except json.JSONDecodeError:
+                return [texto]
+            return []
+        if isinstance(valor, list):
+            return [str(x).strip() for x in valor if str(x).strip()]
+        return []
 
     @staticmethod
     def _perfil_usuario(user: Dict[str, Any]) -> Dict[str, Any]:
@@ -129,11 +237,14 @@ class PaymentManager:
         return {}
 
     def _obtener_comprobante_pendiente(self, email: str) -> Optional[Dict[str, Any]]:
+        email_norm = (email or "").strip().lower()
+        if not email_norm:
+            return None
         try:
             result = (
                 self.supabase.table(TABLA_COMPROBANTES)
                 .select("*")
-                .eq("usuario_email", email)
+                .eq("usuario_email", email_norm)
                 .eq("estado", ESTADO_PENDIENTE)
                 .order("creado", desc=True)
                 .limit(1)
@@ -467,6 +578,7 @@ class PaymentManager:
         nombre: str,
         celular: str,
         comprobante_file: Any = None,
+        user_hint: Optional[Dict[str, Any]] = None,
     ) -> Tuple[bool, str]:
         """Registra solicitud Yape/Plim con captura JPEG y celular (sin codigo_operacion)."""
         if not comprobante_file:
@@ -482,11 +594,12 @@ class PaymentManager:
         if not ok_cel:
             return False, cel_norm
 
-        user = self._obtener_usuario(email_norm)
+        user, err_perfil, email_norm = self._resolver_usuario_compra(
+            email_norm, user_hint=user_hint
+        )
         if not user:
-            return False, "No encontramos tu perfil. Vuelve a iniciar sesión con Google."
-        if user.get("pago_confirmado") and user.get("activo"):
-            return False, "Tu suscripción ya está activa."
+            return False, err_perfil
+
         if self._obtener_comprobante_pendiente(email_norm):
             return False, "Ya tienes una solicitud pendiente de revisión."
 
@@ -502,6 +615,7 @@ class PaymentManager:
         plan_id: str,
         cursos_ids: List[str],
         comprobante_file: Any = None,
+        user_hint: Optional[Dict[str, Any]] = None,
     ) -> Tuple[bool, str]:
         """Registra solicitud de plan de cursos con comprobante Yape/Plim."""
         planes = {
@@ -535,9 +649,11 @@ class PaymentManager:
         if invalidos:
             return False, f"Cursos no válidos: {', '.join(invalidos)}."
 
-        user = self._obtener_usuario(email_norm)
+        user, err_perfil, email_norm = self._resolver_usuario_compra(
+            email_norm, user_hint=user_hint
+        )
         if not user:
-            return False, "No encontramos tu perfil. Vuelve a iniciar sesión."
+            return False, err_perfil
 
         if self._obtener_comprobante_pendiente(email_norm):
             return False, "Ya tienes una solicitud pendiente de revisión."
@@ -548,7 +664,7 @@ class PaymentManager:
 
         ok_ins, msg_ins = self._insertar_comprobante(
             email_norm,
-            "",
+            (user.get("celular") or "").strip() or None,
             url,
             ruta or "",
             metodo_pago=METODO_YAPE_PLIM,
@@ -910,7 +1026,7 @@ class PaymentManager:
         base: List[str] = []
         if user:
             raw = user.get("secciones_asignadas") or user.get("secciones") or []
-            base = [str(s).strip() for s in raw if str(s).strip()]
+            base = self._normalizar_lista_secciones(raw)
         extra = self._secciones_desde_comprobantes_aprobados(email_norm)
         return list(dict.fromkeys(base + extra))
 
@@ -931,7 +1047,8 @@ class PaymentManager:
         if not user:
             return False, "Usuario no encontrado"
 
-        actuales = list(user.get("secciones_asignadas") or user.get("secciones") or [])
+        raw_actuales = user.get("secciones_asignadas") or user.get("secciones") or []
+        actuales = self._normalizar_lista_secciones(raw_actuales)
         merged = list(dict.fromkeys(actuales + secciones_nuevas))
         update_data: Dict[str, Any] = {
             "secciones_asignadas": merged,

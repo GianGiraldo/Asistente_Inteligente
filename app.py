@@ -2034,7 +2034,8 @@ def _render_culqi_checkout_section(seccion_id: str = "", key_prefix: str = "culq
 
 
 def _render_yape_plim_section(seccion_id: str = "", key_prefix: str = "yape"):
-    email = st.session_state.get("usuario", "")
+    user_compra, email_compra = _resolver_usuario_compra_app()
+    email = email_compra or (st.session_state.get("usuario") or "")
     nombre = st.session_state.get("nombre", "")
     sec_info = SECCIONES.get(seccion_id, {})
     seccion_nombre = sec_info.get("nombre", seccion_id) if seccion_id else ""
@@ -2080,6 +2081,9 @@ def _render_yape_plim_section(seccion_id: str = "", key_prefix: str = "yape"):
                 key=f"{key_prefix}_btn_enviar",
                 disabled=not puede_enviar,
             ):
+                if not user_compra:
+                    st.error("No encontramos tu perfil. Vuelve a iniciar sesión.")
+                    return
                 try:
                     progress = st.progress(0, text="Subiendo comprobante...")
                     progress.progress(35, text="Conectando con Supabase...")
@@ -2088,6 +2092,7 @@ def _render_yape_plim_section(seccion_id: str = "", key_prefix: str = "yape"):
                         nombre=nombre,
                         celular=celular,
                         comprobante_file=comprobante,
+                        user_hint=user_compra,
                     )
                     progress.progress(100, text="Listo")
                     if exito:
@@ -3045,9 +3050,66 @@ def _rerun_velox(scope_fragment: bool = False) -> None:
 
 
 def _ensure_sesion_perfil_local() -> None:
-    """Evita re-hidratar perfil desde BD si la sesión ya trae rol y permisos."""
-    if st.session_state.get("autenticado") and not st.session_state.get("_sesion_perfil_cargado"):
-        st.session_state["_sesion_perfil_cargado"] = True
+    """Garantiza que la sesión activa tenga perfil coherente en public.users."""
+    if not st.session_state.get("autenticado"):
+        return
+    if st.session_state.get("_sesion_perfil_cargado"):
+        return
+
+    email = (st.session_state.get("usuario") or "").strip().lower()
+    if not email:
+        return
+
+    payment_manager._restaurar_sesion_supabase_app()
+    user = auth_manager._obtener_usuario_db(email)
+    if not user:
+        user = auth_manager._asegurar_usuario_db(
+            email,
+            nombre=st.session_state.get("nombre"),
+            avatar=st.session_state.get("avatar_url"),
+            auth_provider="google",
+        )
+
+    email_canon = (user.get("email") or email).strip().lower()
+    st.session_state["usuario"] = email_canon
+    st.session_state["rol"] = user.get("rol", st.session_state.get("rol", "usuario"))
+    st.session_state["nombre"] = user.get("nombre", st.session_state.get("nombre", "Usuario"))
+    secciones_raw = user.get("secciones_asignadas") or user.get("secciones") or []
+    st.session_state["secciones"] = payment_manager._normalizar_lista_secciones(secciones_raw)
+    st.session_state["acceso_pagado"] = payment_manager.usuario_tiene_acceso(user)
+    auth_manager._aplicar_permisos_a_sesion(user)
+    st.session_state["_sesion_perfil_cargado"] = True
+
+
+def _resolver_usuario_compra_app() -> tuple[dict | None, str]:
+    """Retorna (fila users, email_canonico) para flujos de compra autenticados."""
+    if not st.session_state.get("autenticado"):
+        return None, ""
+
+    payment_manager._restaurar_sesion_supabase_app()
+    email = (st.session_state.get("usuario") or "").strip().lower()
+    if not email:
+        auth_email = payment_manager._email_desde_auth_supabase()
+        if auth_email:
+            email = auth_email
+            st.session_state["usuario"] = auth_email
+
+    if not email:
+        return None, ""
+
+    user = auth_manager._obtener_usuario_db(email)
+    if not user:
+        user = auth_manager._asegurar_usuario_db(
+            email,
+            nombre=st.session_state.get("nombre"),
+            avatar=st.session_state.get("avatar_url"),
+            auth_provider="google",
+        )
+
+    email_canon = (user.get("email") or email).strip().lower()
+    st.session_state["usuario"] = email_canon
+    st.session_state["_sesion_perfil_cargado"] = True
+    return user, email_canon
 
 
 def _es_admin() -> bool:
@@ -5662,7 +5724,13 @@ def _abrir_dialog_plan_cursos():
 def _dialog_adquirir_plan_cursos():
     st.markdown(PLAN_COMPRA_MODAL_CSS, unsafe_allow_html=True)
 
-    email_usuario = (st.session_state.get("usuario") or "").strip()
+    user_compra, email_usuario = _resolver_usuario_compra_app()
+    if not user_compra:
+        st.error("No encontramos tu perfil activo. Cierra este diálogo e inicia sesión nuevamente.")
+        if st.button("Cerrar", key="btn_plan_compra_cerrar_sin_sesion", on_click=_cerrar_dialog_plan_cursos):
+            pass
+        return
+
     nombre_usuario = st.session_state.get("nombre", "Usuario")
 
     st.markdown(
@@ -5754,6 +5822,7 @@ def _dialog_adquirir_plan_cursos():
                     plan_elegido,
                     list(cursos_sel),
                     comprobante_file=comprobante,
+                    user_hint=user_compra,
                 )
             if ok:
                 _cerrar_dialog_plan_cursos()

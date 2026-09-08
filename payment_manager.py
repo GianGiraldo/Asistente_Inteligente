@@ -303,69 +303,104 @@ class PaymentManager:
         cursos_solicitados: Optional[List[str]] = None,
     ) -> Tuple[bool, str]:
         """Inserta registro en tabla comprobantes (payload mínimo compatible con Supabase)."""
-        monto_final = float(monto if monto is not None else MONTO_SOLES)
-        base = {
-            "usuario_email": email_norm,
-            "celular": cel_norm or None,
-            "metodo_pago": metodo_pago,
-            "archivo_url": comprobante_url,
-            "estado": ESTADO_PENDIENTE,
-            "monto": monto_final,
-        }
-        if comprobante_ruta:
-            base["archivo_ruta"] = comprobante_ruta
-        if plan_seleccionado:
-            base["plan_seleccionado"] = plan_seleccionado
-        if cursos_solicitados is not None:
-            base["cursos_solicitados"] = cursos_solicitados
+        email_norm = (email_norm or "").strip().lower()
+        if not email_norm:
+            return False, "Correo de usuario inválido para registrar el comprobante."
+        if not (comprobante_url or "").strip():
+            return False, "No se recibió la URL del comprobante subido."
 
-        candidatos = [base, {k: v for k, v in base.items() if v is not None}]
-        candidatos.extend(
-            [
-                {
-                    "usuario_email": email_norm,
-                    "celular": cel_norm,
-                    "metodo_pago": metodo_pago,
-                    "archivo_url": comprobante_url,
-                    "estado": ESTADO_PENDIENTE,
-                    "monto": monto_final,
-                },
-                {
-                    "usuario_email": email_norm,
-                    "celular": cel_norm,
-                    "metodo_pago": metodo_pago,
-                    "archivo_url": comprobante_url,
-                    "estado": ESTADO_PENDIENTE,
-                },
-                {
-                    "usuario_email": email_norm,
-                    "celular": cel_norm,
-                    "metodo_pago": metodo_pago,
-                    "archivo_url": comprobante_url,
-                },
+        monto_final = float(monto if monto is not None else MONTO_SOLES)
+        cel_limpio = (cel_norm or "").strip()
+        cursos_json: Optional[List[str]] = None
+        if cursos_solicitados is not None:
+            cursos_json = [
+                str(curso).strip().lower()
+                for curso in cursos_solicitados
+                if str(curso).strip()
             ]
-        )
+
+        def _fila_base(*, incluir_monto: bool = True) -> Dict[str, Any]:
+            fila: Dict[str, Any] = {
+                "usuario_email": email_norm,
+                "metodo_pago": metodo_pago,
+                "archivo_url": comprobante_url.strip(),
+                "estado": ESTADO_PENDIENTE,
+            }
+            if incluir_monto:
+                fila["monto"] = monto_final
+            if cel_limpio:
+                fila["celular"] = cel_limpio
+            if comprobante_ruta:
+                fila["archivo_ruta"] = comprobante_ruta
+            if plan_seleccionado:
+                fila["plan_seleccionado"] = plan_seleccionado
+            if cursos_json is not None:
+                fila["cursos_solicitados"] = cursos_json
+            return fila
+
+        candidatos: List[Dict[str, Any]] = []
+        for fila in (
+            _fila_base(),
+            _fila_base(incluir_monto=False),
+            {
+                "usuario_email": email_norm,
+                "metodo_pago": metodo_pago,
+                "archivo_url": comprobante_url.strip(),
+                "estado": ESTADO_PENDIENTE,
+                "monto": monto_final,
+            },
+            {
+                "usuario_email": email_norm,
+                "metodo_pago": metodo_pago,
+                "archivo_url": comprobante_url.strip(),
+            },
+        ):
+            if fila not in candidatos:
+                candidatos.append(fila)
+
         ultimo_error = ""
         for data in candidatos:
             try:
                 result = self.supabase.table(TABLA_COMPROBANTES).insert(data).execute()
                 if result.data:
                     return True, "ok"
-                return False, "No se pudo registrar el comprobante en Supabase"
+                ultimo_error = "No se pudo registrar el comprobante en Supabase"
             except Exception as e:
                 ultimo_error = _format_error(e)
-                if "PGRST204" in ultimo_error or "could not find" in ultimo_error.lower():
+                if self._es_error_supabase_reintentable(ultimo_error):
                     continue
                 return False, f"Error guardando comprobante: {ultimo_error}"
+
         return False, (
             f"Error guardando comprobante: {ultimo_error}. "
             "Ejecuta sql/payments_schema.sql en Supabase para alinear la tabla comprobantes."
+        )
+
+    @staticmethod
+    def _es_error_supabase_reintentable(error_text: str) -> bool:
+        texto = (error_text or "").lower()
+        return any(
+            frag in texto
+            for frag in (
+                "pgrst204",
+                "could not find",
+                "column",
+                "42703",
+                "schema cache",
+                "invalid input syntax",
+                "22p02",
+                "23502",
+                "null value",
+                "not-null constraint",
+                "bad request",
+            )
         )
 
     def _subir_comprobante_pago(
         self, email: str, archivo: Any
     ) -> Tuple[bool, str, Optional[str], Optional[str]]:
         """Sube captura Yape/Plim a Supabase Storage. Retorna (ok, msg, url, ruta)."""
+        self._restaurar_sesion_supabase_app()
         try:
             extension = (archivo.name or "captura.jpg").split(".")[-1].lower()
             if extension not in EXTENSIONES_COMPROBANTE:
@@ -375,6 +410,10 @@ class PaymentManager:
                     None,
                     None,
                 )
+            file_bytes = archivo.getvalue()
+            if not file_bytes:
+                return False, "El archivo del comprobante está vacío. Vuelve a adjuntarlo.", None, None
+
             email_slug = re.sub(r"[^a-z0-9]+", "_", email.lower()).strip("_")
             nombre_unico = f"{uuid.uuid4()}.{extension}"
             ruta = f"{CARPETA_COMPROBANTES}/{email_slug}/{nombre_unico}"
@@ -387,15 +426,31 @@ class PaymentManager:
             content_type = getattr(archivo, "type", None) or content_types.get(
                 extension, "application/octet-stream"
             )
-            self.supabase.storage.from_(BUCKET_COMPROBANTES).upload(
-                ruta,
-                archivo.getvalue(),
-                {"content-type": content_type, "upsert": "false"},
-            )
-            url = self.supabase.storage.from_(BUCKET_COMPROBANTES).get_public_url(ruta)
+            storage = self.supabase.storage.from_(BUCKET_COMPROBANTES)
+            upload_options = {"content-type": content_type}
+            try:
+                storage.upload(ruta, file_bytes, file_options=upload_options)
+            except TypeError:
+                storage.upload(ruta, file_bytes, upload_options)
+            except Exception as first_exc:
+                first_error = _format_error(first_exc)
+                if "400" not in first_error and "bad request" not in first_error.lower():
+                    raise
+                storage.upload(ruta, file_bytes)
+
+            url = storage.get_public_url(ruta)
             return True, "Comprobante subido", url, ruta
         except Exception as e:
-            return False, f"No se pudo subir la captura: {_format_error(e)}", None, None
+            err = _format_error(e)
+            if "400" in err or "bad request" in err.lower():
+                return (
+                    False,
+                    "No se pudo subir el comprobante (400). Verifica permisos del bucket "
+                    f"'{BUCKET_COMPROBANTES}' en Supabase Storage y vuelve a intentar.",
+                    None,
+                    None,
+                )
+            return False, f"No se pudo subir la captura: {err}", None, None
 
     def codigo_operacion_existe(self, codigo: str) -> bool:
         try:
@@ -664,7 +719,7 @@ class PaymentManager:
 
         ok_ins, msg_ins = self._insertar_comprobante(
             email_norm,
-            (user.get("celular") or "").strip() or None,
+            "",
             url,
             ruta or "",
             metodo_pago=METODO_YAPE_PLIM,

@@ -1194,16 +1194,71 @@ def inject_velox_auth_dark_portal_styles():
     st.markdown(_build_velox_auth_dark_portal_css(), unsafe_allow_html=True)
 
 # ==================== PASARELA DE BIENVENIDA veloX (Premium) ====================
-YAPE_QR_PATH = "assets/qr_pago.png"
-YAPE_TITULAR = "Gian Pier Giraldo Pariona"
+YAPE_TITULAR = "Gian Pier Giraldo P."
+YAPE_MEDIO_YAPE_PLIM = "981564390"
+YAPE_MEDIO_BCP = "19395580701061"
+YAPE_MEDIO_BBVA = "0011-0057-0274352443"
 MSG_YAPE_SUBIR_COMPROBANTE = "Sube tu comprobante para validar tu acceso."
 MSG_YAPE_COMPROBANTE_OK = "✅ Comprobante enviado. Activaremos tu acceso a la brevedad."
-YAPE_QR_SEGURIDAD_HTML = f"""
-<div style="text-align:center;font-size:0.86rem;color:#334155;line-height:1.45;margin-top:0.5rem;">
-<p style="margin:0.35rem 0;"><strong>Titular:</strong> {YAPE_TITULAR}</p>
-<p style="margin:0.35rem 0;">⚠️ <em>Verifica que el nombre del destinatario en Yape sea exacto antes de confirmar.</em></p>
+YAPE_MEDIOS_PAGO_HTML = f"""
+<div class="velox-medios-pago">
+    <p class="velox-medios-pago__item"><strong>Yape / Plim:</strong> {YAPE_MEDIO_YAPE_PLIM}</p>
+    <p class="velox-medios-pago__item"><strong>BCP S/:</strong> {YAPE_MEDIO_BCP}</p>
+    <p class="velox-medios-pago__item"><strong>BBVA S/:</strong> {YAPE_MEDIO_BBVA}</p>
+    <p class="velox-medios-pago__item"><strong>Titular de la cuenta:</strong> {YAPE_TITULAR}</p>
 </div>
 """
+YAPE_QR_SEGURIDAD_HTML = """
+<div class="velox-yape-seguridad">
+<p>⚠️ <em>Verifica que el nombre del destinatario en Yape sea exacto antes de confirmar.</em></p>
+</div>
+"""
+YAPE_MEDIOS_PAGO_CSS = """
+<style>
+    .velox-medios-pago-panel {
+        padding: 0.85rem 0.95rem;
+        background: #fff;
+        border: 1px solid #dbe3ef;
+        border-radius: 10px;
+    }
+    .velox-medios-pago-panel .velox-section-title {
+        margin-bottom: 0.65rem !important;
+    }
+    .velox-medios-pago {
+        text-align: left;
+        font-size: 0.92rem;
+        color: #1A2332;
+        line-height: 1.55;
+    }
+    .velox-medios-pago__item {
+        margin: 0.35rem 0;
+        padding: 0.45rem 0.55rem;
+        background: linear-gradient(135deg, #f8fafc 0%, #edf2f7 100%);
+        border-left: 3px solid #00B4D8;
+        border-radius: 6px;
+    }
+    .velox-yape-seguridad {
+        text-align: center;
+        font-size: 0.86rem;
+        color: #334155;
+        line-height: 1.45;
+        margin-top: 0.75rem;
+    }
+    .velox-yape-seguridad p {
+        margin: 0.35rem 0;
+    }
+</style>
+"""
+
+
+def _render_panel_medios_pago(titulo: str = "Medios de pago") -> None:
+    """Panel con cuentas Yape/Plim y bancarias (sin código QR)."""
+    st.markdown(YAPE_MEDIOS_PAGO_CSS, unsafe_allow_html=True)
+    st.markdown('<div class="velox-medios-pago-panel">', unsafe_allow_html=True)
+    st.markdown(f'<p class="velox-section-title">{html_module.escape(titulo)}</p>', unsafe_allow_html=True)
+    st.markdown(YAPE_MEDIOS_PAGO_HTML, unsafe_allow_html=True)
+    st.markdown(YAPE_QR_SEGURIDAD_HTML, unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 WHATSAPP_ADMIN_LINK = "https://wa.me/51913827482?text=Hola,%20solicito%20información%20sobre%20la%20seccion%20.........."
 YAPE_OAUTH_KEYS = ["yape_oauth_celular", "yape_comprobante_upload"]
 WELCOME_TAB_GATE = -1
@@ -2043,15 +2098,7 @@ def _render_yape_plim_section(seccion_id: str = "", key_prefix: str = "yape"):
     col_pago, col_form = st.columns([1, 1.12], gap="large")
 
     with col_pago:
-        st.markdown('<div class="velox-qr-panel">', unsafe_allow_html=True)
-        with st.container(border=True):
-            st.markdown('<p class="velox-section-title">Escanea y paga</p>', unsafe_allow_html=True)
-            if os.path.exists(YAPE_QR_PATH):
-                st.image(YAPE_QR_PATH, caption="Yape / Plim", use_container_width=True)
-            else:
-                st.warning(f"No se encontró `{YAPE_QR_PATH}`")
-            st.markdown(YAPE_QR_SEGURIDAD_HTML, unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+        _render_panel_medios_pago("Realiza tu pago")
 
     with col_form:
         with st.container(border=True):
@@ -5422,19 +5469,19 @@ PLAN_COMPRA_MODAL_CSS = f"""
         color: {VELOX_PLAN_AZUL_PASTEL};
         margin-top: 0.25rem;
     }}
-    .velox-plan-qr-wrap {{
-        text-align: center;
-        padding: 0.5rem;
+    .velox-plan-medios-pago-wrap {{
+        text-align: left;
+        padding: 0.65rem 0.75rem;
         background: #fff;
         border: 1px dashed #cbd5e0;
         border-radius: 8px;
     }}
-    .velox-plan-qr-wrap img {{
-        max-width: 220px !important;
-        width: 220px !important;
-        height: auto !important;
-        margin: 0 auto;
-        display: block;
+    .velox-plan-medios-pago-wrap .velox-medios-pago {{
+        font-size: 0.84rem;
+    }}
+    .velox-plan-medios-pago-wrap .velox-medios-pago__item {{
+        margin: 0.3rem 0;
+        padding: 0.4rem 0.5rem;
     }}
     .velox-plan-inst {{
         font-size: 0.82rem;
@@ -5788,13 +5835,14 @@ def _dialog_adquirir_plan_cursos():
         unsafe_allow_html=True,
     )
 
-    col_qr, col_upload = st.columns([1, 1])
-    with col_qr:
-        st.markdown('<div class="velox-plan-qr-wrap">', unsafe_allow_html=True)
-        if os.path.exists(YAPE_QR_PATH):
-            st.image(YAPE_QR_PATH, width=220, caption="Yape / Plin")
-        else:
-            st.warning(f"QR no disponible (`{YAPE_QR_PATH}`)")
+    col_medios, col_upload = st.columns([1, 1])
+    with col_medios:
+        st.markdown('<div class="velox-plan-medios-pago-wrap">', unsafe_allow_html=True)
+        st.markdown(
+            '<p class="velox-plan-modal-title" style="margin-top:0;border:none;padding:0;">Datos para transferir</p>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(YAPE_MEDIOS_PAGO_HTML, unsafe_allow_html=True)
         st.markdown(YAPE_QR_SEGURIDAD_HTML, unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
     with col_upload:

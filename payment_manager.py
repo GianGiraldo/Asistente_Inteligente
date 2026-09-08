@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
-from supabase_client import get_supabase
+from supabase_client import get_supabase, get_supabase_admin
 
 TABLA_USUARIOS = "users"
 TABLA_COMPROBANTES = "comprobantes"
@@ -74,6 +74,7 @@ def _format_error(exc: Exception) -> str:
 class PaymentManager:
     def __init__(self):
         self.supabase = get_supabase()
+        self.db = get_supabase_admin()
 
     @staticmethod
     def validar_email(email: str) -> Tuple[bool, str]:
@@ -114,7 +115,7 @@ class PaymentManager:
             return None
         try:
             result = (
-                self.supabase.table(TABLA_USUARIOS)
+                self.db.table(TABLA_USUARIOS)
                 .select("*")
                 .eq("email", email_norm)
                 .limit(1)
@@ -123,7 +124,7 @@ class PaymentManager:
             if result.data:
                 return result.data[0]
             result = (
-                self.supabase.table(TABLA_USUARIOS)
+                self.db.table(TABLA_USUARIOS)
                 .select("*")
                 .ilike("email", email_norm)
                 .limit(1)
@@ -242,7 +243,7 @@ class PaymentManager:
             return None
         try:
             result = (
-                self.supabase.table(TABLA_COMPROBANTES)
+                self.db.table(TABLA_COMPROBANTES)
                 .select("*")
                 .eq("usuario_email", email_norm)
                 .eq("estado", ESTADO_PENDIENTE)
@@ -258,7 +259,7 @@ class PaymentManager:
     def _obtener_comprobante_por_id(self, comprobante_id: str) -> Optional[Dict[str, Any]]:
         try:
             result = (
-                self.supabase.table(TABLA_COMPROBANTES)
+                self.db.table(TABLA_COMPROBANTES)
                 .select("*")
                 .eq("id", comprobante_id)
                 .limit(1)
@@ -361,7 +362,7 @@ class PaymentManager:
         ultimo_error = ""
         for data in candidatos:
             try:
-                result = self.supabase.table(TABLA_COMPROBANTES).insert(data).execute()
+                result = self.db.table(TABLA_COMPROBANTES).insert(data).execute()
                 if result.data:
                     return True, "ok"
                 ultimo_error = "No se pudo registrar el comprobante en Supabase"
@@ -426,7 +427,7 @@ class PaymentManager:
             content_type = getattr(archivo, "type", None) or content_types.get(
                 extension, "application/octet-stream"
             )
-            storage = self.supabase.storage.from_(BUCKET_COMPROBANTES)
+            storage = self.db.storage.from_(BUCKET_COMPROBANTES)
             upload_options = {"content-type": content_type}
             try:
                 storage.upload(ruta, file_bytes, file_options=upload_options)
@@ -455,7 +456,7 @@ class PaymentManager:
     def codigo_operacion_existe(self, codigo: str) -> bool:
         try:
             result = (
-                self.supabase.table(TABLA_USUARIOS)
+                self.db.table(TABLA_USUARIOS)
                 .select("email")
                 .eq("codigo_operacion", codigo)
                 .limit(1)
@@ -492,7 +493,7 @@ class PaymentManager:
             "perfil": {"velox_password_configured": True},
         }
         try:
-            result = self.supabase.table(TABLA_USUARIOS).insert(data).execute()
+            result = self.db.table(TABLA_USUARIOS).insert(data).execute()
             if result.data:
                 return True, "usuario_creado"
             return False, "No se pudo crear el usuario en Supabase"
@@ -506,7 +507,7 @@ class PaymentManager:
         }
         try:
             result = (
-                self.supabase.table(TABLA_USUARIOS)
+                self.db.table(TABLA_USUARIOS)
                 .update(update_data)
                 .eq("email", email)
                 .execute()
@@ -789,7 +790,7 @@ class PaymentManager:
         """Lista comprobantes pendientes desde tabla comprobantes."""
         try:
             result = (
-                self.supabase.table(TABLA_COMPROBANTES)
+                self.db.table(TABLA_COMPROBANTES)
                 .select("*")
                 .eq("estado", ESTADO_PENDIENTE)
                 .order("creado", desc=True)
@@ -809,7 +810,7 @@ class PaymentManager:
         for tabla in ("pagos", TABLA_COMPROBANTES):
             try:
                 result = (
-                    self.supabase.table(tabla)
+                    self.db.table(tabla)
                     .select("id", count="exact")
                     .eq("estado", ESTADO_PENDIENTE)
                     .execute()
@@ -851,11 +852,11 @@ class PaymentManager:
             if obs:
                 update_payload["motivo_rechazo"] = obs
             try:
-                self.supabase.table(TABLA_COMPROBANTES).update(update_payload).eq(
+                self.db.table(TABLA_COMPROBANTES).update(update_payload).eq(
                     "id", comprobante["id"]
                 ).execute()
             except Exception:
-                self.supabase.table(TABLA_COMPROBANTES).update(
+                self.db.table(TABLA_COMPROBANTES).update(
                     {"estado": ESTADO_APROBADO}
                 ).eq("id", comprobante["id"]).execute()
 
@@ -887,7 +888,7 @@ class PaymentManager:
 
             try:
                 result = (
-                    self.supabase.table(TABLA_COMPROBANTES)
+                    self.db.table(TABLA_COMPROBANTES)
                     .update(
                         {
                             "estado": ESTADO_RECHAZADO,
@@ -901,7 +902,7 @@ class PaymentManager:
                 )
             except Exception:
                 result = (
-                    self.supabase.table(TABLA_COMPROBANTES)
+                    self.db.table(TABLA_COMPROBANTES)
                     .update({"estado": ESTADO_RECHAZADO})
                     .eq("id", comprobante["id"])
                     .execute()
@@ -1055,7 +1056,7 @@ class PaymentManager:
             return []
         try:
             result = (
-                self.supabase.table(TABLA_COMPROBANTES)
+                self.db.table(TABLA_COMPROBANTES)
                 .select("cursos_solicitados")
                 .eq("usuario_email", email_norm)
                 .eq("estado", ESTADO_APROBADO)
@@ -1113,7 +1114,7 @@ class PaymentManager:
         }
         try:
             result = (
-                self.supabase.table(TABLA_USUARIOS)
+                self.db.table(TABLA_USUARIOS)
                 .update(update_data)
                 .eq("email", email_norm)
                 .execute()

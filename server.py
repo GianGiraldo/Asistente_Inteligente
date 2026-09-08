@@ -275,6 +275,27 @@ def _ensure_streamlit_secrets() -> None:
             ]
         )
 
+    smtp_host = (os.getenv("SMTP_HOST") or "").strip()
+    smtp_user = (os.getenv("SMTP_USER") or "").strip()
+    smtp_password = (os.getenv("SMTP_PASSWORD") or "").strip()
+    smtp_from = (os.getenv("SMTP_FROM") or smtp_user).strip()
+    smtp_port = (os.getenv("SMTP_PORT") or "587").strip()
+    smtp_from_name = (os.getenv("SMTP_FROM_NAME") or "veloX").strip()
+    if smtp_host and smtp_user and smtp_password:
+        lines.extend(
+            [
+                "[smtp]",
+                f'host = "{_toml_escape(smtp_host)}"',
+                f'port = {smtp_port}',
+                f'user = "{_toml_escape(smtp_user)}"',
+                f'password = "{_toml_escape(smtp_password)}"',
+                f'from_email = "{_toml_escape(smtp_from)}"',
+                f'from_name = "{_toml_escape(smtp_from_name)}"',
+                "use_tls = true",
+                "",
+            ]
+        )
+
     with open(secrets_path, "w", encoding="utf-8") as fh:
         fh.write("\n".join(lines))
     logger.info("secrets.toml generado para Streamlit")

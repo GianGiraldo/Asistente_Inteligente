@@ -9,7 +9,8 @@ import smtplib
 from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import Any, Dict, Optional, Tuple
+from email.utils import formataddr
+from typing import Any, Dict, List, Optional, Tuple
 
 import streamlit as st
 
@@ -158,48 +159,141 @@ def _format_error(exc: Exception) -> str:
 
 
 def _resolve_smtp_settings() -> Dict[str, Any]:
-    """Lee SMTP desde variables de entorno o st.secrets[smtp] (mismo patrón del proyecto)."""
+    """Lee SMTP desde variables de entorno o st.secrets[smtp]."""
     cfg: Dict[str, Any] = {}
     try:
-        bloque = st.secrets.get("smtp")
-        if bloque:
-            cfg = dict(bloque)
+        bloque = st.secrets["smtp"]
+        cfg = dict(bloque) if bloque else {}
     except Exception:
-        cfg = {}
+        try:
+            bloque = st.secrets.get("smtp")
+            if bloque:
+                cfg = dict(bloque)
+        except Exception:
+            cfg = {}
 
-    def _pick(*keys: str, default: str = "") -> str:
-        for key in keys:
-            env_val = (os.getenv(key) or "").strip()
-            if env_val:
-                return env_val
-        for key in keys:
-            secret_key = key.lower().replace("smtp_", "")
-            if secret_key in cfg and str(cfg[secret_key]).strip():
-                return str(cfg[secret_key]).strip()
-        return default
+    def _env(*names: str) -> str:
+        for name in names:
+            valor = (os.getenv(name) or "").strip()
+            if valor:
+                return valor
+        return ""
 
-    port_raw = _pick("SMTP_PORT", default=str(cfg.get("port") or "587"))
+    port_raw = _env("SMTP_PORT") or str(cfg.get("port") or "587")
     try:
         port = int(port_raw)
     except (TypeError, ValueError):
         port = 587
 
+    user = _env("SMTP_USER") or str(cfg.get("user") or "").strip()
+    from_email = (
+        _env("SMTP_FROM")
+        or str(cfg.get("from_email") or cfg.get("from") or user).strip()
+    )
+    admin_email = (
+        _env("SMTP_ADMIN")
+        or str(cfg.get("admin_email") or user or from_email).strip()
+    )
+    use_tls_raw = _env("SMTP_USE_TLS") or str(cfg.get("use_tls", "true"))
+    use_tls = use_tls_raw.lower() not in ("0", "false", "no")
+    use_ssl = port == 465 or str(cfg.get("use_ssl", "")).lower() in ("1", "true", "yes")
+
     return {
-        "host": _pick("SMTP_HOST", default=str(cfg.get("host") or "")),
+        "host": _env("SMTP_HOST") or str(cfg.get("host") or "").strip(),
         "port": port,
-        "user": _pick("SMTP_USER", default=str(cfg.get("user") or "")),
-        "password": _pick("SMTP_PASSWORD", default=str(cfg.get("password") or "")),
-        "from_email": _pick(
-            "SMTP_FROM",
-            default=str(cfg.get("from_email") or cfg.get("from") or ""),
-        ),
-        "from_name": _pick(
-            "SMTP_FROM_NAME",
-            default=str(cfg.get("from_name") or "veloX"),
-        ),
-        "use_tls": str(cfg.get("use_tls", os.getenv("SMTP_USE_TLS", "true"))).lower()
-        not in ("0", "false", "no"),
+        "user": user,
+        "password": _env("SMTP_PASSWORD") or str(cfg.get("password") or "").strip(),
+        "from_email": from_email or user,
+        "from_name": _env("SMTP_FROM_NAME") or str(cfg.get("from_name") or "veloX").strip(),
+        "admin_email": admin_email or from_email or user,
+        "use_tls": use_tls and not use_ssl,
+        "use_ssl": use_ssl,
     }
+
+
+def _validar_config_smtp(smtp: Dict[str, Any]) -> List[str]:
+    errores: List[str] = []
+    if not smtp.get("host"):
+        errores.append("SMTP: falta `host` en secrets [smtp] o variable SMTP_HOST.")
+    if not smtp.get("user"):
+        errores.append("SMTP: falta `user` en secrets [smtp] o variable SMTP_USER.")
+    if not smtp.get("password"):
+        errores.append("SMTP: falta `password` en secrets [smtp] o variable SMTP_PASSWORD.")
+    if not smtp.get("from_email"):
+        errores.append("SMTP: falta `from_email` en secrets [smtp] o variable SMTP_FROM.")
+    if not smtp.get("admin_email"):
+        errores.append("SMTP: falta correo administrativo (user/from_email/admin_email).")
+    return errores
+
+
+def _format_smtp_exception(exc: Exception, smtp: Dict[str, Any]) -> str:
+    host = smtp.get("host") or "?"
+    port = smtp.get("port") or "?"
+    if isinstance(exc, smtplib.SMTPAuthenticationError):
+        return (
+            f"Autenticación SMTP rechazada en {host}:{port}. "
+            f"Verifique user/password (Gmail requiere contraseña de aplicación). Detalle: {exc}"
+        )
+    if isinstance(exc, smtplib.SMTPConnectError):
+        return f"No se pudo conectar al servidor SMTP {host}:{port}. Detalle: {exc}"
+    if isinstance(exc, smtplib.SMTPException):
+        return f"Error SMTP ({host}:{port}): {exc}"
+    if isinstance(exc, TimeoutError):
+        return f"Tiempo de espera agotado al conectar con SMTP {host}:{port}."
+    if isinstance(exc, OSError):
+        return f"Error de red/puerto SMTP ({host}:{port}): {exc}"
+    return f"Error enviando correo ({host}:{port}): {exc}"
+
+
+def _enviar_mensaje_smtp(
+    smtp: Dict[str, Any],
+    msg: MIMEMultipart,
+    destinatarios: List[str],
+) -> Tuple[bool, str]:
+    destinatarios_limpios = [d.strip() for d in destinatarios if (d or "").strip()]
+    if not destinatarios_limpios:
+        return False, "No hay destinatarios válidos para el envío."
+
+    try:
+        if smtp.get("use_ssl"):
+            server = smtplib.SMTP_SSL(smtp["host"], smtp["port"], timeout=30)
+        else:
+            server = smtplib.SMTP(smtp["host"], smtp["port"], timeout=30)
+
+        with server:
+            server.ehlo()
+            if smtp.get("use_tls"):
+                server.starttls()
+                server.ehlo()
+            if smtp.get("user") and smtp.get("password"):
+                server.login(smtp["user"], smtp["password"])
+            server.send_message(msg, from_addr=smtp["from_email"], to_addrs=destinatarios_limpios)
+        return True, f"Enviado a {', '.join(destinatarios_limpios)}"
+    except Exception as exc:
+        logger.exception(
+            "Fallo SMTP hacia %s via %s:%s",
+            destinatarios_limpios,
+            smtp.get("host"),
+            smtp.get("port"),
+        )
+        return False, _format_smtp_exception(exc, smtp)
+
+
+def _crear_mensaje_email(
+    smtp: Dict[str, Any],
+    destinatario: str,
+    subject: str,
+    plain_body: str,
+    html_body: str,
+) -> MIMEMultipart:
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = formataddr((smtp["from_name"], smtp["from_email"]))
+    msg["To"] = destinatario
+    msg["Reply-To"] = smtp["from_email"]
+    msg.attach(MIMEText(plain_body, "plain", "utf-8"))
+    msg.attach(MIMEText(html_body, "html", "utf-8"))
+    return msg
 
 
 def _parse_correlativo_codigo(codigo: str, year: int) -> int:
@@ -326,22 +420,73 @@ def _build_reclamacion_email_html(registro: Dict[str, Any], codigo: str) -> str:
 </html>"""
 
 
-def enviar_correo_confirmacion_reclamacion(
+def _build_admin_alert_html(registro: Dict[str, Any], codigo: str) -> str:
+    nombre = html.escape(str(registro.get("nombres_apellidos") or ""))
+    documento = html.escape(str(registro.get("documento_identidad") or ""))
+    correo = html.escape(str(registro.get("correo") or ""))
+    telefono = html.escape(str(registro.get("telefono") or ""))
+    tipo_bien = html.escape(str(registro.get("tipo_bien") or ""))
+    tipo = html.escape(str(registro.get("tipo") or ""))
+    detalle = html.escape(str(registro.get("detalle") or "")).replace("\n", "<br>")
+    pedido = html.escape(str(registro.get("pedido") or "")).replace("\n", "<br>")
+    codigo_safe = html.escape(codigo)
+    fecha = html.escape(datetime.now().strftime("%d/%m/%Y %H:%M"))
+
+    return f"""<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="utf-8"/><title>Alerta Libro de Reclamaciones</title></head>
+<body style="font-family:Arial,Helvetica,sans-serif;background:#f8fafc;color:#1e293b;padding:20px;">
+  <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #dbe3ef;border-radius:10px;overflow:hidden;">
+    <div style="background:#7f1d1d;color:#ffffff;padding:18px 22px;">
+      <strong>ALERTA veloX</strong> — Nueva entrada en Libro de Reclamaciones
+    </div>
+    <div style="padding:22px;">
+      <p style="margin:0 0 12px;">Se registró una nueva {tipo.lower()} con código <strong>{codigo_safe}</strong>.</p>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <tr><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;"><strong>Fecha:</strong></td><td>{fecha}</td></tr>
+        <tr><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;"><strong>Consumidor:</strong></td><td>{nombre}</td></tr>
+        <tr><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;"><strong>Documento:</strong></td><td>{documento}</td></tr>
+        <tr><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;"><strong>Correo:</strong></td><td>{correo}</td></tr>
+        <tr><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;"><strong>Teléfono:</strong></td><td>{telefono}</td></tr>
+        <tr><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;"><strong>Tipo de bien:</strong></td><td>{tipo_bien}</td></tr>
+        <tr><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;"><strong>Tipo:</strong></td><td>{tipo}</td></tr>
+        <tr><td style="padding:8px 0;border-bottom:1px solid #e2e8f0;vertical-align:top;"><strong>Detalle:</strong></td><td>{detalle}</td></tr>
+        <tr><td style="padding:8px 0;vertical-align:top;"><strong>Pedido:</strong></td><td>{pedido}</td></tr>
+      </table>
+      <p style="margin:16px 0 0;color:#64748b;font-size:13px;">Responder al consumidor dentro del plazo legal de 15 días hábiles.</p>
+    </div>
+  </div>
+</body>
+</html>"""
+
+
+def enviar_correos_reclamacion(
     registro: Dict[str, Any],
     codigo: str,
-) -> Tuple[bool, str]:
-    """Envía correo HTML de confirmación al consumidor."""
+) -> Tuple[List[str], List[str]]:
+    """
+    Envía correo al consumidor y copia de alerta al administrador.
+    Retorna (mensajes_exito, mensajes_error).
+    """
+    exitos: List[str] = []
+    errores: List[str] = []
+
     destinatario = (registro.get("correo") or "").strip().lower()
     if not destinatario:
-        return False, "Correo del destinatario vacío."
+        errores.append("Correo del consumidor vacío; no se pudo enviar confirmación.")
+        return exitos, errores
 
     smtp = _resolve_smtp_settings()
-    if not smtp["host"] or not smtp["from_email"]:
-        return False, "SMTP no configurado."
+    errores.extend(_validar_config_smtp(smtp))
+    if errores:
+        return exitos, errores
 
-    subject = f"Confirmación Libro de Reclamaciones — {codigo}"
-    html_body = _build_reclamacion_email_html(registro, codigo)
-    plain_body = (
+    if smtp["from_email"].lower() != smtp["user"].lower():
+        smtp["from_email"] = smtp["user"]
+
+    subject_user = f"Confirmación Libro de Reclamaciones — {codigo}"
+    html_user = _build_reclamacion_email_html(registro, codigo)
+    plain_user = (
         f"Su reclamación fue registrada correctamente.\n\n"
         f"Código de seguimiento: {codigo}\n"
         f"Plazo legal de respuesta: 15 días hábiles.\n\n"
@@ -350,25 +495,34 @@ def enviar_correo_confirmacion_reclamacion(
         f"Detalle: {registro.get('detalle')}\n"
         f"Pedido: {registro.get('pedido')}\n"
     )
+    msg_user = _crear_mensaje_email(smtp, destinatario, subject_user, plain_user, html_user)
+    ok_user, detalle_user = _enviar_mensaje_smtp(smtp, msg_user, [destinatario])
+    if ok_user:
+        exitos.append(f"Correo de confirmación enviado al consumidor ({destinatario}).")
+    else:
+        errores.append(f"Correo al consumidor: {detalle_user}")
 
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = f"{smtp['from_name']} <{smtp['from_email']}>"
-    msg["To"] = destinatario
-    msg.attach(MIMEText(plain_body, "plain", "utf-8"))
-    msg.attach(MIMEText(html_body, "html", "utf-8"))
+    admin = smtp["admin_email"]
+    subject_admin = f"ALERTA veloX — Nueva reclamación {codigo}"
+    html_admin = _build_admin_alert_html(registro, codigo)
+    plain_admin = (
+        f"Nueva reclamación registrada.\n\n"
+        f"Código: {codigo}\n"
+        f"Consumidor: {registro.get('nombres_apellidos')}\n"
+        f"Correo: {destinatario}\n"
+        f"Teléfono: {registro.get('telefono')}\n"
+        f"Tipo: {registro.get('tipo')} | Bien: {registro.get('tipo_bien')}\n\n"
+        f"Detalle:\n{registro.get('detalle')}\n\n"
+        f"Pedido:\n{registro.get('pedido')}\n"
+    )
+    msg_admin = _crear_mensaje_email(smtp, admin, subject_admin, plain_admin, html_admin)
+    ok_admin, detalle_admin = _enviar_mensaje_smtp(smtp, msg_admin, [admin])
+    if ok_admin:
+        exitos.append(f"Alerta administrativa enviada a {admin}.")
+    else:
+        errores.append(f"Correo administrativo: {detalle_admin}")
 
-    try:
-        with smtplib.SMTP(smtp["host"], smtp["port"], timeout=30) as server:
-            if smtp["use_tls"]:
-                server.starttls()
-            if smtp["user"] and smtp["password"]:
-                server.login(smtp["user"], smtp["password"])
-            server.sendmail(smtp["from_email"], [destinatario], msg.as_string())
-        return True, "Correo enviado."
-    except Exception as exc:
-        logger.exception("Error enviando correo de reclamación a %s", destinatario)
-        return False, f"Error enviando correo: {exc}"
+    return exitos, errores
 
 
 def validar_formulario_reclamacion(datos: Dict[str, str]) -> Optional[str]:
@@ -400,10 +554,13 @@ def validar_formulario_reclamacion(datos: Dict[str, str]) -> Optional[str]:
     return None
 
 
-def registrar_reclamacion(datos: Dict[str, str]) -> Tuple[bool, str, Optional[str]]:
+def registrar_reclamacion(
+    datos: Dict[str, str],
+) -> Tuple[bool, str, Optional[str], List[str], List[str]]:
+    """Retorna ok, mensaje, código, avisos_correo_ok, errores_correo."""
     error = validar_formulario_reclamacion(datos)
     if error:
-        return False, error, None
+        return False, error, None, [], []
 
     supabase = get_supabase()
     registro_base: Dict[str, Any] = {
@@ -424,24 +581,30 @@ def registrar_reclamacion(datos: Dict[str, str]) -> Tuple[bool, str, Optional[st
         try:
             result = supabase.table(TABLA_LIBRO_RECLAMACIONES).insert(registro).execute()
             if not result.data:
-                return False, "No se pudo registrar la reclamación. Inténtalo nuevamente.", None
+                return False, "No se pudo registrar la reclamación. Inténtalo nuevamente.", None, [], []
 
-            mail_ok, mail_msg = enviar_correo_confirmacion_reclamacion(registro, codigo)
-            if mail_ok:
-                return True, "Reclamación registrada correctamente.", codigo
-            logger.warning("Reclamación %s registrada pero correo falló: %s", codigo, mail_msg)
+            exitos_mail, errores_mail = enviar_correos_reclamacion(registro, codigo)
+            if not errores_mail:
+                return True, "Reclamación registrada correctamente.", codigo, exitos_mail, []
+            logger.warning(
+                "Reclamación %s registrada con fallos SMTP: %s",
+                codigo,
+                "; ".join(errores_mail),
+            )
             return (
                 True,
-                "Reclamación registrada correctamente. No pudimos enviar el correo de confirmación; conserve su código en pantalla.",
+                "Reclamación registrada correctamente.",
                 codigo,
+                exitos_mail,
+                errores_mail,
             )
         except Exception as exc:
             detalle_error = _format_error(exc).lower()
             if "duplicate" in detalle_error or "unique" in detalle_error:
                 continue
-            return False, f"Error al registrar: {_format_error(exc)}", None
+            return False, f"Error al registrar: {_format_error(exc)}", None, [], []
 
-    return False, "No se pudo asignar un código de seguimiento. Inténtalo nuevamente.", None
+    return False, "No se pudo asignar un código de seguimiento. Inténtalo nuevamente.", None, [], []
 
 
 def _render_campo_texto(label: str, key: str, placeholder: str, *, area: bool = False) -> str:
@@ -487,20 +650,35 @@ def render_libro_reclamaciones_auth_view() -> None:
 
     codigo_ok = st.session_state.get("libro_reclamacion_codigo")
     if codigo_ok:
+        mail_exitos = st.session_state.pop("libro_reclamacion_mail_exitos", []) or []
+        mail_errores = st.session_state.pop("libro_reclamacion_mail_errores", []) or []
+
         st.markdown(
             f"""
             <div class="velox-libro-success">
                 <p>Su reclamación fue registrada correctamente.</p>
                 <div class="velox-libro-success__code">{html.escape(str(codigo_ok))}</div>
                 <p>Conserve este código para el seguimiento de su caso.</p>
-                <p>Le enviamos un correo de confirmación con el detalle de su registro.</p>
                 <p><strong>Plazo legal de respuesta: 15 días hábiles</strong>, conforme a la normativa vigente.</p>
             </div>
             """,
             unsafe_allow_html=True,
         )
+        for aviso in mail_exitos:
+            st.success(aviso)
+        for fallo in mail_errores:
+            st.error(f"Error de correo: {fallo}")
+        if mail_exitos and not mail_errores:
+            st.success("Los correos de confirmación fueron enviados correctamente.")
+        elif not mail_exitos and not mail_errores:
+            st.warning(
+                "La reclamación quedó registrada, pero no hay confirmación de envío de correos."
+            )
+
         if st.button("Registrar otra reclamación", key="libro_nueva_reclamacion"):
             st.session_state.pop("libro_reclamacion_codigo", None)
+            st.session_state.pop("libro_reclamacion_mail_exitos", None)
+            st.session_state.pop("libro_reclamacion_mail_errores", None)
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
         return
@@ -581,10 +759,14 @@ def render_libro_reclamaciones_auth_view() -> None:
             "detalle": detalle,
             "pedido": pedido,
         }
-        ok, mensaje, codigo = registrar_reclamacion(payload)
+        ok, mensaje, codigo, mail_exitos, mail_errores = registrar_reclamacion(payload)
         if ok and codigo:
             st.session_state["libro_reclamacion_codigo"] = codigo
+            st.session_state["libro_reclamacion_mail_exitos"] = mail_exitos
+            st.session_state["libro_reclamacion_mail_errores"] = mail_errores
             st.rerun()
+        for fallo in mail_errores:
+            st.error(f"Error de correo: {fallo}")
         st.error(mensaje)
 
     st.markdown("</div>", unsafe_allow_html=True)

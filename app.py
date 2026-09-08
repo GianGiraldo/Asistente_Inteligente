@@ -541,6 +541,17 @@ SECCIONES = {
     },
 }
 
+# Secciones ocultas temporalmente en el catálogo principal (Inicio)
+SECCIONES_OCULTAS_CATALOGO = frozenset({"excel", "contabilidad"})
+
+SECCION_WHATSAPP_GRUPO_LINKS = {
+    "logistico": "https://chat.whatsapp.com/Cr9Grhoy0OxDHXafQaiOXT",
+    "laboral": "https://chat.whatsapp.com/LMZtkQKB3TB9QTq7C9rmcs",
+    "comercial": "https://chat.whatsapp.com/HRe4r2rELTB0HrEDj1pIbe",
+}
+
+SECCION_WHATSAPP_GRUPO_TEXTO = "¡Clic para unirte al grupo de WhatsApp!"
+
 # Ids legacy en Supabase / publicaciones → id canónico en SECCIONES
 SECCION_LEGACY_IDS = {
     "financiero": "comercio_exterior",
@@ -565,7 +576,11 @@ def _seccion_esta_activa(seccion_id: str) -> bool:
 
 
 def _secciones_catalogo_visibles() -> list[tuple[str, dict]]:
-    return [(k, v) for k, v in SECCIONES.items() if _seccion_esta_activa(k)]
+    return [
+        (k, v)
+        for k, v in SECCIONES.items()
+        if _seccion_esta_activa(k) and k not in SECCIONES_OCULTAS_CATALOGO
+    ]
 
 
 def _resolver_seccion_id(seccion_id: str) -> str:
@@ -3226,6 +3241,83 @@ def _render_banner_seccion_detalle(seccion_info: dict) -> None:
         f'<div class="velox-section-detail-banner">'
         f'<h2 class="velox-section-detail-banner__title">{titulo}</h2>'
         f'<p class="velox-section-detail-banner__desc">{descripcion}</p>'
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+
+SECCION_WHATSAPP_GRUPO_CSS = """
+<style>
+    .velox-whatsapp-grupo-wrap {
+        display: flex;
+        justify-content: center;
+        margin: 0.85rem auto 1.15rem auto;
+        width: 100%;
+        max-width: 640px;
+    }
+    .velox-whatsapp-grupo-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: min(100%, 560px);
+        min-height: 2.65rem;
+        padding: 0.72rem 1.35rem;
+        border-radius: 20px;
+        background: linear-gradient(90deg, #1A4B8C 0%, #00B4D8 100%);
+        color: #FFFFFF !important;
+        font-weight: 700;
+        font-size: 0.98rem;
+        line-height: 1.3;
+        text-align: center;
+        text-decoration: none !important;
+        border: none;
+        box-shadow: 0 6px 20px rgba(0, 180, 216, 0.28),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+        transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+    }
+    .velox-whatsapp-grupo-btn:hover {
+        background: linear-gradient(90deg, #2563EB 0%, #00E5FF 100%);
+        color: #FFFFFF !important;
+        box-shadow: 0 8px 24px rgba(0, 229, 255, 0.32),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        transform: translateY(-1px);
+    }
+    .velox-whatsapp-grupo-btn:focus,
+    .velox-whatsapp-grupo-btn:active,
+    .velox-whatsapp-grupo-btn:visited {
+        color: #FFFFFF !important;
+        outline: none;
+    }
+    @media (max-width: 640px) {
+        .velox-whatsapp-grupo-btn {
+            font-size: 0.92rem;
+            padding: 0.68rem 1rem;
+        }
+    }
+</style>
+"""
+
+
+def inject_seccion_whatsapp_grupo_css() -> None:
+    if st.session_state.get("_velox_whatsapp_grupo_css_injected"):
+        return
+    st.markdown(SECCION_WHATSAPP_GRUPO_CSS, unsafe_allow_html=True)
+    st.session_state["_velox_whatsapp_grupo_css_injected"] = True
+
+
+def _render_boton_whatsapp_grupo_seccion(seccion_id: str) -> None:
+    """Botón centrado al grupo de WhatsApp (Logístico, Comercial, Laboral)."""
+    sid = _resolver_seccion_id(seccion_id)
+    url = SECCION_WHATSAPP_GRUPO_LINKS.get(sid)
+    if not url:
+        return
+    inject_seccion_whatsapp_grupo_css()
+    texto = html_module.escape(SECCION_WHATSAPP_GRUPO_TEXTO)
+    url_safe = html_module.escape(url, quote=True)
+    st.markdown(
+        f'<div class="velox-whatsapp-grupo-wrap">'
+        f'<a class="velox-whatsapp-grupo-btn" href="{url_safe}" target="_blank" '
+        f'rel="noopener noreferrer">{texto}</a>'
         f"</div>",
         unsafe_allow_html=True,
     )
@@ -5948,6 +6040,7 @@ def render_vista_seccion_inicio(seccion_id):
 
     st.button("⬅️ Volver al Inicio", key="btn_volver_inicio", on_click=volver_al_inicio)
     _render_banner_seccion_detalle(seccion_info)
+    _render_boton_whatsapp_grupo_seccion(seccion_id)
 
     _render_documentos_seccion_inicio(
         seccion_id,
@@ -6195,6 +6288,7 @@ else:
             seccion_info = SECCIONES[seccion_seleccionada]
 
             _render_banner_seccion_detalle(seccion_info)
+            _render_boton_whatsapp_grupo_seccion(seccion_seleccionada)
 
             if st.button("🔙 Volver al Dashboard", key="btn_volver_dashboard"):
                 st.rerun()

@@ -3251,47 +3251,74 @@ SECCION_WHATSAPP_GRUPO_CSS = """
     .velox-whatsapp-grupo-wrap {
         display: flex;
         justify-content: center;
-        margin: 0.85rem auto 1.15rem auto;
-        width: 100%;
-        max-width: 640px;
-    }
-    .velox-whatsapp-grupo-btn {
-        display: inline-flex;
         align-items: center;
-        justify-content: center;
-        width: min(100%, 560px);
-        min-height: 2.65rem;
-        padding: 0.72rem 1.35rem;
-        border-radius: 20px;
-        background: linear-gradient(90deg, #1A4B8C 0%, #00B4D8 100%);
+        width: 100%;
+        margin: 0.65rem 0 1.1rem 0;
+    }
+    a.velox-whatsapp-grupo-btn,
+    a.velox-whatsapp-grupo-btn:link,
+    a.velox-whatsapp-grupo-btn:visited {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 100% !important;
+        min-height: 3rem !important;
+        padding: 0.8rem 1.5rem !important;
+        border-radius: 30px !important;
+        background: linear-gradient(90deg, #1A4B8C 0%, #2563EB 55%, #00B4D8 100%) !important;
+        background-color: #2563EB !important;
         color: #FFFFFF !important;
-        font-weight: 700;
-        font-size: 0.98rem;
-        line-height: 1.3;
-        text-align: center;
+        font-weight: 700 !important;
+        font-size: 1rem !important;
+        line-height: 1.35 !important;
+        text-align: center !important;
         text-decoration: none !important;
-        border: none;
-        box-shadow: 0 6px 20px rgba(0, 180, 216, 0.28),
-                    inset 0 1px 0 rgba(255, 255, 255, 0.18);
-        transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+        border: none !important;
+        box-shadow: 0 6px 20px rgba(37, 99, 235, 0.32),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+        white-space: normal !important;
+        cursor: pointer !important;
+        box-sizing: border-box !important;
+        transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease !important;
+        -webkit-tap-highlight-color: transparent !important;
     }
-    .velox-whatsapp-grupo-btn:hover {
-        background: linear-gradient(90deg, #2563EB 0%, #00E5FF 100%);
+    a.velox-whatsapp-grupo-btn .velox-whatsapp-grupo-btn__text {
         color: #FFFFFF !important;
-        box-shadow: 0 8px 24px rgba(0, 229, 255, 0.32),
-                    inset 0 1px 0 rgba(255, 255, 255, 0.2);
-        transform: translateY(-1px);
+        font-weight: 700 !important;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15) !important;
     }
-    .velox-whatsapp-grupo-btn:focus,
-    .velox-whatsapp-grupo-btn:active,
-    .velox-whatsapp-grupo-btn:visited {
+    a.velox-whatsapp-grupo-btn:hover,
+    a.velox-whatsapp-grupo-btn:focus {
+        background: linear-gradient(90deg, #2563EB 0%, #3B82F6 50%, #00E5FF 100%) !important;
         color: #FFFFFF !important;
-        outline: none;
+        border: none !important;
+        box-shadow: 0 8px 24px rgba(0, 229, 255, 0.34),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.22) !important;
+        transform: translateY(-1px) !important;
+        text-decoration: none !important;
+        outline: none !important;
+    }
+    a.velox-whatsapp-grupo-btn:active {
+        color: #FFFFFF !important;
+        transform: translateY(0) !important;
+        text-decoration: none !important;
+    }
+    a.velox-whatsapp-grupo-btn:hover .velox-whatsapp-grupo-btn__text,
+    a.velox-whatsapp-grupo-btn:focus .velox-whatsapp-grupo-btn__text,
+    a.velox-whatsapp-grupo-btn:active .velox-whatsapp-grupo-btn__text,
+    a.velox-whatsapp-grupo-btn:visited .velox-whatsapp-grupo-btn__text {
+        color: #FFFFFF !important;
+    }
+    [data-testid="stMarkdownContainer"] a.velox-whatsapp-grupo-btn,
+    [data-testid="stMarkdown"] a.velox-whatsapp-grupo-btn {
+        color: #FFFFFF !important;
+        text-decoration: none !important;
     }
     @media (max-width: 640px) {
-        .velox-whatsapp-grupo-btn {
-            font-size: 0.92rem;
-            padding: 0.68rem 1rem;
+        a.velox-whatsapp-grupo-btn {
+            font-size: 0.92rem !important;
+            min-height: 2.75rem !important;
+            padding: 0.7rem 1rem !important;
         }
     }
 </style>
@@ -3306,7 +3333,7 @@ def inject_seccion_whatsapp_grupo_css() -> None:
 
 
 def _render_boton_whatsapp_grupo_seccion(seccion_id: str) -> None:
-    """Botón centrado al grupo de WhatsApp (Logístico, Comercial, Laboral)."""
+    """Botón sólido centrado al grupo de WhatsApp (Logístico, Comercial, Laboral)."""
     sid = _resolver_seccion_id(seccion_id)
     url = SECCION_WHATSAPP_GRUPO_LINKS.get(sid)
     if not url:
@@ -3314,13 +3341,16 @@ def _render_boton_whatsapp_grupo_seccion(seccion_id: str) -> None:
     inject_seccion_whatsapp_grupo_css()
     texto = html_module.escape(SECCION_WHATSAPP_GRUPO_TEXTO)
     url_safe = html_module.escape(url, quote=True)
-    st.markdown(
-        f'<div class="velox-whatsapp-grupo-wrap">'
-        f'<a class="velox-whatsapp-grupo-btn" href="{url_safe}" target="_blank" '
-        f'rel="noopener noreferrer">{texto}</a>'
-        f"</div>",
-        unsafe_allow_html=True,
-    )
+    _sp_left, col_btn, _sp_right = st.columns([1, 2.4, 1])
+    with col_btn:
+        st.markdown(
+            f'<div class="velox-whatsapp-grupo-wrap">'
+            f'<a class="velox-whatsapp-grupo-btn" href="{url_safe}" target="_blank" '
+            f'rel="noopener noreferrer" role="button">'
+            f'<span class="velox-whatsapp-grupo-btn__text">{texto}</span>'
+            f"</a></div>",
+            unsafe_allow_html=True,
+        )
 
 
 def _texto_solicitud_whatsapp(seccion_nombre: str) -> str:

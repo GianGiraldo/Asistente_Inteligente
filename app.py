@@ -100,7 +100,7 @@ import os
 import re
 import time
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -3128,7 +3128,7 @@ def _ensure_sesion_perfil_local() -> None:
     st.session_state["_sesion_perfil_cargado"] = True
 
 
-def _resolver_usuario_compra_app() -> tuple[dict | None, str]:
+def _resolver_usuario_compra_app() -> Tuple[Optional[Dict], str]:
     """Retorna (fila users, email_canonico) para flujos de compra autenticados."""
     if not st.session_state.get("autenticado"):
         return None, ""

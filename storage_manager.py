@@ -1,6 +1,6 @@
 # storage_manager.py - Versión robusta y profesional
 import streamlit as st
-from supabase_client import get_supabase
+from supabase_client import get_supabase, get_supabase_admin
 import uuid
 from datetime import datetime
 import mimetypes
@@ -15,7 +15,14 @@ def limpiar_ruta(texto):
 class StorageManager:
     def __init__(self):
         self.supabase = get_supabase()
+        self.db = get_supabase_admin()
         self.bucket_name = "documentos"
+
+    def _cliente_db(self, tabla: str):
+        """Escrituras en publicaciones vía service_role (RLS no permite insert anon)."""
+        if tabla == "publicaciones":
+            return self.db
+        return self.supabase
 
     def _notificar_publicacion_alumnos(self, titulo, mensaje, metadata, publicador_email=None):
         """Notifica a alumnos. Retorna (ok, cantidad, error)."""
@@ -75,7 +82,7 @@ class StorageManager:
                     "titulo": archivo.name,
                     "mensaje": descripcion_texto,
                     "categoria": subcategoria,
-                    "creado_por": "master",
+                    "creado_por": (usuario or "master").strip().lower(),
                     "fecha_creacion": ahora,
                 }
             else:
@@ -108,7 +115,7 @@ class StorageManager:
             if es_publicacion and "fecha_creacion" not in data_insert:
                 data_insert["fecha_creacion"] = fecha_iso
 
-            result = self.supabase.table(tabla).insert(data_insert).execute()
+            result = self._cliente_db(tabla).table(tabla).insert(data_insert).execute()
             if result.data:
                 return True, data_insert
             return False, "Error al insertar en la base de datos (sin filas devueltas; revisa RLS o columnas requeridas)"
@@ -118,8 +125,9 @@ class StorageManager:
     def publicar_documento(self, archivo, seccion, subcategoria, descripcion="", publicador_email=None):
         """Publica un documento directamente desde el panel de administración."""
         descripcion_texto = (descripcion or "").strip()
+        publicador = (publicador_email or "master").strip().lower()
         exito, resultado = self.guardar_archivo(
-            archivo, seccion, subcategoria, "master", descripcion_texto, es_publicacion=True
+            archivo, seccion, subcategoria, publicador, descripcion_texto, es_publicacion=True
         )
         if exito and isinstance(resultado, dict):
             seccion_guardada = normalizar_seccion(resultado.get("seccion") or seccion)
@@ -295,8 +303,8 @@ class StorageManager:
     def eliminar_archivo(self, archivo_id, usuario, es_publicacion=False):
         """Elimina un archivo (personal o publicación) y su registro en BD."""
         try:
-            supabase = self.supabase
             tabla = "publicaciones" if es_publicacion else "archivos_personales"
+            supabase = self._cliente_db(tabla)
             query = supabase.table(tabla).select("*").eq("id", archivo_id)
             if not es_publicacion:
                 query = query.eq("usuario_email", usuario)
@@ -327,7 +335,7 @@ class StorageManager:
             descripcion_texto = (nueva_descripcion or "").strip()
             payload = {"descripcion": descripcion_texto, "mensaje": descripcion_texto}
             result = (
-                self.supabase.table("publicaciones")
+                self.db.table("publicaciones")
                 .update(payload)
                 .eq("id", publicacion_id)
                 .execute()
@@ -393,7 +401,7 @@ class StorageManager:
                 "categoria": subcategoria,
                 "creado_por": usuario
             }
-            self.supabase.table("publicaciones").insert(registro_pub).execute()
+            self.db.table("publicaciones").insert(registro_pub).execute()
         except Exception as e:
             return False, f"Error al publicar: {str(e)}"
 

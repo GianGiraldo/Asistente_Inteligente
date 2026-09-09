@@ -1080,7 +1080,12 @@ class AuthManager:
             "perfil": perfil,
         }
         try:
-            insert = self.supabase.table("users").insert(nuevo).execute()
+            insert = (
+                get_supabase_admin()
+                .table("users")
+                .insert(nuevo)
+                .execute()
+            )
             row = self._primera_fila(insert)
             if row:
                 return row
@@ -1174,7 +1179,8 @@ class AuthManager:
             "perfil": perfil,
         }
         updated = (
-            self.supabase.table("users")
+            get_supabase_admin()
+            .table("users")
             .update(update_data)
             .eq("email", email_norm)
             .execute()

@@ -1025,7 +1025,7 @@ def _build_velox_auth_dark_portal_css() -> str:
         line-height: 1.2 !important;
         margin: 0 !important;
         padding: 0 !important;
-        white-space: nowrap;
+        white-space: normal;
     }}
 
     .stApp:has(.velox-id-bar) .st-key-btn_registrarme_portal .stButton > button,
@@ -1426,7 +1426,10 @@ FORGOT_PASSWORD_LINK_CSS = f"""
         height: auto !important;
         line-height: 1.4 !important;
         width: auto !important;
-        white-space: nowrap;
+        max-width: 100% !important;
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
     }}
     .st-key-btn_olvido_password .stButton > button:hover,
     .st-key-btn_olvido_password .stButton > button:focus,
@@ -1877,18 +1880,16 @@ def render_tab_login_portal():
     )
 
     with st.container(key="login_recordarme_row"):
-        recordarme_col, forgot_col = st.columns([1.55, 1], vertical_alignment="center")
-        with recordarme_col:
-            with st.container(key="login_recordarme_left"):
-                toggle_col, label_col = st.columns([0.16, 0.84], vertical_alignment="center", gap="small")
-                with toggle_col:
-                    st.toggle(label="", key="login_recordarme", label_visibility="collapsed")
-                with label_col:
-                    st.markdown(
-                        '<span class="velox-login-recordarme-label" translate="no">Recordarme</span>',
-                        unsafe_allow_html=True,
-                    )
-        with forgot_col:
+        with st.container(key="login_recordarme_left"):
+            toggle_col, label_col = st.columns([0.16, 0.84], vertical_alignment="center", gap="small")
+            with toggle_col:
+                st.toggle(label="", key="login_recordarme", label_visibility="collapsed")
+            with label_col:
+                st.markdown(
+                    '<span class="velox-login-recordarme-label" translate="no">Recordarme</span>',
+                    unsafe_allow_html=True,
+                )
+        with st.container(key="login_forgot_row"):
             if st.button("¿Olvidaste tu contraseña?", key="btn_olvido_password"):
                 _dialog_recuperar_password()
 

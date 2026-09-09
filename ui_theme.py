@@ -1992,23 +1992,145 @@ def inject_sidebar_theme():
 VELOX_LOADING_BRAND_CSS = """
 <style id="velox-loading-brand">
     header[data-testid="stHeader"],
-    [data-testid="stStatusWidget"],
-    .stStatusWidget,
+    [data-testid="stDecoration"],
     #MainMenu,
-    [data-testid="stMainMenu"] {
+    [data-testid="stMainMenu"],
+    footer {
         display: none !important;
         visibility: hidden !important;
         height: 0 !important;
+        min-height: 0 !important;
+        overflow: hidden !important;
     }
 
-    div[data-testid="stSpinner"] > div {
-        border: 3px solid rgba(255, 255, 255, 0.2) !important;
-        border-top-color: #00F2FE !important;
+    /* Ocultar animación nativa (figuras geométricas / running man) */
+    [data-testid="stStatusWidget"],
+    .stStatusWidget {
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        width: 0 !important;
+        height: 0 !important;
+        overflow: hidden !important;
+    }
+
+    [data-testid="stStatusWidget"] *,
+    .stStatusWidget * {
+        display: none !important;
+    }
+
+    /* Spinner circular veloX — reruns y st.spinner */
+    div[data-testid="stSpinner"] {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        min-height: 2.5rem !important;
+    }
+
+    div[data-testid="stSpinner"] > div,
+    div[data-testid="stSpinner"] svg,
+    div[data-testid="stSpinner"] [role="status"] {
+        display: none !important;
+    }
+
+    div[data-testid="stSpinner"]::after {
+        content: "" !important;
+        display: block !important;
+        width: 40px !important;
+        height: 40px !important;
+        border: 3px solid rgba(74, 111, 165, 0.22) !important;
+        border-top-color: #4a6fa5 !important;
+        border-right-color: #00E5FF !important;
         border-radius: 50% !important;
-        width: 36px !important;
-        height: 36px !important;
+        animation: velox-spin 0.85s linear infinite !important;
+        box-shadow: 0 0 18px rgba(0, 229, 255, 0.18) !important;
+    }
+
+    @keyframes velox-spin {
+        to { transform: rotate(360deg); }
+    }
+
+    /* Pantalla de carga inicial de Streamlit (skeleton) */
+    [data-testid="stAppSkeleton"],
+    [data-testid="stAppSkeleton"] *,
+    .stAppSkeleton,
+    .stAppSkeleton * {
+        visibility: hidden !important;
+        opacity: 0 !important;
+    }
+
+    #velox-boot-loader {
+        position: fixed;
+        inset: 0;
+        z-index: 999999;
+        display: grid;
+        place-items: center;
+        background: #0A0E14;
+        transition: opacity 0.35s ease, visibility 0.35s ease;
+    }
+
+    #velox-boot-loader.velox-boot-loader--hide {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+    }
+
+    #velox-boot-loader .velox-boot-spinner {
+        width: 52px;
+        height: 52px;
+        border: 4px solid rgba(74, 111, 165, 0.25);
+        border-top-color: #4a6fa5;
+        border-right-color: #00E5FF;
+        border-radius: 50%;
+        animation: velox-spin 0.85s linear infinite;
+        box-shadow: 0 0 24px rgba(0, 229, 255, 0.22);
     }
 </style>
+"""
+
+VELOX_EARLY_BOOT_LOADER_JS = """
+(function () {
+    if (document.getElementById("velox-boot-loader")) return;
+    var overlay = document.createElement("div");
+    overlay.id = "velox-boot-loader";
+    overlay.setAttribute("aria-live", "polite");
+    overlay.setAttribute("aria-label", "Cargando veloX");
+    overlay.innerHTML = '<div class="velox-boot-spinner"></div>';
+    (document.body || document.documentElement).appendChild(overlay);
+
+    function hideBootLoader() {
+        var el = document.getElementById("velox-boot-loader");
+        if (!el || el.classList.contains("velox-boot-loader--hide")) return;
+        el.classList.add("velox-boot-loader--hide");
+        window.setTimeout(function () {
+            if (el && el.parentNode) el.parentNode.removeChild(el);
+        }, 400);
+    }
+
+    function appReady() {
+        return !!(
+            document.querySelector('[data-testid="stAppViewContainer"]')
+            && document.querySelector('[data-testid="stMain"], section.main, .velox-auth-brand, .velox-id-bar')
+        );
+    }
+
+    if (appReady()) {
+        hideBootLoader();
+        return;
+    }
+
+    var obs = new MutationObserver(function () {
+        if (appReady()) {
+            hideBootLoader();
+            obs.disconnect();
+        }
+    });
+    obs.observe(document.documentElement, { childList: true, subtree: true });
+    window.addEventListener("load", function () {
+        window.setTimeout(hideBootLoader, 350);
+    });
+    window.setTimeout(hideBootLoader, 12000);
+})();
 """
 
 
@@ -2034,7 +2156,7 @@ VELOX_LOGIN_AUTH_TEXT_CSS = """
         line-height: 1.2 !important;
         margin: 0 !important;
         padding: 0 !important;
-        white-space: nowrap;
+        white-space: normal;
     }
 
     /* Pregunta inferior registro */
@@ -2047,12 +2169,64 @@ VELOX_LOGIN_AUTH_TEXT_CSS = """
         opacity: 1 !important;
     }
 
-    /* Fila Recordarme + ¿Olvidaste...? */
-    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row [data-testid="stHorizontalBlock"],
-    .stApp:has(.velox-id-bar) .st-key-login_recordarme_row [data-testid="stHorizontalBlock"] {
+    /* Fila Recordarme + ¿Olvidaste...? (contenedores apilables) */
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row,
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_row {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow: visible !important;
+    }
+
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row > div[data-testid="stVerticalBlock"],
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_row > div[data-testid="stVerticalBlock"],
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row > [data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlock"],
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_row > [data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlock"] {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 0.55rem !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    .stApp:has(.velox-auth-brand) .st-key-login_forgot_row,
+    .stApp:has(.velox-id-bar) .st-key-login_forgot_row {
+        width: 100% !important;
+        max-width: 100% !important;
+        display: flex !important;
+        justify-content: center !important;
         align-items: center !important;
-        flex-wrap: nowrap !important;
-        gap: 0.35rem !important;
+    }
+
+    .stApp:has(.velox-auth-brand) .st-key-login_forgot_row .st-key-btn_olvido_password,
+    .stApp:has(.velox-id-bar) .st-key-login_forgot_row .st-key-btn_olvido_password {
+        justify-content: center !important;
+        width: 100% !important;
+    }
+
+    @media (min-width: 577px) {
+        .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row > div[data-testid="stVerticalBlock"],
+        .stApp:has(.velox-id-bar) .st-key-login_recordarme_row > div[data-testid="stVerticalBlock"],
+        .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row > [data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlock"],
+        .stApp:has(.velox-id-bar) .st-key-login_recordarme_row > [data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlock"] {
+            flex-direction: row !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            gap: 0.75rem !important;
+        }
+
+        .stApp:has(.velox-auth-brand) .st-key-login_forgot_row,
+        .stApp:has(.velox-id-bar) .st-key-login_forgot_row {
+            width: auto !important;
+            flex: 0 0 auto !important;
+            justify-content: flex-end !important;
+        }
+
+        .stApp:has(.velox-auth-brand) .st-key-login_forgot_row .st-key-btn_olvido_password,
+        .stApp:has(.velox-id-bar) .st-key-login_forgot_row .st-key-btn_olvido_password {
+            width: auto !important;
+            justify-content: flex-end !important;
+        }
     }
 
     .stApp:has(.velox-auth-brand) .st-key-login_recordarme_left [data-testid="stHorizontalBlock"],
@@ -2095,15 +2269,6 @@ VELOX_LOGIN_AUTH_TEXT_CSS = """
         pointer-events: none !important;
     }
 
-    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row div[data-testid="column"]:last-child,
-    .stApp:has(.velox-id-bar) .st-key-login_recordarme_row div[data-testid="column"]:last-child,
-    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row div[data-testid="stColumn"]:last-child,
-    .stApp:has(.velox-id-bar) .st-key-login_recordarme_row div[data-testid="stColumn"]:last-child {
-        display: flex !important;
-        justify-content: flex-end !important;
-        align-items: center !important;
-    }
-
     /* Espaciado vertical — botón INICIAR SESIÓN */
     .stApp:has(.velox-auth-brand) .st-key-btn_iniciar_sesion_velox,
     .stApp:has(.velox-id-bar) .st-key-btn_iniciar_sesion_velox {
@@ -2124,14 +2289,23 @@ VELOX_LOGIN_AUTH_TEXT_CSS = """
         margin-bottom: 0.45rem !important;
     }
 
-    @media (max-width: 480px) {
-        .velox-login-recordarme-label {
-            font-size: 0.85rem !important;
-        }
+    @media (max-width: 576px) {
         .stApp:has(.velox-auth-brand) .st-key-btn_olvido_password .stButton > button,
         .stApp:has(.velox-id-bar) .st-key-btn_olvido_password .stButton > button {
-            font-size: 0.78rem !important;
-            padding: 0.2rem 0.35rem !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            white-space: normal !important;
+            text-align: center !important;
+            line-height: 1.35 !important;
+            overflow-wrap: anywhere !important;
+            word-break: break-word !important;
+            font-size: 0.82rem !important;
+            padding: 0.25rem 0.4rem !important;
+        }
+
+        .velox-login-recordarme-label {
+            font-size: 0.85rem !important;
+            white-space: normal !important;
         }
     }
 </style>
@@ -2139,10 +2313,14 @@ VELOX_LOGIN_AUTH_TEXT_CSS = """
 
 
 def inject_velox_loading_brand() -> None:
-    """Oculta el status widget nativo y aplica spinner CSS ligero (st.spinner)."""
+    """Oculta el loader nativo de Streamlit y muestra spinner circular veloX."""
     import streamlit as st
 
     st.markdown(VELOX_LOADING_BRAND_CSS, unsafe_allow_html=True)
+    st.markdown(
+        f"<script>{VELOX_EARLY_BOOT_LOADER_JS}</script>",
+        unsafe_allow_html=True,
+    )
 
 
 __all__ = [
@@ -2159,4 +2337,5 @@ __all__ = [
     "inject_section_detail_banner_css",
     "SECTION_DETAIL_BANNER_CSS",
     "VELOX_LOGIN_AUTH_TEXT_CSS",
+    "VELOX_EARLY_BOOT_LOADER_JS",
 ]

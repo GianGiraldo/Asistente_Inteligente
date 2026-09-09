@@ -16,7 +16,7 @@ except ImportError:
     StreamlitSecretNotFoundError = type("StreamlitSecretNotFoundError", (Exception,), {})
 
 from payment_manager import PaymentManager
-from supabase_client import get_supabase
+from supabase_client import get_supabase, get_supabase_admin
 
 SESSION_KEYS = (
     "autenticado", "usuario", "rol", "nombre", "secciones", "avatar_url",
@@ -681,11 +681,19 @@ class AuthManager:
         return local.replace(".", " ").replace("_", " ").title() or "Usuario"
 
     def _obtener_usuario_db(self, email: str) -> Optional[Dict[str, Any]]:
+        """Lee users con service_role (pre-login no tiene JWT; anon no ve filas con RLS)."""
         email_norm = (email or "").strip().lower()
         if not email_norm:
             return None
         try:
-            result = self.supabase.table("users").select("*").eq("email", email_norm).execute()
+            result = (
+                get_supabase_admin()
+                .table("users")
+                .select("*")
+                .eq("email", email_norm)
+                .limit(1)
+                .execute()
+            )
             return self._primera_fila(result)
         except Exception as e:
             print(f"Error obteniendo usuario {email_norm}: {self._format_error(e)}")

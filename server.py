@@ -248,20 +248,22 @@ def _ensure_streamlit_secrets() -> None:
     secrets_path = os.path.join(secrets_dir, "secrets.toml")
 
     supabase_url = _normalize_supabase_url(os.getenv("SUPABASE_URL", ""))
-    supabase_key = (
+    anon_key = (
         (os.getenv("SUPABASE_ANON_KEY") or os.getenv("SUPABASE_KEY") or "").strip()
+    )
+    service_key = (
+        (os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY") or "").strip()
     )
     base_url = _public_app_url()
 
     lines = [
         "[supabase]",
         f'url = "{_toml_escape(supabase_url)}"',
-        f'key = "{_toml_escape(supabase_key)}"',
-        "",
-        "[app]",
-        f'base_url = "{_toml_escape(base_url)}"',
-        "",
+        f'key = "{_toml_escape(anon_key)}"',
     ]
+    if service_key and service_key != anon_key:
+        lines.append(f'service_key = "{_toml_escape(service_key)}"')
+    lines.extend(["", "[app]", f'base_url = "{_toml_escape(base_url)}"', ""])
 
     culqi_pk = (os.getenv("CULQI_PUBLIC_KEY") or "").strip()
     culqi_sk = (os.getenv("CULQI_SECRET_KEY") or "").strip()

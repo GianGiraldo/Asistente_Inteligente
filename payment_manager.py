@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
-from supabase_client import get_supabase, get_supabase_admin
+from supabase_client import get_supabase, get_supabase_admin, get_supabase_service_credentials
 
 TABLA_USUARIOS = "users"
 TABLA_COMPROBANTES = "comprobantes"
@@ -109,10 +109,92 @@ class PaymentManager:
         key = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100000)
         return key.hex(), salt
 
+    @staticmethod
+    def _service_rest_headers() -> Dict[str, str]:
+        _, service_key = get_supabase_service_credentials()
+        return {
+            "apikey": service_key,
+            "Authorization": f"Bearer {service_key}",
+            "Content-Type": "application/json",
+            "Prefer": "return=representation",
+        }
+
+    def _rest_insert_comprobante(self, data: Dict[str, Any]) -> Tuple[bool, str]:
+        """INSERT en comprobantes vía PostgREST con service_role (sin RLS de usuario)."""
+        try:
+            url_base, _ = get_supabase_service_credentials()
+            endpoint = f"{url_base}/rest/v1/{TABLA_COMPROBANTES}"
+            response = requests.post(
+                endpoint,
+                headers=self._service_rest_headers(),
+                json=data,
+                timeout=30,
+            )
+            if response.status_code in (200, 201):
+                body = response.json()
+                if isinstance(body, list) and body:
+                    return True, "ok"
+                if isinstance(body, dict) and body:
+                    return True, "ok"
+                return True, "ok"
+            return False, response.text or f"HTTP {response.status_code}"
+        except Exception as e:
+            return False, _format_error(e)
+
+    def _rest_select_comprobante_pendiente(self, email_norm: str) -> Optional[Dict[str, Any]]:
+        try:
+            url_base, _ = get_supabase_service_credentials()
+            params = {
+                "select": "*",
+                "usuario_email": f"eq.{email_norm}",
+                "estado": f"eq.{ESTADO_PENDIENTE}",
+                "order": "creado.desc",
+                "limit": "1",
+            }
+            response = requests.get(
+                f"{url_base}/rest/v1/{TABLA_COMPROBANTES}",
+                headers=self._service_rest_headers(),
+                params=params,
+                timeout=30,
+            )
+            if response.status_code != 200:
+                return None
+            rows = response.json()
+            if isinstance(rows, list) and rows:
+                return rows[0]
+        except Exception as e:
+            print(f"Error REST comprobante pendiente: {_format_error(e)}")
+        return None
+
+    def _rest_select_usuario(self, email_norm: str) -> Optional[Dict[str, Any]]:
+        try:
+            url_base, _ = get_supabase_service_credentials()
+            params = {
+                "select": "*",
+                "email": f"eq.{email_norm}",
+                "limit": "1",
+            }
+            response = requests.get(
+                f"{url_base}/rest/v1/{TABLA_USUARIOS}",
+                headers=self._service_rest_headers(),
+                params=params,
+                timeout=30,
+            )
+            if response.status_code == 200:
+                rows = response.json()
+                if isinstance(rows, list) and rows:
+                    return rows[0]
+        except Exception as e:
+            print(f"Error REST usuario: {_format_error(e)}")
+        return None
+
     def _obtener_usuario(self, email: str) -> Optional[Dict[str, Any]]:
         email_norm = (email or "").strip().lower()
         if not email_norm:
             return None
+        user = self._rest_select_usuario(email_norm)
+        if user:
+            return user
         try:
             result = (
                 self.db.table(TABLA_USUARIOS)
@@ -123,17 +205,9 @@ class PaymentManager:
             )
             if result.data:
                 return result.data[0]
-            result = (
-                self.db.table(TABLA_USUARIOS)
-                .select("*")
-                .ilike("email", email_norm)
-                .limit(1)
-                .execute()
-            )
-            return result.data[0] if result.data else None
         except Exception as e:
             print(f"Error obteniendo usuario: {_format_error(e)}")
-            return None
+        return None
 
     def _restaurar_sesion_supabase_app(self) -> None:
         """Reaplica tokens OAuth al cliente Supabase antes de operaciones sensibles."""
@@ -241,6 +315,9 @@ class PaymentManager:
         email_norm = (email or "").strip().lower()
         if not email_norm:
             return None
+        pendiente = self._rest_select_comprobante_pendiente(email_norm)
+        if pendiente:
+            return pendiente
         try:
             result = (
                 self.db.table(TABLA_COMPROBANTES)
@@ -361,6 +438,11 @@ class PaymentManager:
 
         ultimo_error = ""
         for data in candidatos:
+            ok_rest, msg_rest = self._rest_insert_comprobante(data)
+            if ok_rest:
+                return True, "ok"
+            ultimo_error = msg_rest
+
             try:
                 result = self.db.table(TABLA_COMPROBANTES).insert(data).execute()
                 if result.data:
@@ -369,6 +451,8 @@ class PaymentManager:
             except Exception as e:
                 ultimo_error = _format_error(e)
                 if self._es_error_supabase_reintentable(ultimo_error):
+                    continue
+                if "42p17" in ultimo_error.lower() or "infinite recursion" in ultimo_error.lower():
                     continue
                 return False, f"Error guardando comprobante: {ultimo_error}"
 
@@ -401,7 +485,6 @@ class PaymentManager:
         self, email: str, archivo: Any
     ) -> Tuple[bool, str, Optional[str], Optional[str]]:
         """Sube captura Yape/Plim a Supabase Storage. Retorna (ok, msg, url, ruta)."""
-        self._restaurar_sesion_supabase_app()
         try:
             extension = (archivo.name or "captura.jpg").split(".")[-1].lower()
             if extension not in EXTENSIONES_COMPROBANTE:
@@ -427,30 +510,33 @@ class PaymentManager:
             content_type = getattr(archivo, "type", None) or content_types.get(
                 extension, "application/octet-stream"
             )
-            storage = self.db.storage.from_(BUCKET_COMPROBANTES)
-            upload_options = {"content-type": content_type}
-            try:
-                storage.upload(ruta, file_bytes, file_options=upload_options)
-            except TypeError:
-                storage.upload(ruta, file_bytes, upload_options)
-            except Exception as first_exc:
-                first_error = _format_error(first_exc)
-                if "400" not in first_error and "bad request" not in first_error.lower():
-                    raise
-                storage.upload(ruta, file_bytes)
 
-            url = storage.get_public_url(ruta)
-            return True, "Comprobante subido", url, ruta
-        except Exception as e:
-            err = _format_error(e)
-            if "400" in err or "bad request" in err.lower():
+            url_base, service_key = get_supabase_service_credentials()
+            upload_url = f"{url_base}/storage/v1/object/{BUCKET_COMPROBANTES}/{ruta}"
+            upload_headers = {
+                "apikey": service_key,
+                "Authorization": f"Bearer {service_key}",
+                "Content-Type": content_type,
+            }
+            response = requests.post(
+                upload_url,
+                headers=upload_headers,
+                data=file_bytes,
+                timeout=60,
+            )
+            if response.status_code not in (200, 201):
+                err = response.text or f"HTTP {response.status_code}"
                 return (
                     False,
-                    "No se pudo subir el comprobante (400). Verifica permisos del bucket "
-                    f"'{BUCKET_COMPROBANTES}' en Supabase Storage y vuelve a intentar.",
+                    f"No se pudo subir el comprobante: {err}",
                     None,
                     None,
                 )
+
+            public_url = f"{url_base}/storage/v1/object/public/{BUCKET_COMPROBANTES}/{ruta}"
+            return True, "Comprobante subido", public_url, ruta
+        except Exception as e:
+            err = _format_error(e)
             return False, f"No se pudo subir la captura: {err}", None, None
 
     def codigo_operacion_existe(self, codigo: str) -> bool:

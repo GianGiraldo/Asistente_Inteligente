@@ -83,6 +83,19 @@ st.markdown(
         );
     }})();
     </script>
+    <script>
+    (function () {{
+        var paths = ["/velox_loader.js", "/static/velox_loader.js"];
+        function load(i) {{
+            if (i >= paths.length) return;
+            var s = document.createElement("script");
+            s.src = paths[i];
+            s.onerror = function () {{ load(i + 1); }};
+            (document.head || document.documentElement).appendChild(s);
+        }}
+        load(0);
+    }})();
+    </script>
     """,
     unsafe_allow_html=True,
 )
@@ -1401,10 +1414,11 @@ LOGIN_PORTAL_BRAND_CSS = f"""
 
 FORGOT_PASSWORD_LINK_CSS = f"""
 <style>
-    .st-key-btn_olvido_password {{
+    .st-key-login_recordarme_row .st-key-btn_olvido_password {{
         display: flex !important;
         justify-content: flex-end !important;
         width: 100% !important;
+        margin-left: auto !important;
     }}
     .st-key-btn_olvido_password [data-testid="stButton"],
     .st-key-btn_olvido_password .stButton {{
@@ -1880,16 +1894,18 @@ def render_tab_login_portal():
     )
 
     with st.container(key="login_recordarme_row"):
-        with st.container(key="login_recordarme_left"):
-            toggle_col, label_col = st.columns([0.16, 0.84], vertical_alignment="center", gap="small")
-            with toggle_col:
-                st.toggle(label="", key="login_recordarme", label_visibility="collapsed")
-            with label_col:
-                st.markdown(
-                    '<span class="velox-login-recordarme-label" translate="no">Recordarme</span>',
-                    unsafe_allow_html=True,
-                )
-        with st.container(key="login_forgot_row"):
+        col_recordarme, col_forgot = st.columns([1.15, 1], vertical_alignment="center")
+        with col_recordarme:
+            with st.container(key="login_recordarme_left"):
+                toggle_col, label_col = st.columns([0.18, 0.82], vertical_alignment="center", gap="small")
+                with toggle_col:
+                    st.toggle(label="", key="login_recordarme", label_visibility="collapsed")
+                with label_col:
+                    st.markdown(
+                        '<span class="velox-login-recordarme-label" translate="no">Recordarme</span>',
+                        unsafe_allow_html=True,
+                    )
+        with col_forgot:
             if st.button("¿Olvidaste tu contraseña?", key="btn_olvido_password"):
                 _dialog_recuperar_password()
 

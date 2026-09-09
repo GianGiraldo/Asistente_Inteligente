@@ -329,11 +329,15 @@ headless = true
 enableCORS = false
 enableXsrfProtection = false
 enableWebsocketCompression = false
+enableStaticServing = true
 
 [browser]
 gatherUsageStats = false
 serverAddress = "{host}"
 serverPort = {port}
+
+[ui]
+hideTopBar = true
 """
     with open(config_path, "w", encoding="utf-8") as fh:
         fh.write(content)

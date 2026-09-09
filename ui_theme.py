@@ -1992,20 +1992,25 @@ def inject_sidebar_theme():
 VELOX_LOADING_BRAND_CSS = """
 <style id="velox-loading-brand">
     header[data-testid="stHeader"],
+    [data-testid="stToolbar"],
     [data-testid="stDecoration"],
     #MainMenu,
     [data-testid="stMainMenu"],
     footer {
         display: none !important;
         visibility: hidden !important;
+        opacity: 0 !important;
         height: 0 !important;
         min-height: 0 !important;
+        max-height: 0 !important;
         overflow: hidden !important;
+        pointer-events: none !important;
     }
 
-    /* Ocultar animación nativa (figuras geométricas / running man) */
+    /* Ocultar animación nativa (figuras geométricas / running man / Detener) */
     [data-testid="stStatusWidget"],
     .stStatusWidget {
+        display: none !important;
         visibility: hidden !important;
         opacity: 0 !important;
         pointer-events: none !important;
@@ -2169,7 +2174,7 @@ VELOX_LOGIN_AUTH_TEXT_CSS = """
         opacity: 1 !important;
     }
 
-    /* Fila Recordarme + ¿Olvidaste...? (contenedores apilables) */
+    /* Fila Recordarme (izq) + ¿Olvidaste...? (der) */
     .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row,
     .stApp:has(.velox-id-bar) .st-key-login_recordarme_row {
         width: 100% !important;
@@ -2177,56 +2182,43 @@ VELOX_LOGIN_AUTH_TEXT_CSS = """
         overflow: visible !important;
     }
 
-    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row > div[data-testid="stVerticalBlock"],
-    .stApp:has(.velox-id-bar) .st-key-login_recordarme_row > div[data-testid="stVerticalBlock"],
-    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row > [data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlock"],
-    .stApp:has(.velox-id-bar) .st-key-login_recordarme_row > [data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlock"] {
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row [data-testid="stHorizontalBlock"],
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_row [data-testid="stHorizontalBlock"] {
         display: flex !important;
-        flex-direction: column !important;
-        align-items: stretch !important;
-        gap: 0.55rem !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 0.65rem !important;
         width: 100% !important;
         max-width: 100% !important;
     }
 
-    .stApp:has(.velox-auth-brand) .st-key-login_forgot_row,
-    .stApp:has(.velox-id-bar) .st-key-login_forgot_row {
-        width: 100% !important;
-        max-width: 100% !important;
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row div[data-testid="column"]:first-child,
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_row div[data-testid="column"]:first-child,
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row div[data-testid="stColumn"]:first-child,
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_row div[data-testid="stColumn"]:first-child {
+        flex: 0 1 auto !important;
+        min-width: 0 !important;
+        width: auto !important;
+        max-width: 52% !important;
+    }
+
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row div[data-testid="column"]:last-child,
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_row div[data-testid="column"]:last-child,
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row div[data-testid="stColumn"]:last-child,
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_row div[data-testid="stColumn"]:last-child {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
         display: flex !important;
-        justify-content: center !important;
+        justify-content: flex-end !important;
         align-items: center !important;
     }
 
-    .stApp:has(.velox-auth-brand) .st-key-login_forgot_row .st-key-btn_olvido_password,
-    .stApp:has(.velox-id-bar) .st-key-login_forgot_row .st-key-btn_olvido_password {
-        justify-content: center !important;
-        width: 100% !important;
-    }
-
-    @media (min-width: 577px) {
-        .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row > div[data-testid="stVerticalBlock"],
-        .stApp:has(.velox-id-bar) .st-key-login_recordarme_row > div[data-testid="stVerticalBlock"],
-        .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row > [data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlock"],
-        .stApp:has(.velox-id-bar) .st-key-login_recordarme_row > [data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlock"] {
-            flex-direction: row !important;
-            align-items: center !important;
-            justify-content: space-between !important;
-            gap: 0.75rem !important;
-        }
-
-        .stApp:has(.velox-auth-brand) .st-key-login_forgot_row,
-        .stApp:has(.velox-id-bar) .st-key-login_forgot_row {
-            width: auto !important;
-            flex: 0 0 auto !important;
-            justify-content: flex-end !important;
-        }
-
-        .stApp:has(.velox-auth-brand) .st-key-login_forgot_row .st-key-btn_olvido_password,
-        .stApp:has(.velox-id-bar) .st-key-login_forgot_row .st-key-btn_olvido_password {
-            width: auto !important;
-            justify-content: flex-end !important;
-        }
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_left,
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_left {
+        width: auto !important;
+        max-width: 100% !important;
     }
 
     .stApp:has(.velox-auth-brand) .st-key-login_recordarme_left [data-testid="stHorizontalBlock"],
@@ -2236,8 +2228,29 @@ VELOX_LOGIN_AUTH_TEXT_CSS = """
         flex-wrap: nowrap !important;
         align-items: center !important;
         justify-content: flex-start !important;
-        gap: 0.45rem !important;
+        gap: 0.35rem !important;
         width: auto !important;
+        max-width: 100% !important;
+    }
+
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_left div[data-testid="column"]:first-child,
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_left div[data-testid="column"]:first-child,
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_left div[data-testid="stColumn"]:first-child,
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_left div[data-testid="stColumn"]:first-child {
+        flex: 0 0 auto !important;
+        width: auto !important;
+        min-width: 2.35rem !important;
+        max-width: 2.75rem !important;
+    }
+
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_left div[data-testid="column"]:last-child,
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_left div[data-testid="column"]:last-child,
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_left div[data-testid="stColumn"]:last-child,
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_left div[data-testid="stColumn"]:last-child {
+        flex: 0 1 auto !important;
+        width: auto !important;
+        min-width: 0 !important;
+        max-width: none !important;
     }
 
     .stApp:has(.velox-auth-brand) .st-key-login_recordarme_left [data-testid="stElementContainer"],
@@ -2246,6 +2259,13 @@ VELOX_LOGIN_AUTH_TEXT_CSS = """
         flex: 0 0 auto !important;
         margin: 0 !important;
         padding: 0 !important;
+    }
+
+    .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row .st-key-btn_olvido_password,
+    .stApp:has(.velox-id-bar) .st-key-login_recordarme_row .st-key-btn_olvido_password {
+        justify-content: flex-end !important;
+        width: 100% !important;
+        margin-left: auto !important;
     }
 
     .stApp:has(.velox-auth-brand) .st-key-login_recordarme_left [data-testid="stToggle"],
@@ -2290,6 +2310,27 @@ VELOX_LOGIN_AUTH_TEXT_CSS = """
     }
 
     @media (max-width: 576px) {
+        .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row [data-testid="stHorizontalBlock"],
+        .stApp:has(.velox-id-bar) .st-key-login_recordarme_row [data-testid="stHorizontalBlock"] {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 0.55rem !important;
+        }
+
+        .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row div[data-testid="column"],
+        .stApp:has(.velox-id-bar) .st-key-login_recordarme_row div[data-testid="column"],
+        .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row div[data-testid="stColumn"],
+        .stApp:has(.velox-id-bar) .st-key-login_recordarme_row div[data-testid="stColumn"] {
+            width: 100% !important;
+            max-width: 100% !important;
+            flex: 1 1 100% !important;
+        }
+
+        .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row .st-key-btn_olvido_password,
+        .stApp:has(.velox-id-bar) .st-key-login_recordarme_row .st-key-btn_olvido_password {
+            justify-content: center !important;
+        }
+
         .stApp:has(.velox-auth-brand) .st-key-btn_olvido_password .stButton > button,
         .stApp:has(.velox-id-bar) .st-key-btn_olvido_password .stButton > button {
             width: 100% !important;
@@ -2305,7 +2346,7 @@ VELOX_LOGIN_AUTH_TEXT_CSS = """
 
         .velox-login-recordarme-label {
             font-size: 0.85rem !important;
-            white-space: normal !important;
+            white-space: nowrap !important;
         }
     }
 </style>

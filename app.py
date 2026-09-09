@@ -230,6 +230,7 @@ def inject_post_login_shell_layout():
     """Ordena capas y columnas del shell autenticado (sidebar vs. contenido central)."""
     st.markdown(VELOX_POST_LOGIN_SHELL_CSS, unsafe_allow_html=True)
     inject_inicio_servicios_accesos_css()
+    inject_seccion_whatsapp_grupo_css()
     inject_sidebar_theme()
 
 
@@ -2401,7 +2402,7 @@ def render_pantalla_configurar_password():
         render_velox_brand_header()
         with st.container(border=True):
             render_tab_setup_password_velox()
-    render_footer(auth_portal=True)
+    render_footer_login()
 
 
 def _render_auth_portal_prefix():
@@ -2417,7 +2418,7 @@ def render_pantalla_solo_recuperacion():
         render_velox_brand_header()
         with st.container(border=True):
             render_tab_recuperar_password()
-    render_footer(auth_portal=True)
+    render_footer_login()
 
 
 def _render_velox_auth_portal_marker():
@@ -2451,7 +2452,7 @@ def render_welcome_gateway():
 
 def login_screen():
     render_welcome_gateway()
-    render_footer(auth_portal=True)
+    render_footer_login()
 
 
 # ==================== FOOTER LEGAL Y PÁGINAS INTERNAS ====================
@@ -2470,23 +2471,100 @@ def _leer_documento_legal(nombre_archivo: str) -> str:
         return f.read()
 
 
-def render_footer(auth_portal: bool = False) -> None:
-    """Footer legal centrado para login y dashboard."""
+VELOX_FOOTER_LEGAL_CSS = """
+<style>
+    .velox-footer-legal {
+        text-align: center;
+        padding: 1rem 0 0.5rem 0;
+        font-size: 0.85rem;
+        color: #64748b;
+        width: 100%;
+    }
+    .velox-footer-legal__links {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        gap: 0.35rem 0.65rem;
+        margin-bottom: 0.45rem;
+    }
+    .velox-footer-legal__links a {
+        color: #4a6fa5 !important;
+        text-decoration: none !important;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+    .velox-footer-legal__links a:hover {
+        color: #2563EB !important;
+        text-decoration: underline !important;
+    }
+    .velox-footer-legal__sep {
+        color: #cbd5e1;
+        user-select: none;
+    }
+    .velox-footer-legal__copy {
+        display: block;
+        font-size: 0.75rem;
+        color: #94a3b8;
+    }
+</style>
+"""
+
+VELOX_FOOTER_LINK_TERMINOS = (
+    "https://drive.google.com/file/d/1EGm93-Y3S3RD6pbw4J1AzTyrNI2goiyg/view?usp=sharing"
+)
+VELOX_FOOTER_LINK_PRIVACIDAD = (
+    "https://drive.google.com/file/d/11pns9IKiw3cRR_b9WpSaT00cWAEkM3NG/view?usp=sharing"
+)
+
+
+def render_footer_login() -> None:
+    """Footer login/auth: solo Términos y Política de Privacidad."""
     st.markdown("---")
     st.markdown(
         f"""
-        <div class='velox-auth-footer' style='text-align: center; padding: 1rem 0; font-size: 0.85rem; color: #64748b;'>
-            <a href='?page=libro_reclamaciones' style='color: #4a6fa5; text-decoration: none; margin: 0 10px;'>📖 Libro de Reclamaciones</a>
-            <span style='color: #cbd5e1;'>|</span>
-            <a href='https://drive.google.com/file/d/1EGm93-Y3S3RD6pbw4J1AzTyrNI2goiyg/view?usp=sharing' target='_blank' style='color: #4a6fa5; text-decoration: none; margin: 0 10px;'>📄 Términos y Condiciones</a>
-            <span style='color: #cbd5e1;'>|</span>
-            <a href='https://drive.google.com/file/d/11pns9IKiw3cRR_b9WpSaT00cWAEkM3NG/view?usp=sharing' target='_blank' style='color: #4a6fa5; text-decoration: none; margin: 0 10px;'>🔒 Política de Privacidad</a>
-            <br>
-            <span style='font-size: 0.75rem;'>© 2026 veloX - Todos los derechos reservados</span>
+        {VELOX_FOOTER_LEGAL_CSS}
+        <div class="velox-footer-legal velox-auth-footer">
+            <div class="velox-footer-legal__links">
+                <a href="{VELOX_FOOTER_LINK_TERMINOS}" target="_blank" rel="noopener noreferrer">📄 Términos y Condiciones</a>
+                <span class="velox-footer-legal__sep">|</span>
+                <a href="{VELOX_FOOTER_LINK_PRIVACIDAD}" target="_blank" rel="noopener noreferrer">🔒 Política de Privacidad</a>
+            </div>
+            <span class="velox-footer-legal__copy">© 2026 veloX - Todos los derechos reservados</span>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+
+def render_footer_inicio() -> None:
+    """Footer del módulo Inicio principal: Términos, Política y Libro (centrado)."""
+    st.markdown("---")
+    st.markdown(
+        f"""
+        {VELOX_FOOTER_LEGAL_CSS}
+        <div class="velox-footer-legal velox-footer-inicio">
+            <div class="velox-footer-legal__links">
+                <a href="{VELOX_FOOTER_LINK_TERMINOS}" target="_blank" rel="noopener noreferrer">📄 Términos y Condiciones</a>
+                <span class="velox-footer-legal__sep">|</span>
+                <a href="{VELOX_FOOTER_LINK_PRIVACIDAD}" target="_blank" rel="noopener noreferrer">🔒 Política de Privacidad</a>
+                <span class="velox-footer-legal__sep">|</span>
+                <a href="?page=libro_reclamaciones">📖 Libro de Reclamaciones</a>
+            </div>
+            <span class="velox-footer-legal__copy">© 2026 veloX - Todos los derechos reservados</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_footer(auth_portal: bool = False) -> None:
+    """Compatibilidad: portal auth → login; dashboard → solo Inicio home."""
+    if auth_portal:
+        render_footer_login()
+        return
+    if _en_vista_inicio_home():
+        render_footer_inicio()
 
 
 def mostrar_terminos_condiciones() -> None:
@@ -2504,7 +2582,7 @@ def mostrar_terminos_condiciones() -> None:
     )
     st.markdown(_leer_documento_legal("terminos_condiciones.txt"))
     st.markdown("</div>", unsafe_allow_html=True)
-    render_footer(auth_portal=True)
+    render_footer_login()
 
 
 def mostrar_politica_privacidad() -> None:
@@ -2522,7 +2600,7 @@ def mostrar_politica_privacidad() -> None:
     )
     st.markdown(_leer_documento_legal("politica_privacidad.txt"))
     st.markdown("</div>", unsafe_allow_html=True)
-    render_footer(auth_portal=True)
+    render_footer_login()
 
 
 def mostrar_libro_reclamaciones() -> None:
@@ -2532,7 +2610,7 @@ def mostrar_libro_reclamaciones() -> None:
     with col2:
         with st.container(border=True):
             render_libro_reclamaciones_auth_view()
-    render_footer(auth_portal=True)
+    render_footer_login()
 
 
 # ==================== CHATBOT ASISTENTE IA (flotante) ====================
@@ -3356,14 +3434,19 @@ def _render_banner_seccion_detalle(seccion_info: dict) -> None:
 
 
 SECCION_WHATSAPP_GRUPO_CSS = """
-<style>
+<style id="velox-whatsapp-grupo-styles">
+    [data-testid="stAppViewContainer"] .velox-whatsapp-grupo-wrap,
+    [data-testid="stMain"] .velox-whatsapp-grupo-wrap,
     .velox-whatsapp-grupo-wrap {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        width: 100%;
-        margin: 0.65rem 0 1.1rem 0;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        width: 100% !important;
+        margin: 0.65rem auto 1.1rem auto !important;
+        max-width: 720px !important;
     }
+    [data-testid="stAppViewContainer"] a.velox-whatsapp-grupo-btn,
+    [data-testid="stMain"] a.velox-whatsapp-grupo-btn,
     a.velox-whatsapp-grupo-btn,
     a.velox-whatsapp-grupo-btn:link,
     a.velox-whatsapp-grupo-btn:visited {
@@ -3371,11 +3454,13 @@ SECCION_WHATSAPP_GRUPO_CSS = """
         align-items: center !important;
         justify-content: center !important;
         width: 100% !important;
+        max-width: 560px !important;
         min-height: 3rem !important;
         padding: 0.8rem 1.5rem !important;
         border-radius: 30px !important;
         background: linear-gradient(90deg, #1A4B8C 0%, #2563EB 55%, #00B4D8 100%) !important;
         background-color: #2563EB !important;
+        background-image: linear-gradient(90deg, #1A4B8C 0%, #2563EB 55%, #00B4D8 100%) !important;
         color: #FFFFFF !important;
         font-weight: 700 !important;
         font-size: 1rem !important;
@@ -3391,14 +3476,21 @@ SECCION_WHATSAPP_GRUPO_CSS = """
         transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease !important;
         -webkit-tap-highlight-color: transparent !important;
     }
+    [data-testid="stAppViewContainer"] a.velox-whatsapp-grupo-btn .velox-whatsapp-grupo-btn__text,
+    [data-testid="stMain"] a.velox-whatsapp-grupo-btn .velox-whatsapp-grupo-btn__text,
     a.velox-whatsapp-grupo-btn .velox-whatsapp-grupo-btn__text {
         color: #FFFFFF !important;
         font-weight: 700 !important;
         text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15) !important;
     }
+    [data-testid="stAppViewContainer"] a.velox-whatsapp-grupo-btn:hover,
+    [data-testid="stAppViewContainer"] a.velox-whatsapp-grupo-btn:focus,
+    [data-testid="stMain"] a.velox-whatsapp-grupo-btn:hover,
+    [data-testid="stMain"] a.velox-whatsapp-grupo-btn:focus,
     a.velox-whatsapp-grupo-btn:hover,
     a.velox-whatsapp-grupo-btn:focus {
         background: linear-gradient(90deg, #2563EB 0%, #3B82F6 50%, #00E5FF 100%) !important;
+        background-image: linear-gradient(90deg, #2563EB 0%, #3B82F6 50%, #00E5FF 100%) !important;
         color: #FFFFFF !important;
         border: none !important;
         box-shadow: 0 8px 24px rgba(0, 229, 255, 0.34),
@@ -3407,11 +3499,21 @@ SECCION_WHATSAPP_GRUPO_CSS = """
         text-decoration: none !important;
         outline: none !important;
     }
+    [data-testid="stAppViewContainer"] a.velox-whatsapp-grupo-btn:active,
+    [data-testid="stMain"] a.velox-whatsapp-grupo-btn:active,
     a.velox-whatsapp-grupo-btn:active {
         color: #FFFFFF !important;
         transform: translateY(0) !important;
         text-decoration: none !important;
     }
+    [data-testid="stAppViewContainer"] a.velox-whatsapp-grupo-btn:hover .velox-whatsapp-grupo-btn__text,
+    [data-testid="stAppViewContainer"] a.velox-whatsapp-grupo-btn:focus .velox-whatsapp-grupo-btn__text,
+    [data-testid="stAppViewContainer"] a.velox-whatsapp-grupo-btn:active .velox-whatsapp-grupo-btn__text,
+    [data-testid="stAppViewContainer"] a.velox-whatsapp-grupo-btn:visited .velox-whatsapp-grupo-btn__text,
+    [data-testid="stMain"] a.velox-whatsapp-grupo-btn:hover .velox-whatsapp-grupo-btn__text,
+    [data-testid="stMain"] a.velox-whatsapp-grupo-btn:focus .velox-whatsapp-grupo-btn__text,
+    [data-testid="stMain"] a.velox-whatsapp-grupo-btn:active .velox-whatsapp-grupo-btn__text,
+    [data-testid="stMain"] a.velox-whatsapp-grupo-btn:visited .velox-whatsapp-grupo-btn__text,
     a.velox-whatsapp-grupo-btn:hover .velox-whatsapp-grupo-btn__text,
     a.velox-whatsapp-grupo-btn:focus .velox-whatsapp-grupo-btn__text,
     a.velox-whatsapp-grupo-btn:active .velox-whatsapp-grupo-btn__text,
@@ -3419,7 +3521,9 @@ SECCION_WHATSAPP_GRUPO_CSS = """
         color: #FFFFFF !important;
     }
     [data-testid="stMarkdownContainer"] a.velox-whatsapp-grupo-btn,
-    [data-testid="stMarkdown"] a.velox-whatsapp-grupo-btn {
+    [data-testid="stMarkdown"] a.velox-whatsapp-grupo-btn,
+    [data-testid="stMarkdownContainer"] a.velox-whatsapp-grupo-btn:visited,
+    [data-testid="stMarkdown"] a.velox-whatsapp-grupo-btn:visited {
         color: #FFFFFF !important;
         text-decoration: none !important;
     }
@@ -3435,10 +3539,9 @@ SECCION_WHATSAPP_GRUPO_CSS = """
 
 
 def inject_seccion_whatsapp_grupo_css() -> None:
-    if st.session_state.get("_velox_whatsapp_grupo_css_injected"):
-        return
-    st.markdown(SECCION_WHATSAPP_GRUPO_CSS, unsafe_allow_html=True)
-    st.session_state["_velox_whatsapp_grupo_css_injected"] = True
+    """Re-inyecta estilos del botón WhatsApp en cada rerun (evita pérdida al navegar)."""
+    css_slot = st.empty()
+    css_slot.markdown(SECCION_WHATSAPP_GRUPO_CSS, unsafe_allow_html=True)
 
 
 def _render_boton_whatsapp_grupo_seccion(seccion_id: str) -> None:

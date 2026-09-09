@@ -12,17 +12,50 @@ def limpiar_ruta(texto):
     texto_normalizado = unicodedata.normalize('NFKD', texto).encode('ASCII', 'ignore').decode('ASCII')
     return texto_normalizado.lower().strip()
 
+
+# Alias legacy en BD → id canónico (debe coincidir con app.SECCION_LEGACY_IDS)
+SECCION_LEGACY_IDS_BD = {
+    "financiero": "comercio_exterior",
+}
+
+
 class StorageManager:
     def __init__(self):
         self.supabase = get_supabase()
         self.db = get_supabase_admin()
         self.bucket_name = "documentos"
 
+    def _cliente_publicaciones(self):
+        """Lecturas/escrituras en publicaciones vía service_role (RLS bloquea anon)."""
+        return self.db
+
     def _cliente_db(self, tabla: str):
-        """Escrituras en publicaciones vía service_role (RLS no permite insert anon)."""
         if tabla == "publicaciones":
             return self.db
         return self.supabase
+
+    def _variantes_seccion_bd(self, seccion) -> list:
+        """Ids equivalentes de sección en publicaciones (canónico + legacy)."""
+        sid = normalizar_seccion(seccion) or (str(seccion or "").strip().lower())
+        if not sid:
+            return []
+        variantes = {sid, SECCION_LEGACY_IDS_BD.get(sid, sid)}
+        canon = SECCION_LEGACY_IDS_BD.get(sid, sid)
+        variantes.add(canon)
+        for legacy, destino in SECCION_LEGACY_IDS_BD.items():
+            if destino == canon:
+                variantes.add(legacy)
+        return [v for v in variantes if v]
+
+    def _seccion_publicacion_permitida(self, seccion_pub: str, secciones_usuario: list) -> bool:
+        pub_norm = normalizar_seccion(seccion_pub)
+        if not pub_norm:
+            return False
+        permitidas = set()
+        for sec in secciones_usuario or []:
+            permitidas.update(self._variantes_seccion_bd(sec))
+            permitidas.add(normalizar_seccion(sec))
+        return pub_norm in permitidas or (seccion_pub or "").strip().lower() in permitidas
 
     def _notificar_publicacion_alumnos(self, titulo, mensaje, metadata, publicador_email=None):
         """Notifica a alumnos. Retorna (ok, cantidad, error)."""
@@ -160,9 +193,13 @@ class StorageManager:
             archivos.extend(query.execute().data or [])
 
             if incluir_publicaciones:
-                qpub = self.supabase.table("publicaciones").select("*")
+                qpub = self._cliente_publicaciones().table("publicaciones").select("*")
                 if seccion:
-                    qpub = qpub.eq("seccion", seccion)
+                    variantes = self._variantes_seccion_bd(seccion)
+                    if len(variantes) == 1:
+                        qpub = qpub.eq("seccion", variantes[0])
+                    elif variantes:
+                        qpub = qpub.in_("seccion", variantes)
                 archivos.extend(qpub.execute().data or [])
 
             archivos.sort(key=lambda x: x.get("fecha", ""), reverse=True)
@@ -173,12 +210,16 @@ class StorageManager:
     def obtener_publicaciones_por_seccion(self, seccion=None, subcategoria=None):
         """Obtiene publicaciones filtradas por sección y subcategoría (opcionales)."""
         try:
-            query = self.supabase.table('publicaciones').select('*')
+            query = self._cliente_publicaciones().table("publicaciones").select("*")
             if seccion:
-                query = query.eq('seccion', seccion)
+                variantes = self._variantes_seccion_bd(seccion)
+                if len(variantes) == 1:
+                    query = query.eq("seccion", variantes[0])
+                elif variantes:
+                    query = query.in_("seccion", variantes)
             if subcategoria:
-                query = query.eq('subcategoria', subcategoria)
-            query = query.order('fecha_creacion', desc=True)
+                query = query.eq("subcategoria", subcategoria)
+            query = query.order("fecha_creacion", desc=True)
             return query.execute().data or []
         except Exception as e:
             print(f"Error en obtener_publicaciones_por_seccion: {e}")
@@ -251,7 +292,7 @@ class StorageManager:
         todas = self.obtener_publicaciones_por_seccion()
         visibles = []
         for pub in todas:
-            if pub.get("seccion") in secciones_usuario:
+            if self._seccion_publicacion_permitida(pub.get("seccion"), secciones_usuario):
                 pub_copy = pub.copy()
                 pub_copy["es_publicacion"] = True
                 visibles.append(pub_copy)
@@ -270,7 +311,7 @@ class StorageManager:
         """Descarga un archivo (público o personal) verificando permisos."""
         try:
             # Buscar primero en publicaciones
-            result = self.supabase.table("publicaciones").select("*").eq("id", archivo_id).execute()
+            result = self._cliente_publicaciones().table("publicaciones").select("*").eq("id", archivo_id).execute()
             if not result.data:
                 result = self.supabase.table("archivos_personales").select("*").eq("id", archivo_id).execute()
             if not result.data:

@@ -278,7 +278,7 @@ def init_auth_manager():
 
 
 @st.cache_resource(show_spinner=False)
-def init_data_managers(_cache_version=4):
+def init_data_managers(_cache_version=5):
     """Managers de datos pesados — se instancian tras el login."""
     storage = StorageManager()
     messages = MessageManager()
@@ -342,7 +342,10 @@ def _invalidar_cache_datos():
         pass
 
 
-@st.cache_data(show_spinner=False, ttl=300)
+VELOX_PUBLICATIONS_CACHE_TTL = 20
+
+
+@st.cache_data(show_spinner=False, ttl=VELOX_PUBLICATIONS_CACHE_TTL)
 def cached_obtener_publicaciones_por_seccion(
     seccion: Optional[str] = None,
     subcategoria: Optional[str] = None,
@@ -352,7 +355,7 @@ def cached_obtener_publicaciones_por_seccion(
     return storage.obtener_publicaciones_por_seccion(seccion=seccion, subcategoria=subcategoria)
 
 
-@st.cache_data(show_spinner=False, ttl=300)
+@st.cache_data(show_spinner=False, ttl=VELOX_PUBLICATIONS_CACHE_TTL)
 def cached_listar_catalogo_seccion(
     seccion: str,
     subcategoria: Optional[str] = None,
@@ -379,7 +382,7 @@ def cached_listar_archivos_usuario(
     )
 
 
-@st.cache_data(show_spinner=False, ttl=300)
+@st.cache_data(show_spinner=False, ttl=VELOX_PUBLICATIONS_CACHE_TTL)
 def cached_obtener_publicaciones_usuario(
     usuario: str,
     secciones_usuario: tuple,
@@ -399,13 +402,16 @@ def cached_obtener_secciones_usuario(email: str, data_cache_version: int = 0):
     return auth_manager.obtener_secciones_usuario(email)
 
 
-@st.cache_data(show_spinner=False, ttl=300)
+@st.cache_data(show_spinner=False, ttl=VELOX_PUBLICATIONS_CACHE_TTL)
 def cached_contar_publicaciones_por_seccion(data_cache_version: int = 0) -> dict:
     storage, _, _, _ = init_data_managers()
     conteos: dict = {}
     for pub in storage.obtener_publicaciones_por_seccion():
-        seccion = pub.get("seccion") or ""
-        conteos[seccion] = conteos.get(seccion, 0) + 1
+        raw = pub.get("seccion") or ""
+        canon = _resolver_seccion_id(normalizar_seccion(raw))
+        if not canon:
+            canon = raw
+        conteos[canon] = conteos.get(canon, 0) + 1
     return conteos
 
 
@@ -433,7 +439,7 @@ def cached_contar_consultas_soporte_master(data_cache_version: int = 0) -> int:
     return messages.contar_consultas_soporte_no_leidas_master()
 
 
-@st.cache_data(show_spinner=False, ttl=300)
+@st.cache_data(show_spinner=False, ttl=VELOX_PUBLICATIONS_CACHE_TTL)
 def cached_obtener_notificaciones_no_leidas(email: str, data_cache_version: int = 0):
     _, _, notifications, _ = init_data_managers()
     return notifications.obtener_notificaciones_no_leidas(email)
@@ -3322,11 +3328,8 @@ def _contar_documentos_seccion(seccion_id: str) -> int:
         conteos = cached_contar_publicaciones_por_seccion(
             data_cache_version=_velox_data_cache_version(),
         )
-        total = int(conteos.get(seccion_id, 0))
-        for legacy_id, canon_id in SECCION_LEGACY_IDS.items():
-            if canon_id == seccion_id:
-                total += int(conteos.get(legacy_id, 0))
-        return total
+        sid = _resolver_seccion_id(seccion_id)
+        return int(conteos.get(sid, 0))
     except Exception:
         return 0
 
@@ -5450,6 +5453,7 @@ def abrir_notificacion(
     st.session_state.seccion_activa = seccion_norm or "inicio"
     if seccion_norm:
         st.session_state["seccion_seleccionada_documentos"] = seccion_norm
+        st.session_state["selector_seccion_documentos"] = seccion_norm
     if titulo:
         st.session_state["notif_redirect_mensaje"] = f"✅ Has sido redirigido a la publicación: {titulo}"
         nombre_busqueda = titulo.rsplit(".", 1)[0] if "." in titulo else titulo

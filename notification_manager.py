@@ -74,7 +74,7 @@ class NotificationManager:
         excluir = self._normalizar_email(publicador_email)
         try:
             result = (
-                self.supabase.table("users")
+                self.db.table("users")
                 .select("email, secciones, secciones_asignadas")
                 .eq("activo", True)
                 .eq("rol", "usuario")
@@ -133,7 +133,7 @@ class NotificationManager:
         excluir = self._normalizar_email(excluir_email)
         try:
             result = (
-                self.supabase.table("users")
+                self.db.table("users")
                 .select("email")
                 .eq("activo", True)
                 .eq("rol", "usuario")

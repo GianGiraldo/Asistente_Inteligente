@@ -3,6 +3,9 @@
   if (window.__veloxLoaderInit) return;
   window.__veloxLoaderInit = true;
 
+  var dismissed = false;
+  var debounceTimer = null;
+
   var css = [
     "header[data-testid='stHeader'],",
     "[data-testid='stToolbar'],",
@@ -29,7 +32,7 @@
     "  display: grid;",
     "  place-items: center;",
     "  background: #0A0E14;",
-    "  transition: opacity 0.35s ease, visibility 0.35s ease;",
+    "  transition: opacity 0.28s ease, visibility 0.28s ease;",
     "}",
     "#velox-boot-loader.velox-boot-loader--hide {",
     "  opacity: 0;",
@@ -71,6 +74,15 @@
     (document.body || document.documentElement).appendChild(overlay);
   }
 
+  function hideOverlay() {
+    var overlay = document.getElementById("velox-boot-loader");
+    if (!overlay) return;
+    overlay.classList.add("velox-boot-loader--hide");
+    window.setTimeout(function () {
+      if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    }, 320);
+  }
+
   function hideNativeChrome() {
     var selectors = [
       "header[data-testid='stHeader']",
@@ -96,42 +108,72 @@
 
   function appReady() {
     return !!document.querySelector(
-      ".velox-auth-brand, .velox-id-bar, [data-testid='stSidebar'], .velox-login-form"
+      [
+        ".velox-auth-brand",
+        ".velox-id-bar",
+        ".velox-login-form",
+        ".velox-portal-form",
+        ".st-key-btn_iniciar_sesion_velox",
+        ".st-key-login_recordarme_row",
+        "[data-testid='stSidebar']",
+        "[data-testid='stTextInput'] input",
+        "[data-testid='stMain'] button",
+      ].join(",")
     );
   }
 
-  function scriptRunning() {
-    if (!appReady()) return true;
+  function streamlitRunning() {
     var status = document.querySelector("[data-testid='stStatusWidget']");
     if (!status) return false;
     var rect = status.getBoundingClientRect();
-    return rect.width > 0 && rect.height > 0;
+    if (rect.width <= 0 || rect.height <= 0) return false;
+    var style = window.getComputedStyle(status);
+    return style.display !== "none" && style.visibility !== "hidden" && style.opacity !== "0";
+  }
+
+  function dismissLoader() {
+    if (dismissed) return;
+    dismissed = true;
+    hideOverlay();
   }
 
   function syncLoader() {
     hideNativeChrome();
-    if (!appReady() || scriptRunning()) {
-      ensureOverlay();
-      var overlay = document.getElementById("velox-boot-loader");
-      if (overlay) overlay.classList.remove("velox-boot-loader--hide");
+    if (dismissed) return;
+
+    if (appReady() && !streamlitRunning()) {
+      dismissLoader();
       return;
     }
-    var overlay = document.getElementById("velox-boot-loader");
-    if (!overlay) return;
-    overlay.classList.add("velox-boot-loader--hide");
-    window.setTimeout(function () {
-      if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
-    }, 400);
+
+    ensureOverlay();
+  }
+
+  function scheduleSync() {
+    if (debounceTimer) window.clearTimeout(debounceTimer);
+    debounceTimer = window.setTimeout(syncLoader, 120);
   }
 
   ensureOverlay();
   syncLoader();
-  new MutationObserver(syncLoader).observe(document.documentElement, {
+
+  new MutationObserver(scheduleSync).observe(document.documentElement, {
     childList: true,
     subtree: true,
-    attributes: true,
-    characterData: true,
   });
+
   document.addEventListener("DOMContentLoaded", syncLoader);
   window.addEventListener("load", syncLoader);
+
+  window.setInterval(function () {
+    if (!dismissed && appReady() && !streamlitRunning()) {
+      dismissLoader();
+    }
+  }, 500);
+
+  window.setTimeout(function () {
+    if (appReady()) dismissLoader();
+  }, 8000);
+
+  window.setTimeout(dismissLoader, 20000);
 })();

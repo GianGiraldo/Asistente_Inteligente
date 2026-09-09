@@ -118,23 +118,9 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
-from analytics_charts import (
-    chart_acceso_usuarios,
-    chart_actividad_secciones_usuario,
-    chart_cobranzas_pendientes,
-    chart_documentos_por_seccion,
-)
 from auth import AuthManager, SETUP_PASSWORD_REQUIRED
 from message_manager import MessageManager
-from notification_manager import (
-    LIMITE_NOTIFICACIONES_CAMPANA,
-    NotificationManager,
-    normalizar_seccion,
-)
-from payment_manager import PaymentManager, MONTO_SOLES
-from storage_manager import StorageManager
-from libro_reclamaciones import render_libro_reclamaciones_auth_view
+from notification_manager import LIMITE_NOTIFICACIONES_CAMPANA, normalizar_seccion
 from ui_theme import (
     inject_global_theme,
     inject_section_catalog_css,
@@ -293,6 +279,11 @@ def init_auth_manager():
 @st.cache_resource(show_spinner=False)
 def init_data_managers(_cache_version=6):
     """Managers de datos pesados — se instancian tras el login."""
+    from message_manager import MessageManager
+    from notification_manager import NotificationManager
+    from payment_manager import PaymentManager
+    from storage_manager import StorageManager
+
     storage = StorageManager()
     messages = MessageManager()
     notifications = NotificationManager()
@@ -2006,6 +1997,8 @@ def render_tab_setup_password_velox():
 
 def _permitir_navegacion_iframe_componentes():
     """Permite redirección top-level desde iframes de componentes (token Culqi)."""
+    import streamlit.components.v1 as components
+
     components.html(
         """
 <script>
@@ -2067,6 +2060,8 @@ def _procesar_culqi_si_hay_token(seccion_id: str = ""):
 
 
 def _render_culqi_checkout_section(seccion_id: str = "", key_prefix: str = "culqi"):
+    import streamlit.components.v1 as components
+
     sec_info = SECCIONES.get(seccion_id, {})
     seccion_nombre = sec_info.get("nombre", seccion_id) if seccion_id else ""
     if seccion_nombre:
@@ -2623,6 +2618,8 @@ def mostrar_politica_privacidad() -> None:
 
 def mostrar_libro_reclamaciones() -> None:
     """Vista nativa del Libro de Reclamaciones (acceso público, pre-login)."""
+    from libro_reclamaciones import render_libro_reclamaciones_auth_view
+
     _render_auth_portal_prefix()
     col1, col2, col3 = st.columns([0.6, 2, 0.6])
     with col2:
@@ -4393,6 +4390,12 @@ def render_lista_usuarios_master():
 
 
 def render_dashboard_analytics_master(publicaciones, usuarios):
+    from analytics_charts import (
+        chart_acceso_usuarios,
+        chart_cobranzas_pendientes,
+        chart_documentos_por_seccion,
+    )
+
     st.markdown("### 📊 Panel analítico ejecutivo")
     c1, c2 = st.columns(2)
     with c1:
@@ -4404,6 +4407,8 @@ def render_dashboard_analytics_master(publicaciones, usuarios):
 
 
 def render_dashboard_analytics_user(secciones_usuario, publicaciones):
+    from analytics_charts import chart_actividad_secciones_usuario
+
     st.markdown("### 📊 Tu panorama de recursos")
     st.plotly_chart(
         chart_actividad_secciones_usuario(secciones_usuario, SECCIONES, publicaciones),
@@ -4562,6 +4567,8 @@ def render_gestion_comprobantes_admin():
 
 @st.fragment
 def _fragment_panel_comprobantes_pendientes():
+    from payment_manager import MONTO_SOLES
+
     cache_v = _velox_data_cache_version()
     if st.session_state.get("pago_flash"):
         tipo, texto = st.session_state.pop("pago_flash")
@@ -6200,6 +6207,8 @@ def render_app_top_bar():
 
 
 def mostrar_modulo_dashboard_interactivo():
+    import streamlit.components.v1 as components
+
     st.markdown("### 📊 Diseñador de Dashboards Estadísticos")
     st.markdown(
         "Sube tu archivo de Excel o CSV para activar el lienzo interactivo. "

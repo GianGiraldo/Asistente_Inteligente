@@ -2312,41 +2312,49 @@ VELOX_LOGIN_AUTH_TEXT_CSS = """
     @media (max-width: 576px) {
         .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row [data-testid="stHorizontalBlock"],
         .stApp:has(.velox-id-bar) .st-key-login_recordarme_row [data-testid="stHorizontalBlock"] {
-            flex-direction: column !important;
-            align-items: stretch !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            gap: 0.35rem !important;
+        }
+
+        .stApp:has(.velox-auth-brand) .st-key-login_recordarme_left [data-testid="stHorizontalBlock"],
+        .stApp:has(.velox-id-bar) .st-key-login_recordarme_left [data-testid="stHorizontalBlock"] {
             gap: 0.55rem !important;
         }
 
-        .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row div[data-testid="column"],
-        .stApp:has(.velox-id-bar) .st-key-login_recordarme_row div[data-testid="column"],
-        .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row div[data-testid="stColumn"],
-        .stApp:has(.velox-id-bar) .st-key-login_recordarme_row div[data-testid="stColumn"] {
-            width: 100% !important;
-            max-width: 100% !important;
-            flex: 1 1 100% !important;
+        .stApp:has(.velox-auth-brand) .st-key-login_recordarme_left div[data-testid="column"]:last-child,
+        .stApp:has(.velox-id-bar) .st-key-login_recordarme_left div[data-testid="column"]:last-child,
+        .stApp:has(.velox-auth-brand) .st-key-login_recordarme_left div[data-testid="stColumn"]:last-child,
+        .stApp:has(.velox-id-bar) .st-key-login_recordarme_left div[data-testid="stColumn"]:last-child {
+            padding-left: 0.45rem !important;
+            margin-left: 0.15rem !important;
         }
 
         .stApp:has(.velox-auth-brand) .st-key-login_recordarme_row .st-key-btn_olvido_password,
         .stApp:has(.velox-id-bar) .st-key-login_recordarme_row .st-key-btn_olvido_password {
-            justify-content: center !important;
+            justify-content: flex-end !important;
         }
 
         .stApp:has(.velox-auth-brand) .st-key-btn_olvido_password .stButton > button,
         .stApp:has(.velox-id-bar) .st-key-btn_olvido_password .stButton > button {
-            width: 100% !important;
+            width: auto !important;
             max-width: 100% !important;
             white-space: normal !important;
-            text-align: center !important;
-            line-height: 1.35 !important;
+            text-align: right !important;
+            line-height: 1.3 !important;
             overflow-wrap: anywhere !important;
             word-break: break-word !important;
-            font-size: 0.82rem !important;
-            padding: 0.25rem 0.4rem !important;
+            font-size: 0.78rem !important;
+            padding: 0.2rem 0 !important;
         }
 
         .velox-login-recordarme-label {
             font-size: 0.85rem !important;
             white-space: nowrap !important;
+            padding-left: 0.35rem !important;
+            display: inline-block !important;
         }
     }
 </style>
@@ -2358,10 +2366,6 @@ def inject_velox_loading_brand() -> None:
     import streamlit as st
 
     st.markdown(VELOX_LOADING_BRAND_CSS, unsafe_allow_html=True)
-    st.markdown(
-        f"<script>{VELOX_EARLY_BOOT_LOADER_JS}</script>",
-        unsafe_allow_html=True,
-    )
 
 
 __all__ = [

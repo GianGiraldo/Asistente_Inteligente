@@ -3414,18 +3414,147 @@ def _sincronizar_cambio_seccion_mis_docs(seccion_id: str) -> None:
         st.session_state[_docs_pagina_session_key(seccion_id, prefijo="pub")] = 1
 
 
-def _render_banner_seccion_detalle(seccion_info: dict) -> None:
-    """Banner centrado del detalle de sección (Mis Documentos e Inicio interno)."""
-    inject_section_detail_banner_css()
+@st.fragment
+def _render_mis_documentos_workspace(
+    opciones_ids: list,
+    secciones_usuario: list,
+    seccion_preseleccionada_norm: Optional[str],
+) -> None:
+    """Selector de sección y contenido de Mis Documentos (reactivo al desplegable)."""
+    _inicializar_selector_seccion_documentos(opciones_ids, seccion_preseleccionada_norm)
+
+    seccion_seleccionada = st.selectbox(
+        "Seleccionar sección:",
+        options=opciones_ids,
+        format_func=lambda sid: SECCIONES[sid]["nombre"],
+        key="selector_seccion_documentos",
+    )
+    _sincronizar_cambio_seccion_mis_docs(seccion_seleccionada)
+    seccion_info = SECCIONES[seccion_seleccionada]
+
+    _render_banner_seccion_detalle(seccion_info, seccion_seleccionada)
+    _render_boton_whatsapp_grupo_seccion(seccion_seleccionada)
+
+    if st.button("🔙 Volver al Dashboard", key="btn_volver_dashboard"):
+        st.rerun()
+
+    subcategorias_disponibles = seccion_info.get("subcategorias", ["General"])
+
+    st.markdown(MIS_DOCS_COMPACT_CSS, unsafe_allow_html=True)
+    busqueda = st.text_input(
+        "🔍 Buscar documentos",
+        placeholder="Filtra por nombre, descripción o palabra clave…",
+        key=_mis_docs_busqueda_key(seccion_seleccionada),
+        label_visibility="collapsed",
+    )
+    st.caption("Búsqueda instantánea sobre los documentos de esta sección.")
+
+    if (
+        _puede_publicar_documentos()
+        and seccion_seleccionada in secciones_usuario
+        and _puede_modulo(AuthManager.MODULO_DOCUMENTOS)
+    ):
+        with st.expander("📤 Publicar documento", expanded=_es_admin()):
+            st.caption(f"Publicación en **{seccion_info['nombre']}**")
+            with st.form(
+                key=f"form_pub_{seccion_seleccionada}",
+                clear_on_submit=True,
+            ):
+                if _es_master():
+                    st.markdown("**Categoría de destino**")
+                    st.markdown(
+                        '<p style="font-weight:700;letter-spacing:0.06em;'
+                        'color:#1e2a3e;margin:0.15rem 0 0.75rem 0;">'
+                        "FORMATOS Y PLANTILLAS</p>",
+                        unsafe_allow_html=True,
+                    )
+                    categoria_publicar = MASTER_CATEGORIA_PUBLICACION_FIJA
+                else:
+                    categoria_publicar = st.selectbox(
+                        "Categoría de destino",
+                        options=subcategorias_disponibles,
+                        key=f"mis_docs_pub_categoria_{seccion_seleccionada}",
+                    )
+                archivo_pub = st.file_uploader(
+                    "Seleccionar archivo",
+                    type=["pdf", "xlsx", "xls", "docx", "doc"],
+                )
+                descripcion_texto = st.text_area(
+                    "Descripción",
+                    height=120,
+                    placeholder="Enlaces, comentarios o instrucciones para los alumnos…",
+                )
+                submitted = st.form_submit_button(
+                    "Publicar documento",
+                    type="primary",
+                )
+
+            if submitted:
+                descripcion_guardar = (descripcion_texto or "").strip()
+                if not archivo_pub:
+                    st.error("❌ Selecciona un archivo antes de publicar.")
+                else:
+                    try:
+                        with _velox_spinner("Publicando y notificando a los alumnos..."):
+                            exito, resultado = storage_manager.publicar_documento(
+                                archivo_pub,
+                                seccion_seleccionada,
+                                categoria_publicar,
+                                descripcion_guardar,
+                                publicador_email=st.session_state["usuario"],
+                            )
+                        if exito:
+                            _mostrar_alerta_publicacion(exito, resultado)
+                            _invalidar_cache_datos()
+                            st.session_state[
+                                _docs_pagina_session_key(
+                                    seccion_seleccionada,
+                                    prefijo="pub",
+                                )
+                            ] = 1
+                            st.rerun()
+                        else:
+                            st.error(f"❌ Error en la publicación: {resultado}")
+                    except Exception as err:
+                        st.error(f"❌ Error inesperado al publicar: {err}")
+        st.markdown("---")
+
+    titulo_publicaciones = (
+        "### 📢 Publicaciones del Master" if _es_master() else "### 📢 Publicaciones disponibles"
+    )
+    _render_bloque_publicaciones_compacto(
+        seccion_seleccionada,
+        busqueda,
+        secciones_usuario,
+        prefijo="pub",
+        titulo=titulo_publicaciones,
+        mensaje_vacio="No hay publicaciones disponibles en esta sección.",
+        seccion_info=seccion_info,
+        sincronizar_chatbot=True,
+    )
+
+
+def _html_banner_seccion_detalle(seccion_info: dict) -> str:
+    """HTML del banner de sección (mismo estilo gradiente que las tarjetas del catálogo)."""
+    icono = html_module.escape((seccion_info.get("icono") or "").strip())
     titulo = html_module.escape(_nombre_seccion_sin_icono(seccion_info).upper())
     descripcion = html_module.escape(seccion_info.get("descripcion") or "")
-    st.markdown(
-        f'<div class="velox-section-detail-banner">'
-        f'<h2 class="velox-section-detail-banner__title">{titulo}</h2>'
-        f'<p class="velox-section-detail-banner__desc">{descripcion}</p>'
-        f"</div>",
-        unsafe_allow_html=True,
+    titulo_completo = f"{icono} {titulo}".strip() if icono else titulo
+    return (
+        f'<div class="velox-catalogo-hero velox-section-detail-banner">'
+        f'<h2 class="velox-section-detail-banner__title">{titulo_completo}</h2>'
+        f'<p class="velox-section-detail-banner__desc velox-catalogo-hero__desc">{descripcion}</p>'
+        f"</div>"
     )
+
+
+def _render_banner_seccion_detalle(seccion_info: dict, seccion_id: str) -> None:
+    """Banner centrado del detalle de sección (Mis Documentos e Inicio interno)."""
+    inject_section_detail_banner_css()
+    inject_section_catalog_css()
+    sid = _resolver_seccion_id(seccion_id)
+    with st.container(key=f"velox_section_detail_banner_{sid}"):
+        st.html(_html_banner_seccion_detalle(seccion_info))
 
 
 SECCION_WHATSAPP_GRUPO_CSS = """
@@ -6284,7 +6413,7 @@ def render_vista_seccion_inicio(seccion_id):
         return
 
     st.button("⬅️ Volver al Inicio", key="btn_volver_inicio", on_click=volver_al_inicio)
-    _render_banner_seccion_detalle(seccion_info)
+    _render_banner_seccion_detalle(seccion_info, seccion_id)
     _render_boton_whatsapp_grupo_seccion(seccion_id)
 
     _render_documentos_seccion_inicio(
@@ -6521,117 +6650,10 @@ else:
                 ] = 1
                 _invalidar_cache_datos()
 
-            _inicializar_selector_seccion_documentos(opciones_ids, seccion_preseleccionada_norm)
-
-            seccion_seleccionada = st.selectbox(
-                "Seleccionar sección:",
-                options=opciones_ids,
-                format_func=lambda sid: SECCIONES[sid]["nombre"],
-                key="selector_seccion_documentos",
-            )
-            _sincronizar_cambio_seccion_mis_docs(seccion_seleccionada)
-            seccion_info = SECCIONES[seccion_seleccionada]
-
-            _render_banner_seccion_detalle(seccion_info)
-            _render_boton_whatsapp_grupo_seccion(seccion_seleccionada)
-
-            if st.button("🔙 Volver al Dashboard", key="btn_volver_dashboard"):
-                st.rerun()
-
-            subcategorias_disponibles = seccion_info.get("subcategorias", ["General"])
-
-            st.markdown(MIS_DOCS_COMPACT_CSS, unsafe_allow_html=True)
-            busqueda = st.text_input(
-                "🔍 Buscar documentos",
-                placeholder="Filtra por nombre, descripción o palabra clave…",
-                key=_mis_docs_busqueda_key(seccion_seleccionada),
-                label_visibility="collapsed",
-            )
-            st.caption("Búsqueda instantánea sobre los documentos de esta sección.")
-
-            if (
-                _puede_publicar_documentos()
-                and seccion_seleccionada in secciones_usuario
-                and _puede_modulo(AuthManager.MODULO_DOCUMENTOS)
-            ):
-                with st.expander("📤 Publicar documento", expanded=_es_admin()):
-                    st.caption(f"Publicación en **{seccion_info['nombre']}**")
-                    with st.form(
-                        key=f"form_pub_{seccion_seleccionada}",
-                        clear_on_submit=True,
-                    ):
-                        if _es_master():
-                            st.markdown("**Categoría de destino**")
-                            st.markdown(
-                                '<p style="font-weight:700;letter-spacing:0.06em;'
-                                'color:#1e2a3e;margin:0.15rem 0 0.75rem 0;">'
-                                "FORMATOS Y PLANTILLAS</p>",
-                                unsafe_allow_html=True,
-                            )
-                            categoria_publicar = MASTER_CATEGORIA_PUBLICACION_FIJA
-                        else:
-                            categoria_publicar = st.selectbox(
-                                "Categoría de destino",
-                                options=subcategorias_disponibles,
-                                key=f"mis_docs_pub_categoria_{seccion_seleccionada}",
-                            )
-                        archivo_pub = st.file_uploader(
-                            "Seleccionar archivo",
-                            type=["pdf", "xlsx", "xls", "docx", "doc"],
-                        )
-                        descripcion_texto = st.text_area(
-                            "Descripción",
-                            height=120,
-                            placeholder="Enlaces, comentarios o instrucciones para los alumnos…",
-                        )
-                        submitted = st.form_submit_button(
-                            "Publicar documento",
-                            type="primary",
-                        )
-
-                    if submitted:
-                        descripcion_guardar = (descripcion_texto or "").strip()
-                        if not archivo_pub:
-                            st.error("❌ Selecciona un archivo antes de publicar.")
-                        else:
-                            try:
-                                with _velox_spinner("Publicando y notificando a los alumnos..."):
-                                    exito, resultado = storage_manager.publicar_documento(
-                                        archivo_pub,
-                                        seccion_seleccionada,
-                                        categoria_publicar,
-                                        descripcion_guardar,
-                                        publicador_email=st.session_state["usuario"],
-                                    )
-                                if exito:
-                                    _mostrar_alerta_publicacion(exito, resultado)
-                                    _invalidar_cache_datos()
-                                    st.session_state[
-                                        _docs_pagina_session_key(
-                                            seccion_seleccionada,
-                                            prefijo="pub",
-                                        )
-                                    ] = 1
-                                    st.rerun()
-                                else:
-                                    st.error(f"❌ Error en la publicación: {resultado}")
-                            except Exception as err:
-                                st.error(f"❌ Error inesperado al publicar: {err}")
-                st.markdown("---")
-
-            # Publicaciones disponibles
-            titulo_publicaciones = (
-                "### 📢 Publicaciones del Master" if _es_master() else "### 📢 Publicaciones disponibles"
-            )
-            _render_bloque_publicaciones_compacto(
-                seccion_seleccionada,
-                busqueda,
+            _render_mis_documentos_workspace(
+                opciones_ids,
                 secciones_usuario,
-                prefijo="pub",
-                titulo=titulo_publicaciones,
-                mensaje_vacio="No hay publicaciones disponibles en esta sección.",
-                seccion_info=seccion_info,
-                sincronizar_chatbot=True,
+                seccion_preseleccionada_norm,
             )
 
     # ==================== RESTO DE SECCIONES (sin cambios) ====================

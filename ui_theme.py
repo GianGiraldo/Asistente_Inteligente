@@ -1376,20 +1376,29 @@ SIDEBAR_CSS = """
 
 SECTION_DETAIL_BANNER_CSS = """
 <style id="velox-section-detail-banner">
-    .velox-section-detail-banner {
+    .velox-section-detail-banner,
+    .velox-section-detail-banner.velox-catalogo-hero {
         text-align: center;
         border-radius: 12px;
         padding: 20px 24px;
-        margin: 0 0 1rem 0;
+        margin: 0 auto 1rem auto;
+        max-width: 100%;
+        width: 100%;
         background: linear-gradient(180deg, #F8FAFC 0%, #F0FDFA 100%);
         border: 1px solid rgba(0, 168, 150, 0.14);
         box-shadow: 0 2px 12px rgba(15, 23, 42, 0.04);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
     }
 
-    .velox-section-detail-banner__title {
+    .velox-section-detail-banner__title,
+    [data-testid="stMain"] .velox-section-detail-banner__title,
+    [data-testid="stHtml"] .velox-section-detail-banner__title {
         text-align: center;
         font-size: 2rem;
-        font-weight: bold;
+        font-weight: 800;
         line-height: 1.15;
         margin: 0;
         padding: 0;
@@ -1400,14 +1409,20 @@ SECTION_DETAIL_BANNER_CSS = """
         background-clip: text;
         -webkit-text-fill-color: transparent;
         color: transparent;
+        width: 100%;
     }
 
-    .velox-section-detail-banner__desc {
-        margin: 6px 0 0 0;
+    .velox-section-detail-banner__desc,
+    .velox-section-detail-banner .velox-catalogo-hero__desc,
+    [data-testid="stHtml"] .velox-section-detail-banner__desc {
+        margin: 8px auto 0 auto;
         color: #4A5568;
         font-size: 1.05rem;
         font-weight: 400;
         line-height: 1.45;
+        text-align: center;
+        max-width: 38rem;
+        width: 100%;
     }
 </style>
 """

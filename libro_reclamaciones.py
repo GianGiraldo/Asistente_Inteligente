@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import streamlit as st
 
-from supabase_client import get_supabase
+from supabase_client import get_supabase_admin
 
 logger = logging.getLogger(__name__)
 
@@ -313,11 +313,11 @@ def generar_codigo_seguimiento() -> str:
     """Genera código secuencial REC-AAAA-0001 según registros del año."""
     year = datetime.now().year
     prefix = f"REC-{year}-"
-    supabase = get_supabase()
+    db = get_supabase_admin()
 
     try:
         result = (
-            supabase.table(TABLA_LIBRO_RECLAMACIONES)
+            db.table(TABLA_LIBRO_RECLAMACIONES)
             .select("codigo_seguimiento")
             .like("codigo_seguimiento", f"{prefix}%")
             .execute()
@@ -333,7 +333,7 @@ def generar_codigo_seguimiento() -> str:
     except Exception as exc:
         logger.warning("No se pudo calcular correlativo secuencial: %s", exc)
         fallback = (
-            supabase.table(TABLA_LIBRO_RECLAMACIONES)
+            db.table(TABLA_LIBRO_RECLAMACIONES)
             .select("id", count="exact")
             .execute()
         )
@@ -514,7 +514,7 @@ def registrar_reclamacion(
     if error:
         return False, error, None, [], []
 
-    supabase = get_supabase()
+    db = get_supabase_admin()
     registro_base: Dict[str, Any] = {
         "nombres_apellidos": datos["nombres_apellidos"].strip(),
         "documento_identidad": datos["documento_identidad"].strip(),
@@ -531,7 +531,7 @@ def registrar_reclamacion(
         codigo = generar_codigo_seguimiento()
         registro = {"codigo_seguimiento": codigo, **registro_base}
         try:
-            result = supabase.table(TABLA_LIBRO_RECLAMACIONES).insert(registro).execute()
+            result = db.table(TABLA_LIBRO_RECLAMACIONES).insert(registro).execute()
             if not result.data:
                 return False, "No se pudo registrar la reclamación. Inténtalo nuevamente.", None, [], []
 

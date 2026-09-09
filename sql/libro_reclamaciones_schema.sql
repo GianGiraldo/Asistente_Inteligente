@@ -23,11 +23,14 @@ create index if not exists idx_libro_reclamaciones_codigo
 
 alter table public.libro_reclamaciones enable row level security;
 
--- Inserción anónima desde la app (anon key) y service role completo.
-create policy "libro_reclamaciones_insert_anon"
+-- La app inserta con service_role (get_supabase_admin) tras validar el formulario.
+drop policy if exists "libro_reclamaciones_insert_anon" on public.libro_reclamaciones;
+drop policy if exists "libro_reclamaciones_insert_service" on public.libro_reclamaciones;
+
+create policy "libro_reclamaciones_insert_service"
     on public.libro_reclamaciones
     for insert
-    to anon, authenticated
+    to service_role
     with check (true);
 
 create policy "libro_reclamaciones_select_service"

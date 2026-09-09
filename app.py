@@ -5494,17 +5494,17 @@ def render_campana_notificaciones():
         }}
         """
 
-    st.markdown(f"""
+    campana_css = """
     <style>
-        .st-key-velox_notif_campana [data-testid="stPopover"] {{
+        .st-key-velox_notif_campana [data-testid="stPopover"] {
             position: relative;
             overflow: visible !important;
-        }}
+        }
         .st-key-velox_notif_campana [data-testid="stElementContainer"],
-        .st-key-velox_notif_campana [data-testid="element-container"] {{
+        .st-key-velox_notif_campana [data-testid="element-container"] {
             overflow: visible !important;
-        }}
-        .st-key-velox_notif_campana [data-testid="stPopover"] > button {{
+        }
+        .st-key-velox_notif_campana [data-testid="stPopover"] > button {
             background: #f1f5f9 !important;
             border: 1px solid #dce5f0 !important;
             border-radius: 12px !important;
@@ -5514,12 +5514,13 @@ def render_campana_notificaciones():
             box-shadow: 0 2px 8px rgba(30, 42, 62, 0.08) !important;
             position: relative !important;
             overflow: visible !important;
-        }}
-        .st-key-velox_notif_campana [data-testid="stPopover"] > button:hover {{
+        }
+        .st-key-velox_notif_campana [data-testid="stPopover"] > button:hover {
             background: #e8eef5 !important;
             border-color: #4a6fa5 !important;
-        }}
-        {badge_css}
+        }
+    """
+    panel_css = """
         .notif-panel-title {
             font-size: 1.05rem;
             font-weight: 700;
@@ -5551,7 +5552,8 @@ def render_campana_notificaciones():
             color: #64748b;
         }
     </style>
-    """, unsafe_allow_html=True)
+    """
+    st.markdown(campana_css + badge_css + panel_css, unsafe_allow_html=True)
 
     with st.container(key="velox_notif_campana"):
         with st.popover("🔔", use_container_width=True, help="Notificaciones pendientes"):

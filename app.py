@@ -5466,15 +5466,39 @@ def render_campana_notificaciones():
     usuario = st.session_state["usuario"]
     no_leidas = len(_obtener_notificaciones_visibles_usuario(usuario))
     badge_text = str(no_leidas) if no_leidas < 100 else "99+"
-    badge_css = ""
+    badge_html = ""
     if no_leidas > 0:
-        badge_css = f"""
-        .st-key-velox_notif_campana [data-testid="stPopover"] > button::after {{
-            content: "{badge_text}";
+        badge_html = (
+            f'<span class="velox-notif-badge" aria-label="{no_leidas} notificaciones '
+            f'pendientes">{badge_text}</span>'
+        )
+
+    st.markdown(
+        """
+    <style>
+        [data-testid="stColumn"]:has(.st-key-velox_notif_campana) {
+            overflow: visible !important;
+        }
+        div.st-key-velox_notif_campana {
+            position: relative !important;
+            overflow: visible !important;
+            width: fit-content !important;
+            margin-left: auto !important;
+        }
+        .st-key-velox_notif_campana [data-testid="stMarkdownContainer"]:has(.velox-notif-badge),
+        .st-key-velox_notif_campana [data-testid="stElementContainer"]:has(.velox-notif-badge) {
+            height: 0 !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+            border: none !important;
+        }
+        div.st-key-velox_notif_campana .velox-notif-badge {
             position: absolute;
             top: -6px;
             right: -6px;
-            z-index: 12;
+            z-index: 20;
             background-color: #F59E0B;
             color: #0F172A;
             font-weight: 800;
@@ -5491,11 +5515,7 @@ def render_campana_notificaciones():
             line-height: 1;
             pointer-events: none;
             box-sizing: border-box;
-        }}
-        """
-
-    campana_css = """
-    <style>
+        }
         .st-key-velox_notif_campana [data-testid="stPopover"] {
             position: relative;
             overflow: visible !important;
@@ -5504,7 +5524,8 @@ def render_campana_notificaciones():
         .st-key-velox_notif_campana [data-testid="element-container"] {
             overflow: visible !important;
         }
-        .st-key-velox_notif_campana [data-testid="stPopover"] > button {
+        .st-key-velox_notif_campana [data-testid="stPopover"] > button,
+        .st-key-velox_notif_campana [data-testid="stPopover"] button {
             background: #f1f5f9 !important;
             border: 1px solid #dce5f0 !important;
             border-radius: 12px !important;
@@ -5515,12 +5536,11 @@ def render_campana_notificaciones():
             position: relative !important;
             overflow: visible !important;
         }
-        .st-key-velox_notif_campana [data-testid="stPopover"] > button:hover {
+        .st-key-velox_notif_campana [data-testid="stPopover"] > button:hover,
+        .st-key-velox_notif_campana [data-testid="stPopover"] button:hover {
             background: #e8eef5 !important;
             border-color: #4a6fa5 !important;
         }
-    """
-    panel_css = """
         .notif-panel-title {
             font-size: 1.05rem;
             font-weight: 700;
@@ -5552,10 +5572,13 @@ def render_campana_notificaciones():
             color: #64748b;
         }
     </style>
-    """
-    st.markdown(campana_css + badge_css + panel_css, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
     with st.container(key="velox_notif_campana"):
+        if badge_html:
+            st.markdown(badge_html, unsafe_allow_html=True)
         with st.popover("🔔", use_container_width=True, help="Notificaciones pendientes"):
             _campana_notificaciones_lista(usuario)
 

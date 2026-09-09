@@ -2,7 +2,7 @@ import json
 import unicodedata
 import uuid
 
-from supabase_client import get_supabase
+from supabase_client import get_supabase, get_supabase_admin
 
 MENSAJE_NOTIF_NUEVO_DOCUMENTO = "Se ha publicado un nuevo documento en el curso."
 LIMITE_NOTIFICACIONES_CAMPANA = 8
@@ -33,6 +33,7 @@ def _format_supabase_error(exc):
 class NotificationManager:
     def __init__(self):
         self.supabase = get_supabase()
+        self.db = get_supabase_admin()
 
     @staticmethod
     def _normalizar_email(email):
@@ -121,7 +122,7 @@ class NotificationManager:
             "metadata": meta_limpia,
         }
         try:
-            result = self.supabase.table("notificaciones").insert(data).execute()
+            result = self.db.table("notificaciones").insert(data).execute()
             return result.data[0] if result.data else None
         except Exception as e:
             print(f"❌ Error insertando notificación individual: {_format_supabase_error(e)}")
@@ -197,7 +198,7 @@ class NotificationManager:
             ]
 
             print(f"📨 Insertando {len(registros)} notificaciones en lote...")
-            result = self.supabase.table("notificaciones").insert(registros).execute()
+            result = self.db.table("notificaciones").insert(registros).execute()
 
             if not result.data:
                 msg = "Supabase no devolvió datos tras el insert masivo de notificaciones"

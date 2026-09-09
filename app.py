@@ -2518,42 +2518,47 @@ VELOX_FOOTER_LINK_PRIVACIDAD = (
 )
 
 
+def _inject_footer_legal_css() -> None:
+    """Inyecta estilos del footer (sin indentación que Streamlit interpretaría como código)."""
+    st.markdown(VELOX_FOOTER_LEGAL_CSS, unsafe_allow_html=True)
+
+
 def render_footer_login() -> None:
-    """Footer login/auth: solo Términos y Política de Privacidad."""
+    """Footer login/auth: Términos, Política y copyright (sin Libro de Reclamaciones)."""
+    _inject_footer_legal_css()
     st.markdown("---")
     st.markdown(
-        f"""
-        {VELOX_FOOTER_LEGAL_CSS}
-        <div class="velox-footer-legal velox-auth-footer">
-            <div class="velox-footer-legal__links">
-                <a href="{VELOX_FOOTER_LINK_TERMINOS}" target="_blank" rel="noopener noreferrer">📄 Términos y Condiciones</a>
-                <span class="velox-footer-legal__sep">|</span>
-                <a href="{VELOX_FOOTER_LINK_PRIVACIDAD}" target="_blank" rel="noopener noreferrer">🔒 Política de Privacidad</a>
-            </div>
-            <span class="velox-footer-legal__copy">© 2026 veloX - Todos los derechos reservados</span>
-        </div>
-        """,
+        '<div class="velox-footer-legal velox-auth-footer">'
+        '<div class="velox-footer-legal__links">'
+        f'<a href="{VELOX_FOOTER_LINK_TERMINOS}" target="_blank" rel="noopener noreferrer">'
+        "📄 Términos y Condiciones</a>"
+        '<span class="velox-footer-legal__sep">|</span>'
+        f'<a href="{VELOX_FOOTER_LINK_PRIVACIDAD}" target="_blank" rel="noopener noreferrer">'
+        "🔒 Política de Privacidad</a>"
+        "</div>"
+        '<span class="velox-footer-legal__copy">© 2026 veloX - Todos los derechos reservados</span>'
+        "</div>",
         unsafe_allow_html=True,
     )
 
 
 def render_footer_inicio() -> None:
     """Footer del módulo Inicio principal: Términos, Política y Libro (centrado)."""
+    _inject_footer_legal_css()
     st.markdown("---")
     st.markdown(
-        f"""
-        {VELOX_FOOTER_LEGAL_CSS}
-        <div class="velox-footer-legal velox-footer-inicio">
-            <div class="velox-footer-legal__links">
-                <a href="{VELOX_FOOTER_LINK_TERMINOS}" target="_blank" rel="noopener noreferrer">📄 Términos y Condiciones</a>
-                <span class="velox-footer-legal__sep">|</span>
-                <a href="{VELOX_FOOTER_LINK_PRIVACIDAD}" target="_blank" rel="noopener noreferrer">🔒 Política de Privacidad</a>
-                <span class="velox-footer-legal__sep">|</span>
-                <a href="?page=libro_reclamaciones">📖 Libro de Reclamaciones</a>
-            </div>
-            <span class="velox-footer-legal__copy">© 2026 veloX - Todos los derechos reservados</span>
-        </div>
-        """,
+        '<div class="velox-footer-legal velox-footer-inicio">'
+        '<div class="velox-footer-legal__links">'
+        f'<a href="{VELOX_FOOTER_LINK_TERMINOS}" target="_blank" rel="noopener noreferrer">'
+        "📄 Términos y Condiciones</a>"
+        '<span class="velox-footer-legal__sep">|</span>'
+        f'<a href="{VELOX_FOOTER_LINK_PRIVACIDAD}" target="_blank" rel="noopener noreferrer">'
+        "🔒 Política de Privacidad</a>"
+        '<span class="velox-footer-legal__sep">|</span>'
+        '<a href="?page=libro_reclamaciones">📖 Libro de Reclamaciones</a>'
+        "</div>"
+        '<span class="velox-footer-legal__copy">© 2026 veloX - Todos los derechos reservados</span>'
+        "</div>",
         unsafe_allow_html=True,
     )
 

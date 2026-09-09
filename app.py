@@ -278,7 +278,7 @@ def init_auth_manager():
 
 
 @st.cache_resource(show_spinner=False)
-def init_data_managers(_cache_version=5):
+def init_data_managers(_cache_version=6):
     """Managers de datos pesados — se instancian tras el login."""
     storage = StorageManager()
     messages = MessageManager()
@@ -421,7 +421,7 @@ def cached_listar_pagos_pendientes(data_cache_version: int = 0):
     return payments.listar_pagos_pendientes()
 
 
-@st.cache_data(show_spinner=False, ttl=300)
+@st.cache_data(show_spinner=False, ttl=VELOX_PUBLICATIONS_CACHE_TTL)
 def cached_contar_consultas_no_leidas(email: str, data_cache_version: int = 0) -> int:
     _, messages, _, _ = init_data_managers()
     return messages.contar_consultas_no_leidas(email)
@@ -457,13 +457,13 @@ def cached_obtener_consultas_respondidas_master(data_cache_version: int = 0):
     return messages.obtener_mensajes_para_master(respondidos=True)
 
 
-@st.cache_data(show_spinner=False, ttl=300)
+@st.cache_data(show_spinner=False, ttl=VELOX_PUBLICATIONS_CACHE_TTL)
 def cached_obtener_historial_consultas_usuario(email: str, data_cache_version: int = 0):
     _, messages, _, _ = init_data_managers()
     return messages.obtener_mensajes_usuario(email)
 
 
-@st.cache_data(show_spinner=False, ttl=300)
+@st.cache_data(show_spinner=False, ttl=VELOX_PUBLICATIONS_CACHE_TTL)
 def cached_obtener_historial_consultas_completo(data_cache_version: int = 0):
     _, messages, _, _ = init_data_managers()
     return messages.obtener_historial_completo()
@@ -5466,27 +5466,60 @@ def render_campana_notificaciones():
     usuario = st.session_state["usuario"]
     no_leidas = len(_obtener_notificaciones_visibles_usuario(usuario))
     badge_text = str(no_leidas) if no_leidas < 100 else "99+"
-    popover_label = f"🔔 {badge_text}" if no_leidas > 0 else "🔔"
+    badge_css = ""
+    if no_leidas > 0:
+        badge_css = f"""
+        .st-key-velox_notif_campana [data-testid="stPopover"] > button::after {{
+            content: "{badge_text}";
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            z-index: 12;
+            background-color: #F59E0B;
+            color: #0F172A;
+            font-weight: 800;
+            font-size: 11px;
+            border-radius: 9999px;
+            padding: 2px 7px;
+            min-width: 20px;
+            height: 20px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #ffffff;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
+            line-height: 1;
+            pointer-events: none;
+            box-sizing: border-box;
+        }}
+        """
 
-    st.markdown("""
+    st.markdown(f"""
     <style>
-        .st-key-velox_notif_campana [data-testid="stPopover"] {
+        .st-key-velox_notif_campana [data-testid="stPopover"] {{
             position: relative;
-        }
-        .st-key-velox_notif_campana [data-testid="stPopover"] > button {
+            overflow: visible !important;
+        }}
+        .st-key-velox_notif_campana [data-testid="stElementContainer"],
+        .st-key-velox_notif_campana [data-testid="element-container"] {{
+            overflow: visible !important;
+        }}
+        .st-key-velox_notif_campana [data-testid="stPopover"] > button {{
             background: #f1f5f9 !important;
             border: 1px solid #dce5f0 !important;
             border-radius: 12px !important;
-            font-size: 1.05rem !important;
+            font-size: 1.35rem !important;
             font-weight: 700 !important;
             padding: 0.45rem 0.85rem !important;
             box-shadow: 0 2px 8px rgba(30, 42, 62, 0.08) !important;
             position: relative !important;
-        }
-        .st-key-velox_notif_campana [data-testid="stPopover"] > button:hover {
+            overflow: visible !important;
+        }}
+        .st-key-velox_notif_campana [data-testid="stPopover"] > button:hover {{
             background: #e8eef5 !important;
             border-color: #4a6fa5 !important;
-        }
+        }}
+        {badge_css}
         .notif-panel-title {
             font-size: 1.05rem;
             font-weight: 700;
@@ -5521,7 +5554,7 @@ def render_campana_notificaciones():
     """, unsafe_allow_html=True)
 
     with st.container(key="velox_notif_campana"):
-        with st.popover(popover_label, use_container_width=True, help="Notificaciones pendientes"):
+        with st.popover("🔔", use_container_width=True, help="Notificaciones pendientes"):
             _campana_notificaciones_lista(usuario)
 
 

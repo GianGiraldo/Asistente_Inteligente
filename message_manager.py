@@ -4,7 +4,7 @@ import uuid
 from typing import Any, Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
-from supabase_client import get_supabase
+from supabase_client import get_supabase, get_supabase_admin
 
 ZONA_LIMA = ZoneInfo("America/Lima")
 ZONA_UTC = ZoneInfo("UTC")
@@ -13,6 +13,7 @@ ZONA_UTC = ZoneInfo("UTC")
 class MessageManager:
     def __init__(self):
         self.supabase = get_supabase()
+        self.db = get_supabase_admin()
         self.tabla = "consultas"
         self.tabla_comprobantes = "comprobantes"
 
@@ -173,7 +174,7 @@ class MessageManager:
         ultimo_error = ""
         for data in self._candidatos_insert_consulta(base):
             try:
-                result = self.supabase.table(self.tabla).insert(data).execute()
+                result = self.db.table(self.tabla).insert(data).execute()
                 if result.data:
                     return True, "Notificación registrada en consultas"
             except Exception as e:
@@ -285,12 +286,25 @@ class MessageManager:
             "leido_master": True,
         }
         if comprobante_id:
-            base["comprobante_id"] = str(comprobante_id).strip()
+            comp_id = str(comprobante_id).strip()
+            base["comprobante_id"] = comp_id
+            try:
+                existente = (
+                    self.db.table(self.tabla)
+                    .select("id")
+                    .eq("comprobante_id", comp_id)
+                    .limit(1)
+                    .execute()
+                )
+                if existente.data:
+                    return True, "Notificación de cobranza ya registrada en consultas"
+            except Exception:
+                pass
 
         ultimo_error = ""
         for data in self._candidatos_insert_consulta(base):
             try:
-                result = self.supabase.table(self.tabla).insert(data).execute()
+                result = self.db.table(self.tabla).insert(data).execute()
                 if result.data:
                     return True, "Notificación de cobranza registrada en consultas"
             except Exception as e:
@@ -347,7 +361,7 @@ class MessageManager:
         """Historial total de consultas (solo panel Master / trazabilidad)."""
         try:
             result = (
-                self.supabase.table(self.tabla)
+                self.db.table(self.tabla)
                 .select("*")
                 .order("fecha", desc=True)
                 .execute()
@@ -403,7 +417,7 @@ class MessageManager:
         """Mensajes de soporte enviados por usuarios que el Master aún no revisó."""
         try:
             result = (
-                self.supabase.table(self.tabla)
+                self.db.table(self.tabla)
                 .select("id", count="exact")
                 .eq("leido_master", False)
                 .execute()
@@ -428,7 +442,7 @@ class MessageManager:
     def marcar_consultas_leidas_master(self) -> None:
         """Marca como revisadas las consultas de soporte entrantes (vista Master)."""
         try:
-            self.supabase.table(self.tabla).update({"leido_master": True}).eq(
+            self.db.table(self.tabla).update({"leido_master": True}).eq(
                 "leido_master", False
             ).execute()
             return
@@ -441,7 +455,7 @@ class MessageManager:
             if not cid:
                 continue
             try:
-                self.supabase.table(self.tabla).update({"leido_master": True}).eq(
+                self.db.table(self.tabla).update({"leido_master": True}).eq(
                     "id", cid
                 ).execute()
             except Exception as row_err:
@@ -466,7 +480,7 @@ class MessageManager:
         for col in ("email", "usuario_email"):
             try:
                 (
-                    self.supabase.table(self.tabla)
+                    self.db.table(self.tabla)
                     .update({"leido": True})
                     .eq(col, email_norm)
                     .or_(filtro_leido)
@@ -477,7 +491,7 @@ class MessageManager:
                 if "leido" in err or "column" in err or "pgrst" in err:
                     try:
                         (
-                            self.supabase.table(self.tabla)
+                            self.db.table(self.tabla)
                             .update({"leido": True})
                             .eq(col, email_norm)
                             .execute()
@@ -491,7 +505,7 @@ class MessageManager:
         """Persiste filas leídas para comprobantes sin registro previo en consultas."""
         try:
             por_email = (
-                self.supabase.table(self.tabla)
+                self.db.table(self.tabla)
                 .select("*")
                 .eq("email", email_norm)
                 .execute()
@@ -501,7 +515,7 @@ class MessageManager:
             consultas = []
         try:
             por_usuario = (
-                self.supabase.table(self.tabla)
+                self.db.table(self.tabla)
                 .select("*")
                 .eq("usuario_email", email_norm)
                 .execute()
@@ -538,7 +552,7 @@ class MessageManager:
                 if not cid:
                     continue
                 try:
-                    self.supabase.table(self.tabla).update({"leido": True}).eq(
+                    self.db.table(self.tabla).update({"leido": True}).eq(
                         "id", cid
                     ).execute()
                 except Exception as row_err:
@@ -574,7 +588,7 @@ class MessageManager:
             if not cid or str(cid).startswith("fallback-comprobante-"):
                 continue
             try:
-                self.supabase.table(self.tabla).update({"leido": True}).eq(
+                self.db.table(self.tabla).update({"leido": True}).eq(
                     "id", cid
                 ).execute()
             except Exception as row_err:
@@ -601,7 +615,7 @@ class MessageManager:
                 "leido": True,
                 "leido_master": False,
             }
-            result = self.supabase.table(self.tabla).insert(data).execute()
+            result = self.db.table(self.tabla).insert(data).execute()
             if result.data:
                 return True, "Consulta enviada correctamente"
             return False, "No se pudo registrar la consulta"
@@ -609,7 +623,7 @@ class MessageManager:
             if "estado" in str(e).lower() or "column" in str(e).lower():
                 try:
                     data.pop("estado", None)
-                    result = self.supabase.table(self.tabla).insert(data).execute()
+                    result = self.db.table(self.tabla).insert(data).execute()
                     if result.data:
                         return True, "Consulta enviada correctamente"
                 except Exception as retry_err:
@@ -622,7 +636,7 @@ class MessageManager:
         campos = "id, respuesta, respondido, estado"
         try:
             check = (
-                self.supabase.table(self.tabla)
+                self.db.table(self.tabla)
                 .select(campos)
                 .eq("id", mensaje_id)
                 .limit(1)
@@ -630,7 +644,7 @@ class MessageManager:
             )
         except Exception:
             check = (
-                self.supabase.table(self.tabla)
+                self.db.table(self.tabla)
                 .select("id, respuesta, respondido")
                 .eq("id", mensaje_id)
                 .limit(1)
@@ -658,7 +672,7 @@ class MessageManager:
             }
             try:
                 result = (
-                    self.supabase.table(self.tabla)
+                    self.db.table(self.tabla)
                     .update(update)
                     .eq("id", mensaje_id)
                     .execute()
@@ -676,7 +690,7 @@ class MessageManager:
                 update.pop("leido", None)
                 update.pop("leido_master", None)
                 result = (
-                    self.supabase.table(self.tabla)
+                    self.db.table(self.tabla)
                     .update(update)
                     .eq("id", mensaje_id)
                     .execute()
@@ -692,7 +706,7 @@ class MessageManager:
         """Consultas estrictamente pendientes: sin respuesta y sin estado respondida."""
         try:
             result = (
-                self.supabase.table(self.tabla)
+                self.db.table(self.tabla)
                 .select("*")
                 .is_("respuesta", "null")
                 .eq("respondido", False)
@@ -704,7 +718,7 @@ class MessageManager:
             print(f"Error obteniendo consultas pendientes (filtro respondido): {e}")
             try:
                 result = (
-                    self.supabase.table(self.tabla)
+                    self.db.table(self.tabla)
                     .select("*")
                     .is_("respuesta", "null")
                     .order("fecha", desc=True)
@@ -719,7 +733,7 @@ class MessageManager:
         """Historial de consultas ya contestadas por el Master."""
         try:
             result = (
-                self.supabase.table(self.tabla)
+                self.db.table(self.tabla)
                 .select("*")
                 .or_("respondido.eq.true,estado.eq.respondida")
                 .order("fecha_respuesta", desc=True)
@@ -732,7 +746,7 @@ class MessageManager:
             print(f"Error obteniendo consultas respondidas (filtro compuesto): {e}")
         try:
             result = (
-                self.supabase.table(self.tabla)
+                self.db.table(self.tabla)
                 .select("*")
                 .not_.is_("respuesta", "null")
                 .order("fecha_respuesta", desc=True)
@@ -753,7 +767,7 @@ class MessageManager:
         """Salvaguarda: comprobantes aprobados/rechazados del alumno."""
         try:
             result = (
-                self.supabase.table(self.tabla_comprobantes)
+                self.db.table(self.tabla_comprobantes)
                 .select("*")
                 .eq("usuario_email", email_norm)
                 .in_("estado", ["aprobado", "rechazado"])
@@ -858,7 +872,7 @@ class MessageManager:
 
         try:
             por_email = (
-                self.supabase.table(self.tabla)
+                self.db.table(self.tabla)
                 .select("*")
                 .eq("email", email_norm)
                 .order("fecha", desc=True)
@@ -870,7 +884,7 @@ class MessageManager:
 
         try:
             por_usuario_email = (
-                self.supabase.table(self.tabla)
+                self.db.table(self.tabla)
                 .select("*")
                 .eq("usuario_email", email_norm)
                 .order("fecha", desc=True)
@@ -885,7 +899,7 @@ class MessageManager:
         if not consultas:
             try:
                 result = (
-                    self.supabase.table(self.tabla)
+                    self.db.table(self.tabla)
                     .select("*")
                     .order("fecha", desc=True)
                     .execute()

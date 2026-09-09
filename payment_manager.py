@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import requests
 
 from supabase_client import get_supabase, get_supabase_admin, get_supabase_service_credentials
+from message_manager import MessageManager
 
 TABLA_USUARIOS = "users"
 TABLA_COMPROBANTES = "comprobantes"
@@ -946,7 +947,21 @@ class PaymentManager:
                     {"estado": ESTADO_APROBADO}
                 ).eq("id", comprobante["id"]).execute()
 
-            # Notificación al alumno: la crea el trigger SQL en comprobantes → consultas.
+            user_row = self._obtener_usuario(email) or {}
+            nombre_alumno = (user_row.get("nombre") or email.split("@")[0]).strip()
+            cursos_txt = self._texto_cursos_comprobante(comprobante)
+            msg_mgr = MessageManager()
+            ok_notif, err_notif = msg_mgr.registrar_aprobacion_comprobante(
+                usuario_email=email,
+                master_email=master_email,
+                nombre_usuario=nombre_alumno,
+                observacion=obs,
+                cursos_solicitados=cursos_txt,
+                comprobante_id=str(comprobante.get("id") or ""),
+            )
+            if not ok_notif and err_notif:
+                print(f"Aviso notificación consultas (aprobación): {err_notif}")
+
             if cursos_aprobados:
                 secciones = [
                     s
@@ -996,7 +1011,22 @@ class PaymentManager:
             if not result.data:
                 return False, "No se pudo registrar el rechazo"
 
-            # Notificación al alumno: la crea el trigger SQL en comprobantes → consultas.
+            email = (comprobante.get("usuario_email") or "").strip().lower()
+            user_row = self._obtener_usuario(email) or {}
+            nombre_alumno = (user_row.get("nombre") or email.split("@")[0]).strip()
+            cursos_txt = self._texto_cursos_comprobante(comprobante)
+            msg_mgr = MessageManager()
+            ok_notif, err_notif = msg_mgr.registrar_rechazo_comprobante(
+                usuario_email=email,
+                master_email=master_email,
+                nombre_usuario=nombre_alumno,
+                observacion=motivo_l,
+                cursos_solicitados=cursos_txt,
+                comprobante_id=str(comprobante.get("id") or ""),
+            )
+            if not ok_notif and err_notif:
+                print(f"Aviso notificación consultas (rechazo): {err_notif}")
+
             return True, "Pago rechazado correctamente"
         except Exception as e:
             return False, f"Error al rechazar pago: {_format_error(e)}"

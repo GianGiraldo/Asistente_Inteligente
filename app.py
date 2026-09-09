@@ -1104,13 +1104,26 @@ def _build_velox_auth_dark_portal_css() -> str:
         background: rgba(0, 210, 255, 0.45);
     }}
 
-    .stApp:has(.velox-id-bar) .velox-auth-footer,
-    .stApp:has(.velox-id-bar) .velox-auth-footer a {{
-        color: rgba(255, 255, 255, 0.62) !important;
+    .stApp:has(.velox-id-bar) .st-key-velox_footer_legal_login,
+    .stApp:has(.velox-id-bar) .st-key-velox_footer_legal_login [data-testid="stMarkdownContainer"],
+    .stApp:has(.velox-id-bar) .st-key-velox_footer_legal_login [data-testid="stCaptionContainer"] {{
+        text-align: center !important;
     }}
 
-    .stApp:has(.velox-id-bar) .velox-auth-footer a:hover {{
+    .stApp:has(.velox-id-bar) .st-key-velox_footer_legal_login a {{
+        color: rgba(255, 255, 255, 0.72) !important;
+        text-decoration: none !important;
+        font-weight: 500 !important;
+    }}
+
+    .stApp:has(.velox-id-bar) .st-key-velox_footer_legal_login a:hover {{
         color: #00E5FF !important;
+        text-decoration: underline !important;
+    }}
+
+    .stApp:has(.velox-id-bar) .st-key-velox_footer_legal_login [data-testid="stCaptionContainer"] p {{
+        color: rgba(255, 255, 255, 0.45) !important;
+        font-size: 0.75rem !important;
     }}
 
     .stApp:has(.velox-id-bar) .st-key-btn_iniciar_sesion_velox .stButton > button,
@@ -2473,39 +2486,30 @@ def _leer_documento_legal(nombre_archivo: str) -> str:
 
 VELOX_FOOTER_LEGAL_CSS = """
 <style>
-    .velox-footer-legal {
-        text-align: center;
-        padding: 1rem 0 0.5rem 0;
-        font-size: 0.85rem;
-        color: #64748b;
-        width: 100%;
+    .st-key-velox_footer_legal_inicio,
+    .st-key-velox_footer_legal_inicio [data-testid="stMarkdownContainer"],
+    .st-key-velox_footer_legal_inicio [data-testid="stCaptionContainer"] {
+        text-align: center !important;
+        width: 100% !important;
     }
-    .velox-footer-legal__links {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        justify-content: center;
-        gap: 0.35rem 0.65rem;
-        margin-bottom: 0.45rem;
+    .st-key-velox_footer_legal_inicio [data-testid="stMarkdownContainer"] p {
+        margin: 0.35rem 0 0.45rem 0 !important;
+        font-size: 0.85rem !important;
+        color: #64748b !important;
     }
-    .velox-footer-legal__links a {
+    .st-key-velox_footer_legal_inicio a {
         color: #4a6fa5 !important;
         text-decoration: none !important;
-        font-weight: 500;
+        font-weight: 500 !important;
         white-space: nowrap;
     }
-    .velox-footer-legal__links a:hover {
+    .st-key-velox_footer_legal_inicio a:hover {
         color: #2563EB !important;
         text-decoration: underline !important;
     }
-    .velox-footer-legal__sep {
-        color: #cbd5e1;
-        user-select: none;
-    }
-    .velox-footer-legal__copy {
-        display: block;
-        font-size: 0.75rem;
-        color: #94a3b8;
+    .st-key-velox_footer_legal_inicio [data-testid="stCaptionContainer"] p {
+        color: #94a3b8 !important;
+        font-size: 0.75rem !important;
     }
 </style>
 """
@@ -2519,48 +2523,34 @@ VELOX_FOOTER_LINK_PRIVACIDAD = (
 
 
 def _inject_footer_legal_css() -> None:
-    """Inyecta estilos del footer (sin indentación que Streamlit interpretaría como código)."""
+    """Estilos del footer Inicio (login usa reglas del portal auth)."""
     st.markdown(VELOX_FOOTER_LEGAL_CSS, unsafe_allow_html=True)
 
 
 def render_footer_login() -> None:
     """Footer login/auth: Términos, Política y copyright (sin Libro de Reclamaciones)."""
-    _inject_footer_legal_css()
     st.markdown("---")
-    st.markdown(
-        '<div class="velox-footer-legal velox-auth-footer">'
-        '<div class="velox-footer-legal__links">'
-        f'<a href="{VELOX_FOOTER_LINK_TERMINOS}" target="_blank" rel="noopener noreferrer">'
-        "📄 Términos y Condiciones</a>"
-        '<span class="velox-footer-legal__sep">|</span>'
-        f'<a href="{VELOX_FOOTER_LINK_PRIVACIDAD}" target="_blank" rel="noopener noreferrer">'
-        "🔒 Política de Privacidad</a>"
-        "</div>"
-        '<span class="velox-footer-legal__copy">© 2026 veloX - Todos los derechos reservados</span>'
-        "</div>",
-        unsafe_allow_html=True,
-    )
+    _sp_left, col_footer, _sp_right = st.columns([1, 1.5, 1])
+    with col_footer:
+        with st.container(key="velox_footer_legal_login"):
+            st.markdown(
+                f"[📄 Términos y Condiciones]({VELOX_FOOTER_LINK_TERMINOS}) | "
+                f"[🔒 Política de Privacidad]({VELOX_FOOTER_LINK_PRIVACIDAD})"
+            )
+            st.caption("© 2026 veloX - Todos los derechos reservados")
 
 
 def render_footer_inicio() -> None:
     """Footer del módulo Inicio principal: Términos, Política y Libro (centrado)."""
     _inject_footer_legal_css()
     st.markdown("---")
-    st.markdown(
-        '<div class="velox-footer-legal velox-footer-inicio">'
-        '<div class="velox-footer-legal__links">'
-        f'<a href="{VELOX_FOOTER_LINK_TERMINOS}" target="_blank" rel="noopener noreferrer">'
-        "📄 Términos y Condiciones</a>"
-        '<span class="velox-footer-legal__sep">|</span>'
-        f'<a href="{VELOX_FOOTER_LINK_PRIVACIDAD}" target="_blank" rel="noopener noreferrer">'
-        "🔒 Política de Privacidad</a>"
-        '<span class="velox-footer-legal__sep">|</span>'
-        '<a href="?page=libro_reclamaciones">📖 Libro de Reclamaciones</a>'
-        "</div>"
-        '<span class="velox-footer-legal__copy">© 2026 veloX - Todos los derechos reservados</span>'
-        "</div>",
-        unsafe_allow_html=True,
-    )
+    with st.container(key="velox_footer_legal_inicio"):
+        st.markdown(
+            f"[📄 Términos y Condiciones]({VELOX_FOOTER_LINK_TERMINOS}) | "
+            f"[🔒 Política de Privacidad]({VELOX_FOOTER_LINK_PRIVACIDAD}) | "
+            "[📖 Libro de Reclamaciones](?page=libro_reclamaciones)"
+        )
+        st.caption("© 2026 veloX - Todos los derechos reservados")
 
 
 def render_footer(auth_portal: bool = False) -> None:

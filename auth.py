@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
+import requests
 import streamlit as st
 
 try:
@@ -16,7 +17,7 @@ except ImportError:
     StreamlitSecretNotFoundError = type("StreamlitSecretNotFoundError", (Exception,), {})
 
 from payment_manager import PaymentManager
-from supabase_client import get_supabase, get_supabase_admin
+from supabase_client import get_supabase, get_supabase_admin, get_supabase_service_credentials
 
 SESSION_KEYS = (
     "autenticado", "usuario", "rol", "nombre", "secciones", "avatar_url",
@@ -726,6 +727,74 @@ class AuthManager:
             identities = user.get("identities")
         return identities is not None and len(identities) == 0
 
+    def _correo_registrado_en_users(self, email_norm: str) -> bool:
+        """True solo si public.users tiene cuenta con contraseña veloX ya configurada."""
+        user = self._obtener_usuario_db(email_norm)
+        return bool(user and not self.requiere_configurar_password_velox(user))
+
+    def _obtener_auth_user_id_por_email(self, email_norm: str) -> Optional[str]:
+        """Busca el UUID en Supabase Auth (auth.users) por correo, vía service_role."""
+        admin = get_supabase_admin()
+        try:
+            url, key = get_supabase_service_credentials()
+            resp = requests.get(
+                f"{url.rstrip('/')}/auth/v1/admin/users",
+                params={"filter": email_norm},
+                headers={"Authorization": f"Bearer {key}", "apikey": key},
+                timeout=15,
+            )
+            if resp.ok:
+                for user in resp.json().get("users") or []:
+                    if (user.get("email") or "").strip().lower() == email_norm:
+                        uid = user.get("id")
+                        return str(uid) if uid else None
+        except Exception as e:
+            print(f"Auth filter por email ({email_norm}): {self._format_error(e)}")
+
+        try:
+            page = 1
+            while page <= 20:
+                users = admin.auth.admin.list_users(page=page, per_page=200)
+                if not users:
+                    break
+                for user in users:
+                    em = (getattr(user, "email", None) or "").strip().lower()
+                    if em == email_norm:
+                        uid = getattr(user, "id", None)
+                        return str(uid) if uid else None
+                if len(users) < 200:
+                    break
+                page += 1
+        except Exception as e:
+            print(f"Auth list_users ({email_norm}): {self._format_error(e)}")
+        return None
+
+    def _eliminar_auth_user_huerfano_si_no_en_users(self, email_norm: str) -> None:
+        """Elimina auth.users si el correo ya no existe en public.users (fuente de verdad)."""
+        if self._obtener_usuario_db(email_norm) is not None:
+            return
+        auth_uid = self._obtener_auth_user_id_por_email(email_norm)
+        if not auth_uid:
+            return
+        try:
+            get_supabase_admin().auth.admin.delete_user(auth_uid)
+        except Exception as e:
+            print(f"No se pudo eliminar Auth huérfano {email_norm}: {self._format_error(e)}")
+
+    def _signup_registro_auth(
+        self, email_norm: str, password: str, redirect_to: Optional[str] = None
+    ) -> Any:
+        """sign_up en Auth; limpia cuentas huérfanas cuando el correo no está en users."""
+        self._eliminar_auth_user_huerfano_si_no_en_users(email_norm)
+        payload: Dict[str, Any] = {"email": email_norm, "password": password}
+        if redirect_to:
+            payload["options"] = {"email_redirect_to": redirect_to}
+        res = self.supabase.auth.sign_up(payload)
+        if self._usuario_auth_sin_identidades(res):
+            self._eliminar_auth_user_huerfano_si_no_en_users(email_norm)
+            res = self.supabase.auth.sign_up(payload)
+        return res
+
     def _mensaje_error_registro_signup(self, exc: Exception) -> str:
         texto = self._format_error(exc).lower()
         if any(
@@ -777,20 +846,13 @@ class AuthManager:
             return False, email_or_msg
         email_norm = email_or_msg
 
-        user = self._obtener_usuario_db(email_norm)
-        if user and not self.requiere_configurar_password_velox(user):
+        if self._correo_registrado_en_users(email_norm):
             return False, "Este correo ya está registrado. Por favor, inicia sesión."
 
         redirect_to = self.obtener_redirect_url()
         temp_password = secrets.token_urlsafe(32)
         try:
-            res = self.supabase.auth.sign_up(
-                {
-                    "email": email_norm,
-                    "password": temp_password,
-                    "options": {"email_redirect_to": redirect_to},
-                }
-            )
+            res = self._signup_registro_auth(email_norm, temp_password, redirect_to)
             if self._usuario_auth_sin_identidades(res):
                 return False, "Este correo ya está registrado. Por favor, inicia sesión."
 
@@ -948,10 +1010,10 @@ class AuthManager:
         if len(password) < 6:
             return False, "La contraseña debe tener al menos 6 caracteres."
 
-        user = self._obtener_usuario_db(email_norm)
-        if user and not self.requiere_configurar_password_velox(user):
+        if self._correo_registrado_en_users(email_norm):
             return False, "Este correo ya está registrado. Por favor, inicia sesión."
 
+        user = self._obtener_usuario_db(email_norm)
         if not user:
             user = self._crear_registro_usuario_inicial(
                 email_norm,
@@ -1079,8 +1141,11 @@ class AuthManager:
 
     def _registrar_password_supabase_auth(self, email: str, password: str) -> None:
         """Puente aislado: crea credencial en Supabase Auth sin tocar activo/rol/pago."""
+        email_norm = (email or "").strip().lower()
+        if not email_norm:
+            return
         try:
-            self.supabase.auth.sign_up({"email": email, "password": password})
+            self._signup_registro_auth(email_norm, password)
         except Exception as e:
             texto = self._format_error(e).lower()
             if any(fragmento in texto for fragmento in ("already", "registered", "exists", "duplicate")):

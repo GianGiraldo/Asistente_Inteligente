@@ -5462,43 +5462,24 @@ def render_campana_notificaciones():
     usuario = st.session_state["usuario"]
     no_leidas = len(_obtener_notificaciones_visibles_usuario(usuario))
     badge_text = str(no_leidas) if no_leidas < 100 else "99+"
+    popover_label = f"🔔 {badge_text}" if no_leidas > 0 else "🔔"
 
     st.markdown("""
     <style>
-        .notif-bell-anchor {
+        .st-key-velox_notif_campana [data-testid="stPopover"] {
             position: relative;
-            display: flex;
-            justify-content: flex-end;
-            align-items: center;
-            margin-bottom: -0.85rem;
-            padding-right: 0.35rem;
-            pointer-events: none;
-            z-index: 2;
         }
-        .notif-badge-pill {
-            background: linear-gradient(135deg, #f5c518 0%, #f0a500 100%);
-            color: #1a2744;
-            border-radius: 999px;
-            min-width: 22px;
-            height: 22px;
-            padding: 0 6px;
-            font-size: 11px;
-            font-weight: 800;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            border: 2px solid #ffffff;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
-        }
-        div[data-testid="stPopover"] > button {
+        .st-key-velox_notif_campana [data-testid="stPopover"] > button {
             background: #f1f5f9 !important;
             border: 1px solid #dce5f0 !important;
             border-radius: 12px !important;
-            font-size: 1.35rem !important;
+            font-size: 1.05rem !important;
+            font-weight: 700 !important;
             padding: 0.45rem 0.85rem !important;
             box-shadow: 0 2px 8px rgba(30, 42, 62, 0.08) !important;
+            position: relative !important;
         }
-        div[data-testid="stPopover"] > button:hover {
+        .st-key-velox_notif_campana [data-testid="stPopover"] > button:hover {
             background: #e8eef5 !important;
             border-color: #4a6fa5 !important;
         }
@@ -5535,14 +5516,9 @@ def render_campana_notificaciones():
     </style>
     """, unsafe_allow_html=True)
 
-    if no_leidas > 0:
-        st.markdown(
-            f'<div class="notif-bell-anchor"><span class="notif-badge-pill">{badge_text}</span></div>',
-            unsafe_allow_html=True,
-        )
-
-    with st.popover("🔔", use_container_width=True, help="Notificaciones pendientes"):
-        _campana_notificaciones_lista(usuario)
+    with st.container(key="velox_notif_campana"):
+        with st.popover(popover_label, use_container_width=True, help="Notificaciones pendientes"):
+            _campana_notificaciones_lista(usuario)
 
 
 def _campana_notificaciones_lista(usuario: str):

@@ -89,7 +89,7 @@ class NotificationManager:
                     continue
                 if excluir and self._normalizar_email(email_bd) == excluir:
                     continue
-                emails.append(email_bd)
+                emails.append(self._normalizar_email(email_bd))
             return list(dict.fromkeys(emails))
         except Exception as e:
             print(f"Error obteniendo alumnos por sección: {_format_supabase_error(e)}")
@@ -105,7 +105,7 @@ class NotificationManager:
         metadata=None,
     ):
         """Inserta una notificación para un usuario específico."""
-        email = (usuario_email or "").strip()
+        email = self._normalizar_email(usuario_email)
         meta_limpia = metadata if isinstance(metadata, dict) else {}
         if not meta_limpia:
             meta_limpia = {"origen": "sistema"}
@@ -144,7 +144,7 @@ class NotificationManager:
                 email_bd = (usuario.get("email") or "").strip()
                 if not email_bd or self._normalizar_email(email_bd) == excluir:
                     continue
-                emails.append(email_bd)
+                emails.append(self._normalizar_email(email_bd))
             return list(dict.fromkeys(emails))
         except Exception as e:
             print(f"Error obteniendo alumnos desde users: {_format_supabase_error(e)}")
@@ -221,76 +221,94 @@ class NotificationManager:
             titulo, mensaje, tipo, metadata, publicador_email=publicador_email
         )
 
-    def obtener_notificaciones_no_leidas(self, usuario_email):
-        email = (usuario_email or "").strip()
-        try:
-            result = (
-                self.supabase.table("notificaciones")
-                .select("*")
-                .eq("usuario_email", email)
-                .eq("leido", False)
-                .order("fecha_creacion", desc=True)
-                .execute()
-            )
-            return result.data or []
-        except Exception as e:
-            print(f"Error obteniendo notificaciones no leídas: {_format_supabase_error(e)}")
+    def _consultar_notificaciones_usuario(self, usuario_email, *, limite=None, solo_no_leidas=True):
+        """Lee notificaciones con service_role (evita RLS cuando no hay JWT Supabase Auth)."""
+        email = self._normalizar_email(usuario_email)
+        if not email:
             return []
+        try:
+            query = self.db.table("notificaciones").select("*").eq("usuario_email", email)
+            if solo_no_leidas:
+                query = query.eq("leido", False)
+            query = query.order("fecha_creacion", desc=True)
+            if limite is not None:
+                limite_seguro = max(1, min(int(limite), 8))
+                query = query.limit(limite_seguro)
+            result = query.execute()
+            filas = result.data or []
+            if filas:
+                return filas
+            # Compatibilidad: filas legacy con distinto capitalizado en BD
+            email_legacy = (usuario_email or "").strip()
+            if email_legacy and email_legacy != email:
+                query_legacy = (
+                    self.db.table("notificaciones")
+                    .select("*")
+                    .eq("usuario_email", email_legacy)
+                )
+                if solo_no_leidas:
+                    query_legacy = query_legacy.eq("leido", False)
+                query_legacy = query_legacy.order("fecha_creacion", desc=True)
+                if limite is not None:
+                    query_legacy = query_legacy.limit(limite_seguro)
+                result_legacy = query_legacy.execute()
+                return result_legacy.data or []
+            return []
+        except Exception as e:
+            print(f"Error consultando notificaciones: {_format_supabase_error(e)}")
+            return []
+
+    def obtener_notificaciones_no_leidas(self, usuario_email):
+        return self._consultar_notificaciones_usuario(usuario_email)
 
     def obtener_ultimas_no_leidas(self, usuario_email, limite=LIMITE_NOTIFICACIONES_CAMPANA):
-        email = (usuario_email or "").strip()
         limite_seguro = max(1, min(int(limite or LIMITE_NOTIFICACIONES_CAMPANA), 8))
-        try:
-            result = (
-                self.supabase.table("notificaciones")
-                .select("*")
-                .eq("usuario_email", email)
-                .eq("leido", False)
-                .order("fecha_creacion", desc=True)
-                .limit(limite_seguro)
-                .execute()
-            )
-            return result.data or []
-        except Exception as e:
-            print(f"Error obteniendo últimas notificaciones: {_format_supabase_error(e)}")
-            return []
+        return self._consultar_notificaciones_usuario(
+            usuario_email,
+            limite=limite_seguro,
+            solo_no_leidas=True,
+        )
 
     def contar_no_leidas(self, usuario_email):
-        email = (usuario_email or "").strip()
-        try:
-            result = (
-                self.supabase.table("notificaciones")
-                .select("id", count="exact")
-                .eq("usuario_email", email)
-                .eq("leido", False)
-                .execute()
-            )
-            return result.count or 0
-        except Exception as e:
-            print(f"Error contando notificaciones: {_format_supabase_error(e)}")
-            return 0
+        return len(self._consultar_notificaciones_usuario(usuario_email))
 
     def marcar_como_leida(self, notificacion_id, usuario_email):
-        email = (usuario_email or "").strip()
+        email = self._normalizar_email(usuario_email)
         try:
             result = (
-                self.supabase.table("notificaciones")
+                self.db.table("notificaciones")
                 .update({"leido": True})
                 .eq("id", notificacion_id)
                 .eq("usuario_email", email)
                 .execute()
             )
-            return len(result.data) > 0
+            if result.data:
+                return True
+            email_legacy = (usuario_email or "").strip()
+            if email_legacy and email_legacy != email:
+                result = (
+                    self.db.table("notificaciones")
+                    .update({"leido": True})
+                    .eq("id", notificacion_id)
+                    .eq("usuario_email", email_legacy)
+                    .execute()
+                )
+            return len(result.data or []) > 0
         except Exception as e:
             print(f"Error marcando notificación como leída: {_format_supabase_error(e)}")
             return False
 
     def marcar_todas_como_leidas(self, usuario_email):
-        email = (usuario_email or "").strip()
+        email = self._normalizar_email(usuario_email)
         try:
-            self.supabase.table("notificaciones").update({"leido": True}).eq(
+            self.db.table("notificaciones").update({"leido": True}).eq(
                 "usuario_email", email
             ).eq("leido", False).execute()
+            email_legacy = (usuario_email or "").strip()
+            if email_legacy and email_legacy != email:
+                self.db.table("notificaciones").update({"leido": True}).eq(
+                    "usuario_email", email_legacy
+                ).eq("leido", False).execute()
             return True
         except Exception as e:
             print(f"Error marcando todas como leídas: {_format_supabase_error(e)}")

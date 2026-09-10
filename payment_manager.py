@@ -11,6 +11,7 @@ import requests
 
 from supabase_client import get_supabase, get_supabase_admin, get_supabase_service_credentials
 from message_manager import MessageManager
+from telegram_notifier import notificar_nueva_solicitud_cobranza
 
 TABLA_USUARIOS = "users"
 TABLA_COMPROBANTES = "comprobantes"
@@ -441,12 +442,14 @@ class PaymentManager:
         for data in candidatos:
             ok_rest, msg_rest = self._rest_insert_comprobante(data)
             if ok_rest:
+                notificar_nueva_solicitud_cobranza(data)
                 return True, "ok"
             ultimo_error = msg_rest
 
             try:
                 result = self.db.table(TABLA_COMPROBANTES).insert(data).execute()
                 if result.data:
+                    notificar_nueva_solicitud_cobranza(data)
                     return True, "ok"
                 ultimo_error = "No se pudo registrar el comprobante en Supabase"
             except Exception as e:

@@ -210,10 +210,38 @@ VELOX_POST_LOGIN_SHELL_CSS = """
         }
     }
 
-    .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner [data-testid="stImage"] img {
-        max-width: 100% !important;
-        object-fit: contain !important;
-        display: block !important;
+    @media (max-width: 768px) {
+        .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner,
+        .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner [data-testid="stElementContainer"],
+        .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner [data-testid="stVerticalBlock"],
+        .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner [data-testid="stImage"] {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 100% !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+        }
+
+        .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner [data-testid="stImage"] img {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 100% !important;
+            height: auto !important;
+            min-height: 72px !important;
+            display: block !important;
+            object-fit: cover !important;
+            object-position: center center !important;
+        }
+    }
+
+    @media (min-width: 769px) {
+        .stApp:not(:has(.velox-id-bar)) .st-key-velox_top_banner [data-testid="stImage"] img {
+            max-width: 100% !important;
+            object-fit: contain !important;
+            display: block !important;
+        }
     }
 </style>
 """

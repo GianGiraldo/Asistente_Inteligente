@@ -463,6 +463,48 @@ VELOX_ULTRA_COMPACT_LAYOUT_CSS = """
         visibility: visible !important;
         opacity: 1 !important;
     }
+
+    /* Móvil post-login: botón de menú siempre accesible (todos los roles) */
+    @media (max-width: 768px) {
+        .stApp:not(:has(.velox-id-bar)) [data-testid="stExpandSidebarButton"],
+        .stApp:not(:has(.velox-id-bar)) [data-testid="collapsedControl"],
+        .stApp:not(:has(.velox-id-bar)) div:has(> [data-testid="collapsedControl"]),
+        .stApp:not(:has(.velox-id-bar)) [data-testid="stHeader"] [data-testid="stExpandSidebarButton"],
+        .stApp:not(:has(.velox-id-bar)) [data-testid="stHeader"] div:has(> [data-testid="collapsedControl"]) {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            position: fixed !important;
+            top: 12px !important;
+            left: 12px !important;
+            z-index: 9999999 !important;
+            width: 42px !important;
+            height: 42px !important;
+            min-width: 42px !important;
+            min-height: 42px !important;
+        }
+
+        .stApp:not(:has(.velox-id-bar)):has(section[data-testid="stSidebar"][aria-expanded="false"]) [data-testid="stToolbar"],
+        .stApp:not(:has(.velox-id-bar)):has(section[data-testid="stSidebar"][aria-expanded="false"]) [data-testid="stHeader"] {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            overflow: visible !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            pointer-events: none !important;
+        }
+
+        .stApp:not(:has(.velox-id-bar)) section[data-testid="stSidebar"] [data-testid="stSidebarCollapse"],
+        .stApp:not(:has(.velox-id-bar)) section[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+        }
+    }
 </style>
 """
 
@@ -1991,12 +2033,19 @@ def inject_sidebar_theme():
 
 VELOX_LOADING_BRAND_CSS = """
 <style id="velox-loading-brand">
-    header[data-testid="stHeader"],
-    [data-testid="stToolbar"],
-    [data-testid="stDecoration"],
-    #MainMenu,
-    [data-testid="stMainMenu"],
-    footer {
+    /* Solo ocultar chrome nativo en pantallas de auth — post-login necesita el toggle del menú */
+    .stApp:has(.velox-id-bar) header[data-testid="stHeader"],
+    .stApp:has(.velox-auth-brand) header[data-testid="stHeader"],
+    .stApp:has(.velox-id-bar) [data-testid="stToolbar"],
+    .stApp:has(.velox-auth-brand) [data-testid="stToolbar"],
+    .stApp:has(.velox-id-bar) [data-testid="stDecoration"],
+    .stApp:has(.velox-auth-brand) [data-testid="stDecoration"],
+    .stApp:has(.velox-id-bar) #MainMenu,
+    .stApp:has(.velox-auth-brand) #MainMenu,
+    .stApp:has(.velox-id-bar) [data-testid="stMainMenu"],
+    .stApp:has(.velox-auth-brand) [data-testid="stMainMenu"],
+    .stApp:has(.velox-id-bar) footer,
+    .stApp:has(.velox-auth-brand) footer {
         display: none !important;
         visibility: hidden !important;
         opacity: 0 !important;

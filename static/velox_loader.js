@@ -6,15 +6,51 @@
   var dismissed = false;
   var debounceTimer = null;
 
+  var bootHideSelectors = [
+    "header[data-testid='stHeader']",
+    "[data-testid='stToolbar']",
+    "[data-testid='stDecoration']",
+    "[data-testid='stStatusWidget']",
+    ".stStatusWidget",
+    "#MainMenu",
+    "[data-testid='stMainMenu']",
+    "footer",
+  ];
+
+  var alwaysHideSelectors = [
+    "[data-testid='stDecoration']",
+    "[data-testid='stStatusWidget']",
+    ".stStatusWidget",
+    "#MainMenu",
+    "[data-testid='stMainMenu']",
+    "footer",
+  ];
+
+  var sidebarToggleSelectors = [
+    "[data-testid='stExpandSidebarButton']",
+    "[data-testid='collapsedControl']",
+    "div:has(> [data-testid='collapsedControl'])",
+    "[data-testid='stHeader'] [data-testid='stExpandSidebarButton']",
+    "[data-testid='stHeader'] div:has(> [data-testid='collapsedControl'])",
+  ];
+
   var css = [
-    "header[data-testid='stHeader'],",
-    "[data-testid='stToolbar'],",
-    "[data-testid='stDecoration'],",
-    "[data-testid='stStatusWidget'],",
-    ".stStatusWidget,",
-    "#MainMenu,",
-    "[data-testid='stMainMenu'],",
-    "footer {",
+    ".stApp:has(.velox-id-bar) header[data-testid='stHeader'],",
+    ".stApp:has(.velox-auth-brand) header[data-testid='stHeader'],",
+    ".stApp:has(.velox-id-bar) [data-testid='stToolbar'],",
+    ".stApp:has(.velox-auth-brand) [data-testid='stToolbar'],",
+    ".stApp:has(.velox-id-bar) [data-testid='stDecoration'],",
+    ".stApp:has(.velox-auth-brand) [data-testid='stDecoration'],",
+    ".stApp:has(.velox-id-bar) [data-testid='stStatusWidget'],",
+    ".stApp:has(.velox-auth-brand) [data-testid='stStatusWidget'],",
+    ".stApp:has(.velox-id-bar) .stStatusWidget,",
+    ".stApp:has(.velox-auth-brand) .stStatusWidget,",
+    ".stApp:has(.velox-id-bar) #MainMenu,",
+    ".stApp:has(.velox-auth-brand) #MainMenu,",
+    ".stApp:has(.velox-id-bar) [data-testid='stMainMenu'],",
+    ".stApp:has(.velox-auth-brand) [data-testid='stMainMenu'],",
+    ".stApp:has(.velox-id-bar) footer,",
+    ".stApp:has(.velox-auth-brand) footer {",
     "  display: none !important;",
     "  visibility: hidden !important;",
     "  opacity: 0 !important;",
@@ -83,17 +119,15 @@
     }, 320);
   }
 
-  function hideNativeChrome() {
-    var selectors = [
-      "header[data-testid='stHeader']",
-      "[data-testid='stToolbar']",
-      "[data-testid='stDecoration']",
-      "[data-testid='stStatusWidget']",
-      ".stStatusWidget",
-      "#MainMenu",
-      "[data-testid='stMainMenu']",
-      "footer",
-    ];
+  function isAuthScreen() {
+    return !!document.querySelector(".velox-id-bar, .velox-auth-brand");
+  }
+
+  function isPostLogin() {
+    return !!document.querySelector('[data-testid="stSidebar"]') && !isAuthScreen();
+  }
+
+  function hideElements(selectors) {
     selectors.forEach(function (sel) {
       document.querySelectorAll(sel).forEach(function (el) {
         el.style.setProperty("display", "none", "important");
@@ -104,6 +138,57 @@
         el.style.setProperty("pointer-events", "none", "important");
       });
     });
+  }
+
+  function clearInlineStyles(selectors) {
+    var props = [
+      "display",
+      "visibility",
+      "opacity",
+      "height",
+      "min-height",
+      "max-height",
+      "overflow",
+      "pointer-events",
+    ];
+    selectors.forEach(function (sel) {
+      document.querySelectorAll(sel).forEach(function (el) {
+        props.forEach(function (prop) {
+          el.style.removeProperty(prop);
+        });
+      });
+    });
+  }
+
+  function ensureSidebarToggleVisible() {
+    sidebarToggleSelectors.forEach(function (sel) {
+      document.querySelectorAll(sel).forEach(function (el) {
+        el.style.removeProperty("display");
+        el.style.removeProperty("visibility");
+        el.style.removeProperty("opacity");
+        el.style.removeProperty("height");
+        el.style.removeProperty("overflow");
+        el.style.setProperty("pointer-events", "auto", "important");
+      });
+    });
+  }
+
+  function hideNativeChrome() {
+    hideElements(alwaysHideSelectors);
+
+    if (dismissed && isPostLogin()) {
+      clearInlineStyles(["header[data-testid='stHeader']", "[data-testid='stToolbar']"]);
+      ensureSidebarToggleVisible();
+      return;
+    }
+
+    if (isAuthScreen() || !dismissed) {
+      hideElements(bootHideSelectors);
+      return;
+    }
+
+    clearInlineStyles(["header[data-testid='stHeader']", "[data-testid='stToolbar']"]);
+    ensureSidebarToggleVisible();
   }
 
   function appReady() {
@@ -127,14 +212,15 @@
     if (!status) return false;
     var rect = status.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return false;
-    var style = window.getComputedStyle(status);
-    return style.display !== "none" && style.visibility !== "hidden" && style.opacity !== "0";
+    var computed = window.getComputedStyle(status);
+    return computed.display !== "none" && computed.visibility !== "hidden" && computed.opacity !== "0";
   }
 
   function dismissLoader() {
     if (dismissed) return;
     dismissed = true;
     hideOverlay();
+    hideNativeChrome();
   }
 
   function syncLoader() {
@@ -168,6 +254,8 @@
   window.setInterval(function () {
     if (!dismissed && appReady() && !streamlitRunning()) {
       dismissLoader();
+    } else if (dismissed && isPostLogin()) {
+      hideNativeChrome();
     }
   }, 500);
 

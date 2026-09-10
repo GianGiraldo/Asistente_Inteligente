@@ -299,6 +299,18 @@ def _ensure_streamlit_secrets() -> None:
             ]
         )
 
+    tg_token = (os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
+    tg_chat_id = (os.getenv("TELEGRAM_CHAT_ID") or "").strip()
+    if tg_token or tg_chat_id:
+        lines.extend(
+            [
+                "[telegram]",
+                f'TELEGRAM_BOT_TOKEN = "{_toml_escape(tg_token)}"',
+                f'TELEGRAM_CHAT_ID = "{_toml_escape(tg_chat_id)}"',
+                "",
+            ]
+        )
+
     with open(secrets_path, "w", encoding="utf-8") as fh:
         fh.write("\n".join(lines))
     logger.info("secrets.toml generado para Streamlit")

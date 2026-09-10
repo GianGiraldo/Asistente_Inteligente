@@ -438,18 +438,23 @@ class PaymentManager:
             if fila not in candidatos:
                 candidatos.append(fila)
 
+        print(
+            f"[velox-cobranzas] _insertar_comprobante inicio | email={email_norm} "
+            f"metodo={metodo_pago} candidatos={len(candidatos)}",
+            flush=True,
+        )
         ultimo_error = ""
         for data in candidatos:
             ok_rest, msg_rest = self._rest_insert_comprobante(data)
             if ok_rest:
-                notificar_nueva_solicitud_cobranza(data)
+                self._notificar_telegram_comprobante_ok(data, via="rest")
                 return True, "ok"
             ultimo_error = msg_rest
 
             try:
                 result = self.db.table(TABLA_COMPROBANTES).insert(data).execute()
                 if result.data:
-                    notificar_nueva_solicitud_cobranza(data)
+                    self._notificar_telegram_comprobante_ok(data, via="supabase_sdk")
                     return True, "ok"
                 ultimo_error = "No se pudo registrar el comprobante en Supabase"
             except Exception as e:
@@ -464,6 +469,22 @@ class PaymentManager:
             f"Error guardando comprobante: {ultimo_error}. "
             "Ejecuta sql/payments_schema.sql en Supabase para alinear la tabla comprobantes."
         )
+
+    @staticmethod
+    def _notificar_telegram_comprobante_ok(data: Dict[str, Any], via: str) -> None:
+        """Hook post-insert comprobante → alerta Telegram (no bloqueante)."""
+        email = (data.get("usuario_email") or data.get("email") or "").strip()
+        print(
+            f"[velox-cobranzas] insert OK ({via}) -> notificar Telegram | email={email or '?'}",
+            flush=True,
+        )
+        try:
+            notificar_nueva_solicitud_cobranza(data)
+        except Exception as exc:
+            print(
+                f"[velox-cobranzas] fallo al invocar Telegram (ignorado): {exc}",
+                flush=True,
+            )
 
     @staticmethod
     def _es_error_supabase_reintentable(error_text: str) -> bool:

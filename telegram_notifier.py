@@ -10,20 +10,48 @@ from typing import Any, Dict, Optional, Tuple
 import requests
 
 logger = logging.getLogger(__name__)
+if not logging.getLogger().handlers:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
 
-def _resolve_telegram_credentials() -> Tuple[str, str]:
+def _log(msg: str) -> None:
+    """Stdout con flush para que Cloud Run capture la traza de inmediato."""
+    print(msg, flush=True)
+    logger.info("%s", msg)
+
+
+def _resumen_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Datos seguros para log (sin URLs largas ni tokens)."""
+    return {
+        "usuario_email": (payload.get("usuario_email") or payload.get("email") or "").strip(),
+        "celular": (payload.get("celular") or "").strip(),
+        "metodo_pago": (payload.get("metodo_pago") or "").strip(),
+        "monto": payload.get("monto"),
+        "plan_seleccionado": (payload.get("plan_seleccionado") or "").strip(),
+        "cursos_solicitados": payload.get("cursos_solicitados"),
+        "tiene_comprobante": bool(
+            (payload.get("archivo_url") or payload.get("comprobante_url") or "").strip()
+        ),
+    }
+
+
+def _resolve_telegram_credentials() -> Tuple[str, str, str]:
     """Lee TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID desde env o st.secrets."""
     token = (os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
     chat_id = (os.getenv("TELEGRAM_CHAT_ID") or "").strip()
+    origen = "env" if token and chat_id else ""
 
     try:
         import streamlit as st
 
         if not token:
             token = str(st.secrets.get("TELEGRAM_BOT_TOKEN") or "").strip()
+            if token:
+                origen = "secrets_root"
         if not chat_id:
             chat_id = str(st.secrets.get("TELEGRAM_CHAT_ID") or "").strip()
+            if chat_id and not origen:
+                origen = "secrets_root"
 
         bloque = st.secrets.get("telegram")
         if bloque:
@@ -33,16 +61,25 @@ def _resolve_telegram_credentials() -> Tuple[str, str]:
                     or bloque.get("TELEGRAM_BOT_TOKEN")
                     or ""
                 ).strip()
+                if token:
+                    origen = "secrets_telegram"
             if not chat_id:
                 chat_id = str(
                     bloque.get("chat_id")
                     or bloque.get("TELEGRAM_CHAT_ID")
                     or ""
                 ).strip()
-    except Exception:
-        pass
+                if chat_id and not origen:
+                    origen = "secrets_telegram"
+    except Exception as exc:
+        logger.info("Telegram: no se pudieron leer st.secrets (%s)", exc)
 
-    return token, chat_id
+    if token and chat_id and origen.startswith("env"):
+        origen = "env"
+    elif token and chat_id and not origen:
+        origen = "mixto"
+
+    return token, chat_id, origen
 
 
 def _formatear_cursos(cursos_raw: Any) -> str:
@@ -100,29 +137,50 @@ def _formatear_mensaje_cobranza(payload: Dict[str, Any]) -> str:
 def notificar_nueva_solicitud_cobranza(payload: Optional[Dict[str, Any]] = None) -> None:
     """Envía alerta Telegram; fallos se registran en log sin afectar la app."""
     if not payload:
+        _log("[velox-telegram] omitido: payload vacío")
         return
 
-    token, chat_id = _resolve_telegram_credentials()
+    resumen = _resumen_payload(payload)
+    _log(f"[velox-telegram] disparo notificación | datos={resumen}")
+
+    token, chat_id, origen = _resolve_telegram_credentials()
+    token_ok = bool(token)
+    chat_ok = bool(chat_id)
+    _log(
+        f"[velox-telegram] credenciales | origen={origen or 'NO'} "
+        f"token={'OK' if token_ok else 'NO'} chat_id={'OK' if chat_ok else 'NO'}"
+    )
     if not token or not chat_id:
+        _log("[velox-telegram] abortado: faltan TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID")
         return
+
+    texto = _formatear_mensaje_cobranza(payload)
+    chat_id_payload: Any = chat_id
+    if str(chat_id).lstrip("-").isdigit():
+        chat_id_payload = int(chat_id)
+    body = {"chat_id": chat_id_payload, "text": texto}
+    _log(
+        f"[velox-telegram] POST sendMessage | chat_id={chat_id_payload} "
+        f"texto_len={len(texto)} preview={texto[:120]!r}"
+    )
 
     try:
         url = f"https://api.telegram.org/bot{token}/sendMessage"
-        response = requests.post(
-            url,
-            json={
-                "chat_id": chat_id,
-                "text": _formatear_mensaje_cobranza(payload),
-            },
-            timeout=10,
-        )
+        response = requests.post(url, json=body, timeout=10)
+        status = response.status_code
+        resp_text = (response.text or "")[:500]
+        _log(f"[velox-telegram] respuesta HTTP status={status} body={resp_text}")
         if not response.ok:
             logger.warning(
                 "Telegram cobranzas HTTP %s: %s",
-                response.status_code,
-                (response.text or "")[:300],
+                status,
+                resp_text,
             )
+        else:
+            _log("[velox-telegram] envío OK")
     except requests.RequestException as exc:
+        _log(f"[velox-telegram] error de red: {exc}")
         logger.warning("Telegram cobranzas (red): %s", exc)
     except Exception as exc:
+        _log(f"[velox-telegram] error inesperado: {exc}")
         logger.warning("Telegram cobranzas: %s", exc)

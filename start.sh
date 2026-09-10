@@ -16,7 +16,8 @@ _ensure_streamlit_secrets()
 "
 
 echo "[velox] Iniciando Streamlit en 127.0.0.1:8501..."
-python -m streamlit run app.py \
+# tee: conserva ST_LOG para diagnóstico y replica stdout en Cloud Run
+( python -m streamlit run app.py \
   --server.port=8501 \
   --server.address=127.0.0.1 \
   --server.headless=true \
@@ -24,7 +25,7 @@ python -m streamlit run app.py \
   --server.enableCORS=false \
   --server.enableXsrfProtection=false \
   --server.enableWebsocketCompression=false \
-  >>"$ST_LOG" 2>&1 &
+  2>&1 | tee -a "$ST_LOG" ) &
 ST_PID=$!
 
 echo "[velox] Iniciando API FastAPI en 127.0.0.1:8502..."
